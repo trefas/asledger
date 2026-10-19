@@ -1,18 +1,65 @@
 {{define "content"}}
 <h1>Журнал проводок</h1>
 {{with .Data}}
+{{if .Negative}}
+<div class="flash flash-warn" role="alert">
+  <strong>Отрицательный остаток:</strong>
+  {{range $i, $path := .Negative}}{{if $i}}, {{end}}{{$path}}{{end}}.
+  Внесите корректировку на <a href="/reconcile">сверке</a> или сторнируйте проводку ниже.
+</div>
+{{end}}
+<form class="filters" method="get" action="/">
+  <label>С <input type="date" name="from" value="{{.From}}"></label>
+  <label>По <input type="date" name="to" value="{{.To}}"></label>
+  <label>Счёт
+    <select name="account">
+      <option value="">все</option>
+      {{$account := .AccountPath}}
+      {{range .Accounts}}<option value="{{.Path}}"{{if eq .Path $account}} selected{{end}}>{{.Path}}</option>{{end}}
+    </select>
+  </label>
+  <label>Операция
+    <select name="op_type">
+      <option value="">все</option>
+      {{$op := .OpType}}
+      {{range .OpTypes}}<option value="{{.}}"{{if eq (printf "%v" .) $op}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+  </label>
+  <label>Автор
+    <select name="actor_id">
+      <option value="">все</option>
+      {{range .Actors}}<option value="{{.ID}}"{{if eq .ID $.Data.ActorID}} selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+  </label>
+  <label>Сумма от <input type="text" name="amount_from" value="{{.AmountFrom}}" placeholder="0,00"></label>
+  <label>до <input type="text" name="amount_to" value="{{.AmountTo}}" placeholder="0,00"></label>
+  <button type="submit">Показать</button>
+  {{if .HasFilter}}<a class="link-reset" href="/">Сбросить</a>{{end}}
+</form>
+
 {{if .Empty}}
   <p class="empty">Пока нет ни одной проводки. <a href="/entry">Добавить проводку</a>.</p>
 {{else}}
-  <p class="muted">Показаны последние {{len .Transactions}} проводок.</p>
+  <p class="muted">Всего проводок: {{.Total}}. Страница {{.Page}} из {{.Pages}}.</p>
   <ul class="journal">
   {{range .Transactions}}
-    <li class="tx">
+    <li class="tx{{if .Duplicate}} tx-duplicate{{end}}">
       <div class="tx-head">
         <span class="tx-date">{{date .Date}}</span>
         <span class="tx-type">{{.OpType}}</span>
         {{if .Description}}<span class="tx-desc">{{.Description}}</span>{{end}}
         <span class="tx-sum">{{money .Total}}</span>
+      </div>
+      <div class="tx-tags">
+        {{if .Duplicate}}<span class="badge badge-warn" title="Совпадают тип, дата, счета и суммы">Возможный дубль</span>{{end}}
+        {{if .Reversal}}<span class="badge">Сторно</span>{{end}}
+        {{if .Reversed}}<span class="badge badge-muted">Отменена</span>{{end}}
+        {{if and (not .Reversal) (not .Reversed)}}
+          <form class="tx-action" method="post" action="/journal/reverse">
+            <input type="hidden" name="uuid" value="{{.UUID}}">
+            <button type="submit" class="link-button">Отменить (сторно)</button>
+          </form>
+        {{end}}
       </div>
       <ul class="tx-lines">
       {{range .Lines}}
@@ -26,6 +73,11 @@
     </li>
   {{end}}
   </ul>
+  <nav class="pager">
+    {{if .PrevLink}}<a href="{{.PrevLink}}">← Новее</a>{{end}}
+    <span>Страница {{.Page}} из {{.Pages}}</span>
+    {{if .NextLink}}<a href="{{.NextLink}}">Старее →</a>{{end}}
+  </nav>
 {{end}}
 {{end}}
 {{end}}

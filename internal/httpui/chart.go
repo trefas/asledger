@@ -259,6 +259,18 @@ func minBalanceLabel(value money.Kop) string {
 	return value.String()
 }
 
+// indent отбивает иерархию в таблицах отчётов.
+func indent(depth int) string {
+	if depth <= 0 {
+		return ""
+	}
+	out := make([]byte, 0, depth*2)
+	for i := 0; i < depth; i++ {
+		out = append(out, '\u00a0', '\u00a0')
+	}
+	return string(out)
+}
+
 // treeCount считает счета дерева.
 func treeCount(nodes []*accountNode) int {
 	total := 0

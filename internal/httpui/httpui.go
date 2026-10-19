@@ -23,7 +23,9 @@ import (
 	"github.com/trefas/asledger/pkg/core/engine"
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
+	reconcilesvc "github.com/trefas/asledger/pkg/core/reconcile"
 	"github.com/trefas/asledger/pkg/core/store"
+	syncsvc "github.com/trefas/asledger/pkg/core/sync"
 )
 
 //go:embed templates/*.html
@@ -51,6 +53,8 @@ type Server struct {
 	cfg    Config
 	db     *store.DB
 	engine *engine.Engine
+	sync   *syncsvc.Service
+	recon  *reconcilesvc.Service
 	logger *slog.Logger
 	pages  map[string]*template.Template
 	static http.Handler
@@ -78,14 +82,16 @@ type pageData struct {
 
 // pageFiles сопоставляет имя страницы файлу шаблона.
 var pageFiles = map[string]string{
-	"journal": "journal.html",
-	"entry":   "entry.html",
-	"setup":   "setup.html",
-	"data":    "data.html",
-	"chart":   "chart.html",
-	"users":   "users.html",
-	"initial": "initial.html",
-	"error":   "error.html",
+	"journal":   "journal.html",
+	"entry":     "entry.html",
+	"setup":     "setup.html",
+	"data":      "data.html",
+	"chart":     "chart.html",
+	"users":     "users.html",
+	"initial":   "initial.html",
+	"reports":   "reports.html",
+	"reconcile": "reconcile.html",
+	"error":     "error.html",
 }
 
 // New создаёт web-интерфейс и разбирает шаблоны.
@@ -98,6 +104,8 @@ func New(cfg Config) (*Server, error) {
 		cfg:    cfg,
 		db:     cfg.DB,
 		engine: engine.New(cfg.DB),
+		sync:   syncsvc.New(cfg.DB),
+		recon:  reconcilesvc.New(cfg.DB),
 		logger: logger,
 		pages:  make(map[string]*template.Template),
 	}
@@ -119,6 +127,7 @@ func (s *Server) loadTemplates() error {
 		"minbalance": minBalanceLabel,
 		"date":       func(t time.Time) string { return t.Format("02.01.2006") },
 		"side":       sideLabel,
+		"indent":     indent,
 	}
 	for name, file := range pageFiles {
 		t, err := template.New("layout").Funcs(funcs).
@@ -168,6 +177,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /data", s.handleData)
 	mux.HandleFunc("POST /data/import", s.handleDataImport)
 	mux.HandleFunc("GET /data/export/{format}", s.handleDataExport)
+
+	mux.HandleFunc("GET /reports", s.handleReports)
+	mux.HandleFunc("GET /reconcile", s.handleReconcileForm)
+	mux.HandleFunc("POST /reconcile", s.handleReconcileSubmit)
+	mux.HandleFunc("POST /journal/reverse", s.handleJournalReverse)
 
 	mux.HandleFunc("GET /suggest.json", s.handleSuggestJSON)
 	mux.HandleFunc("GET /matrix.json", s.handleMatrixJSON)

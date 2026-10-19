@@ -1,0 +1,93 @@
+{{define "content"}}
+<h1>Отчёты</h1>
+{{with .Data}}
+<form class="filters" method="get" action="/reports">
+  <label>С <input type="date" name="from" value="{{.From}}"></label>
+  <label>По <input type="date" name="to" value="{{.To}}"></label>
+  <label>Узел оборотов
+    <select name="node">
+      <option value="">вся книга</option>
+      {{$node := .Node}}
+      {{range .Accounts}}<option value="{{.Path}}"{{if eq .Path $node}} selected{{end}}>{{.Path}}</option>{{end}}
+    </select>
+  </label>
+  <label class="check"><input type="checkbox" name="include_empty" value="1"{{if .IncludeEmpty}} checked{{end}}> пустые счета</label>
+  <label class="check"><input type="checkbox" name="include_archived" value="1"{{if .IncludeArchived}} checked{{end}}> архивные</label>
+  <button type="submit">Показать</button>
+</form>
+
+{{if .Negative}}
+<div class="flash flash-warn" role="alert">
+  <strong>Отрицательный остаток на счетах:</strong>
+  {{range $i, $path := .Negative}}{{if $i}}, {{end}}{{$path}}{{end}}.
+  Это возможно в свободном режиме контроля остатка —
+  <a href="/reconcile">сверьте счёт</a> или сторнируйте проводку в
+  <a href="/">журнале</a>.
+</div>
+{{end}}
+
+<section class="card">
+  <h2>Остатки по активам</h2>
+  <table class="report">
+    <thead><tr><th>Счёт</th><th>Тип</th><th>Остаток счёта</th><th>С поддеревом</th></tr></thead>
+    <tbody>
+    {{range .Balances.Rows}}
+      <tr{{if .Negative}} class="negative"{{end}}>
+        <td class="account">{{indent .Depth}}{{.Name}}{{if .Negative}} <span class="badge badge-warn">минус</span>{{end}}</td>
+        <td>{{.Type}}</td>
+        <td class="num">{{money .Own}}</td>
+        <td class="num">{{money .Total}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+    <tfoot>
+      <tr><th colspan="3">Активы</th><td class="num">{{money .Balances.Assets}}</td></tr>
+      <tr><th colspan="3">Обязательства</th><td class="num">{{money .Balances.Liabilities}}</td></tr>
+      <tr><th colspan="3">Капитал (активы − обязательства)</th><td class="num">{{money .Balances.NetWorth}}</td></tr>
+    </tfoot>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Обороты за период</h2>
+  <p class="muted">Период: {{.Period}}{{if .Node}} · узел: {{.Node}}{{end}}</p>
+  <table class="report">
+    <thead><tr><th>Счёт</th><th>На начало</th><th>Дебет</th><th>Кредит</th><th>На конец</th></tr></thead>
+    <tbody>
+    {{range .Turnovers.Rows}}
+      <tr>
+        <td class="account">{{indent .Depth}}{{.Name}}</td>
+        <td class="num">{{money .Opening}}</td>
+        <td class="num">{{money .Debit}}</td>
+        <td class="num">{{money .Credit}}</td>
+        <td class="num">{{money .Closing}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Расходы по членам семьи</h2>
+  <p class="muted">Период: {{.Period}}</p>
+  {{if .Expenses.Actors}}
+  <table class="report">
+    <thead><tr><th>Член семьи</th><th>Статья</th><th>Сумма</th></tr></thead>
+    <tbody>
+    {{range .Expenses.Actors}}
+      <tr class="total"><td>{{.Name}}</td><td>всего</td><td class="num">{{money .Total}}</td></tr>
+      {{range .Articles}}
+        <tr><td class="account">{{indent 1}}{{.Path}}</td><td></td><td class="num">{{money .Amount}}</td></tr>
+      {{end}}
+    {{end}}
+    </tbody>
+    <tfoot>
+      <tr><th colspan="2">Итого расходов</th><td class="num">{{money .Expenses.Total}}</td></tr>
+    </tfoot>
+  </table>
+  {{else}}
+  <p class="empty">За период расходов нет.</p>
+  {{end}}
+</section>
+{{end}}
+{{end}}

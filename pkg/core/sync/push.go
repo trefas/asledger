@@ -233,6 +233,21 @@ func statusFor(warnings []string) Status {
 	return StatusAccepted
 }
 
+// Duplicates возвращает плашку «Возможный дубль» для проводки.
+//
+// Используется web-интерфейсом после онлайн-проводки: если найдены совпадения,
+// форма показывает плашку с действием «отменить» (сторно).
+func (s *Service) Duplicates(ctx context.Context, tr *model.Transaction) ([]Duplicate, error) {
+	existing, err := s.duplicateUUIDs(ctx, tr)
+	if err != nil {
+		return nil, err
+	}
+	if len(existing) == 0 {
+		return nil, nil
+	}
+	return []Duplicate{{UUID: tr.UUID, Existing: existing}}, nil
+}
+
 // duplicateUUIDs ищет проводки, совпадающие по типу, дате, счетам и суммам.
 //
 // Это эвристика раздела 9.3: коммит принимается, но клиент и web-интерфейс

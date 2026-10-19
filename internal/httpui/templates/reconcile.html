@@ -1,0 +1,49 @@
+{{define "content"}}
+<h1>Сверка счёта</h1>
+{{with .Data}}
+<p class="muted">Введите фактический остаток счёта — система покажет расхождение с расчётным и в один клик создаст корректировку через служебный счёт «Капитал:Корректировка».</p>
+
+{{if .Discrepancies}}
+<div class="card">
+  <h2>Расхождения по счетам</h2>
+  <table>
+    <thead><tr><th>Счёт</th><th>Факт</th><th>Расчётный</th><th>Расхождение</th><th>Проверен</th><th></th></tr></thead>
+    <tbody>
+    {{range .Discrepancies}}
+      <tr{{if not .Adjustable}} class="muted"{{end}}>
+        <td>{{.Path}}</td>
+        <td class="num">{{money .Fact}}</td>
+        <td class="num">{{money .Balance}}</td>
+        <td class="num{{if .Difference}} negative-text{{end}}">{{money .Difference}}</td>
+        <td>{{date .CheckedAt}}</td>
+        <td><a href="/reconcile?account={{.AccountID}}">В форму</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p class="muted">Расхождений нет: все сверенные счета сходятся с журналом.</p>
+{{end}}
+
+<div class="card">
+  <h2>Новая сверка</h2>
+  <form method="post" action="/reconcile" class="row">
+    <div>
+      <label for="reconcile-account">Счёт</label>
+      <select id="reconcile-account" name="account_id" required>
+        {{range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Path}}</option>{{end}}
+      </select>
+    </div>
+    <div>
+      <label for="reconcile-amount">Фактический остаток (₽)</label>
+      <input type="text" id="reconcile-amount" name="amount" value="{{.Amount}}" required placeholder="например, 1 250,00">
+    </div>
+    <div class="check" style="align-self:end">
+      <label><input type="checkbox" name="generate" value="1" checked> создать корректировку</label>
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Сверить</button></div>
+  </form>
+</div>
+{{end}}
+{{end}}

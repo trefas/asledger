@@ -190,8 +190,19 @@ func (s *Server) handleEntrySubmit(w http.ResponseWriter, r *http.Request) {
 		Source:      "web",
 		Entries:     append(entriesA, entriesB...),
 	}
-	if _, err := s.engine.Post(ctx, operation, view.ActorID); err != nil {
+	transaction, err := s.engine.Post(ctx, operation, view.ActorID)
+	if err != nil {
 		s.entryFailureView(w, view, statusMessage(err))
+		return
+	}
+	// Плашка «Возможный дубль»: проводка принята, но похожа на уже введённую.
+	duplicates, err := s.sync.Duplicates(ctx, transaction)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if len(duplicates) > 0 {
+		http.Redirect(w, r, "/?flash="+encodeQuery("Проводка добавлена, но похожа на уже введённую — возможный дубль")+"&kind=warn", http.StatusSeeOther)
 		return
 	}
 	s.redirectOK(w, r, "/", "Проводка добавлена в журнал")
