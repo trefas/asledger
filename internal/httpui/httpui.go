@@ -81,6 +81,9 @@ var pageFiles = map[string]string{
 	"journal": "journal.html",
 	"entry":   "entry.html",
 	"setup":   "setup.html",
+	"chart":   "chart.html",
+	"users":   "users.html",
+	"initial": "initial.html",
 	"error":   "error.html",
 }
 
@@ -111,9 +114,10 @@ func New(cfg Config) (*Server, error) {
 // loadTemplates разбирает layout вместе с каждой страницей.
 func (s *Server) loadTemplates() error {
 	funcs := template.FuncMap{
-		"money": func(k money.Kop) string { return k.String() },
-		"date":  func(t time.Time) string { return t.Format("02.01.2006") },
-		"side":  sideLabel,
+		"money":      func(k money.Kop) string { return k.String() },
+		"minbalance": minBalanceLabel,
+		"date":       func(t time.Time) string { return t.Format("02.01.2006") },
+		"side":       sideLabel,
 	}
 	for name, file := range pageFiles {
 		t, err := template.New("layout").Funcs(funcs).
@@ -142,6 +146,23 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /setup", s.handleSetupForm)
 	mux.HandleFunc("POST /setup/template", s.handleSetupTemplate)
 	mux.HandleFunc("POST /setup/import", s.handleSetupImport)
+
+	mux.HandleFunc("GET /chart", s.handleChart)
+	mux.HandleFunc("POST /chart/create", s.handleChartCreate)
+	mux.HandleFunc("POST /chart/rename", s.handleChartRename)
+	mux.HandleFunc("POST /chart/move", s.handleChartMove)
+	mux.HandleFunc("POST /chart/archive", s.handleChartArchive)
+	mux.HandleFunc("POST /chart/min-balance", s.handleChartMinBalance)
+	mux.HandleFunc("POST /chart/mode", s.handleChartMode)
+
+	mux.HandleFunc("GET /users", s.handleUsers)
+	mux.HandleFunc("POST /users/create", s.handleUsersCreate)
+	mux.HandleFunc("POST /users/rename", s.handleUsersRename)
+	mux.HandleFunc("POST /users/token", s.handleUserToken)
+	mux.HandleFunc("POST /users/revoke", s.handleUserRevoke)
+
+	mux.HandleFunc("GET /initial", s.handleInitialForm)
+	mux.HandleFunc("POST /initial", s.handleInitialSubmit)
 
 	mux.HandleFunc("GET /suggest.json", s.handleSuggestJSON)
 	mux.HandleFunc("GET /matrix.json", s.handleMatrixJSON)

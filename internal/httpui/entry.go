@@ -442,8 +442,29 @@ func rolesJSON() json.RawMessage {
 }
 
 // parseAmount разбирает сумму в рублях («1 234,56», «1234.5») в копейки без
-// чисел с плавающей точкой.
+// чисел с плавающей точкой и требует положительного значения.
 func parseAmount(raw string) (money.Kop, error) {
+	value, err := parseKop(raw)
+	if err != nil {
+		return 0, err
+	}
+	if value <= 0 {
+		return 0, errors.New("сумма должна быть больше нуля")
+	}
+	return value, nil
+}
+
+// parseSignedAmount разбирает сумму, допуская ноль и отрицательные значения
+// (например, min_balance со знаком минус для овердрафта).
+func parseSignedAmount(raw string) (money.Kop, error) {
+	if strings.TrimSpace(raw) == "" {
+		return 0, nil
+	}
+	return parseKop(raw)
+}
+
+// parseKop разбирает сумму в рублях в копейки без чисел с плавающей точкой.
+func parseKop(raw string) (money.Kop, error) {
 	s := strings.TrimSpace(raw)
 	s = strings.NewReplacer("\u00a0", "", " ", "", "₽", "", "р.", "", "руб.", "").Replace(s)
 	s = strings.ReplaceAll(s, ",", ".")
@@ -480,9 +501,6 @@ func parseAmount(raw string) (money.Kop, error) {
 	value := money.Kop(rub*100 + kop)
 	if negative {
 		value = -value
-	}
-	if value <= 0 {
-		return 0, errors.New("сумма должна быть больше нуля")
 	}
 	return value, nil
 }

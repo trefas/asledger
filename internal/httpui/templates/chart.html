@@ -1,0 +1,101 @@
+{{define "content"}}
+{{with .Data}}
+<h1>План счетов</h1>
+<p class="muted">Всего счетов: {{.Total}}, из них служебных: {{.SystemCount}}. Путь счёта строится автоматически, удаление заменено архивированием — история сохраняется.</p>
+
+<div class="card">
+  <h2>Новый счёт верхнего уровня</h2>
+  <form method="post" action="/chart/create" class="row">
+    <div>
+      <label for="root-name">Имя</label>
+      <input type="text" id="root-name" name="name" required placeholder="например, Активы">
+    </div>
+    <div>
+      <label for="root-type">Тип</label>
+      <select id="root-type" name="type">
+        {{range .Types}}<option value="{{.}}">{{.}}</option>{{end}}
+      </select>
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Создать</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Режим контроля остатка</h2>
+  <form method="post" action="/chart/mode">
+    <label class="op-type"><input type="radio" name="mode" value="{{.ModeFree}}"{{if eq .BalanceMode .ModeFree}} checked{{end}}> <span>свободный — проводка принимается, минус подсвечивается</span></label>
+    <label class="op-type"><input type="radio" name="mode" value="{{.ModeLimited}}"{{if eq .BalanceMode .ModeLimited}} checked{{end}}> <span>лимитный — проводка ниже min_balance отклоняется</span></label>
+    <div class="form-actions"><button class="btn" type="submit">Сохранить режим</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Дерево счетов</h2>
+  <ul class="tree">
+    {{range .Tree}}{{template "account" .}}{{end}}
+  </ul>
+  <datalist id="account-paths">
+    {{range .Accounts}}<option value="{{.FullPath}}">{{end}}
+  </datalist>
+</div>
+{{end}}
+{{end}}
+
+{{define "account"}}
+<li>
+  <div class="account-row">
+    <span class="account-path">{{.Account.FullPath}}</span>
+    <span class="account-type">{{.Account.Type}}</span>
+    {{if .Account.IsSystem}}<span class="badge">служебный</span>{{end}}
+    {{if .Account.IsLeaf}}{{else}}<span class="badge badge-muted">папка</span>{{end}}
+    {{if .Account.IsArchived}}<span class="badge badge-muted">архив</span>{{end}}
+    <span class="muted">min: {{minbalance .Account.MinBalance}}</span>
+  </div>
+
+  {{if .Account.IsSystem}}
+    <p class="muted">Служебный счёт защищён от редактирования.</p>
+  {{else}}
+  <details>
+    <summary class="muted">Изменить «{{.Account.Name}}»</summary>
+    <div class="row">
+      <form method="post" action="/chart/rename">
+        <input type="hidden" name="account_id" value="{{.Account.ID}}">
+        <label>Новое имя</label>
+        <input type="text" name="name" value="{{.Account.Name}}" required>
+        <button class="btn btn-small" type="submit">Переименовать</button>
+      </form>
+      <form method="post" action="/chart/move">
+        <input type="hidden" name="account_id" value="{{.Account.ID}}">
+        <label>Родитель (пусто — в корень)</label>
+        <input type="text" name="parent_path" list="account-paths" placeholder="например, Активы">
+        <button class="btn btn-small" type="submit">Переместить</button>
+      </form>
+      <form method="post" action="/chart/min-balance">
+        <input type="hidden" name="account_id" value="{{.Account.ID}}">
+        <label>min_balance, ₽</label>
+        <input type="text" name="min_balance" value="{{.Account.MinBalance}}" inputmode="decimal">
+        <button class="btn btn-small" type="submit">Сохранить остаток</button>
+      </form>
+      {{if and .Account.IsLeaf (not .Account.IsArchived)}}
+      <form method="post" action="/chart/archive" onsubmit="return confirm('Заархивировать счёт «{{.Account.FullPath}}»? История сохранится.')">
+        <input type="hidden" name="account_id" value="{{.Account.ID}}">
+        <label>&nbsp;</label>
+        <button class="btn btn-secondary btn-small" type="submit">Заархивировать</button>
+      </form>
+      {{end}}
+    </div>
+    <form method="post" action="/chart/create" class="row">
+      <input type="hidden" name="parent_id" value="{{.Account.ID}}">
+      <input type="hidden" name="type" value="{{.Account.Type}}">
+      <div>
+        <label>Новый дочерний счёт (тип «{{.Account.Type}}»)</label>
+        <input type="text" name="name" required placeholder="например, Наличные">
+      </div>
+      <div style="align-self:end"><button class="btn btn-small" type="submit">Создать дочерний</button></div>
+    </form>
+  </details>
+  {{end}}
+
+  {{if .Children}}<ul>{{range .Children}}{{template "account" .}}{{end}}</ul>{{end}}
+</li>
+{{end}}

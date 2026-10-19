@@ -129,3 +129,42 @@ func TestASL_5_Settings(t *testing.T) {
 		t.Fatalf("повторный DeleteSetting: %v", err)
 	}
 }
+
+// TestASL_5_RenameUser проверяет переименование пользователя семьи.
+func TestASL_5_RenameUser(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	user, err := db.CreateUser(ctx, "Андрей", "секрет-андрея")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if _, err := db.CreateUser(ctx, "Мария", "секрет-марии"); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	if err := db.RenameUser(ctx, user.ID, "Андрей Петрович"); err != nil {
+		t.Fatalf("RenameUser: %v", err)
+	}
+	renamed, err := db.User(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("User: %v", err)
+	}
+	if renamed.Name != "Андрей Петрович" {
+		t.Fatalf("имя после переименования: %q", renamed.Name)
+	}
+	// Секрет не меняется при переименовании.
+	if renamed.TokenHash != user.TokenHash {
+		t.Fatal("переименование изменило хеш секрета")
+	}
+
+	if err := db.RenameUser(ctx, user.ID, "Мария"); err == nil {
+		t.Fatal("переименование в занятое имя принято")
+	}
+	if err := db.RenameUser(ctx, user.ID, "  "); err == nil {
+		t.Fatal("пустое имя принято")
+	}
+	if err := db.RenameUser(ctx, 9999, "Кто-то"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("переименование отсутствующего пользователя: %v", err)
+	}
+}

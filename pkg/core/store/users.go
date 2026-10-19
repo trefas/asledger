@@ -54,6 +54,32 @@ func (db *DB) CreateUser(ctx context.Context, name, secret string) (*model.User,
 	return &model.User{ID: id, Name: name, TokenHash: tokenHash}, nil
 }
 
+// RenameUser переименовывает пользователя семьи.
+//
+// Пользователи и их устройства не входят в журнал изменений: они передаются
+// новым клиентам вместе со снапшотом книги.
+func (db *DB) RenameUser(ctx context.Context, id int64, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("store: имя пользователя не может быть пустым")
+	}
+	res, err := db.ExecContext(ctx, `UPDATE users SET name = ? WHERE id = ?`, name, id)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return fmt.Errorf("store: пользователь %q уже существует", name)
+		}
+		return fmt.Errorf("store: не удалось переименовать пользователя: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: не удалось переименовать пользователя: %w", err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("%w: пользователь %d", ErrNotFound, id)
+	}
+	return nil
+}
+
 // Authenticate проверяет секрет пользователя и при успехе возвращает его.
 //
 // Отсутствие пользователя даёт ErrNotFound, несовпадение секрета — ErrAuthFailed.

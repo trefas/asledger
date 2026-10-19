@@ -1,0 +1,84 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Начальные остатки</h1>
+
+{{if .Applied}}
+<div class="card card-narrow">
+  <h2>Остатки уже внесены</h2>
+  <p>Начальные остатки вводятся один раз. Строку <strong>{{.CapitalPath}}</strong> движок рассчитал автоматически.</p>
+  <p><a class="btn" href="/">Перейти в журнал</a></p>
+</div>
+{{else}}
+<p class="muted">Укажите остатки по активам и обязательствам. Строку <strong>{{.CapitalPath}}</strong> движок рассчитает сам: ΣА − ΣП = ΣК, вручную её задать нельзя. После сохранения повторный ввод будет запрещён.</p>
+
+{{if not .Users}}
+<div class="flash flash-error">Сначала создайте пользователя семьи: проводку подписывает автор.</div>
+{{end}}
+
+<form method="post" action="/initial" id="initial-form">
+  {{if .Assets}}
+  <div class="card">
+    <h2>Активы</h2>
+    <div class="entry-lines">
+      {{range .Assets}}
+      <div class="entry-line" data-side="asset">
+        <div>
+          <label>{{.FullPath}}</label>
+          <input type="hidden" name="asset_account" value="{{.ID}}">
+        </div>
+        <div>
+          <label>Остаток, ₽</label>
+          <input type="text" name="asset_amount" inputmode="decimal" placeholder="0,00" data-amount>
+        </div>
+        <div></div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+  {{if .Liabilities}}
+  <div class="card">
+    <h2>Обязательства</h2>
+    <div class="entry-lines">
+      {{range .Liabilities}}
+      <div class="entry-line" data-side="liability">
+        <div>
+          <label>{{.FullPath}}</label>
+          <input type="hidden" name="liability_account" value="{{.ID}}">
+        </div>
+        <div>
+          <label>Остаток, ₽</label>
+          <input type="text" name="liability_amount" inputmode="decimal" placeholder="0,00" data-amount>
+        </div>
+        <div></div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+  <div class="summary" id="capital-line">Строка капитала: 0,00 ₽</div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="date">Дата ввода</label>
+        <input type="date" id="date" name="date" value="{{.Date}}" required>
+      </div>
+      <div>
+        <label for="actor_id">Автор проводки</label>
+        <select id="actor_id" name="actor_id">
+          {{range .Users}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn" id="initial-submit">Внести начальные остатки</button>
+  </div>
+</form>
+{{end}}
+{{end}}
+{{end}}

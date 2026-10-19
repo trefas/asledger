@@ -1,0 +1,89 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Пользователи семьи</h1>
+<p class="muted">Проводки подписываются автором. Устройства подключаются к API по токену; в книге хранится только его хеш, поэтому токен показывается один раз при выпуске.</p>
+
+{{if .Token}}
+<div class="flash flash-ok" role="status">
+  <strong>Токен для устройства «{{.TokenClient}}» ({{.TokenOwner}})</strong>
+  <p><code class="token">{{.Token}}</code></p>
+  <p>Скопируйте его сейчас: повторно токен не показывается. При утере выпустите новый и отзовите старый.</p>
+</div>
+{{end}}
+
+<div class="card">
+  <h2>Новый пользователь</h2>
+  <form method="post" action="/users/create" class="row">
+    <div>
+      <label for="user-name">Имя</label>
+      <input type="text" id="user-name" name="name" required placeholder="например, Мама">
+    </div>
+    <div>
+      <label for="user-secret">Секрет</label>
+      <input type="password" id="user-secret" name="secret" required placeholder="длинная фраза">
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Создать</button></div>
+  </form>
+</div>
+
+{{if .Users}}
+<div class="card">
+  <h2>Выпуск токена устройства</h2>
+  <form method="post" action="/users/token" class="row">
+    <div>
+      <label for="token-user">Пользователь</label>
+      <select id="token-user" name="user_id">
+        {{range .Users}}<option value="{{.User.ID}}">{{.User.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div>
+      <label for="token-client">Устройство</label>
+      <input type="text" id="token-client" name="client_id" required placeholder="например, телефон-мамы">
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Выпустить токен</button></div>
+  </form>
+</div>
+{{end}}
+
+{{range .Users}}
+<div class="card">
+  <h2>{{.User.Name}}</h2>
+  <form method="post" action="/users/rename" class="row">
+    <input type="hidden" name="user_id" value="{{.User.ID}}">
+    <div>
+      <label>Новое имя</label>
+      <input type="text" name="name" value="{{.User.Name}}" required>
+    </div>
+    <div style="align-self:end"><button class="btn btn-secondary btn-small" type="submit">Переименовать</button></div>
+  </form>
+
+  <h3>Устройства</h3>
+  {{if .Devices}}
+  <table>
+    <thead><tr><th>Устройство</th><th>Подключено</th><th></th></tr></thead>
+    <tbody>
+    {{range .Devices}}
+      <tr>
+        <td>{{.ClientID}}</td>
+        <td>{{date .CreatedAt}}</td>
+        <td>
+          <form method="post" action="/users/revoke" class="inline-form" onsubmit="return confirm('Отозвать токен устройства «{{.ClientID}}»?')">
+            <input type="hidden" name="client_id" value="{{.ClientID}}">
+            <button class="btn btn-secondary btn-small" type="submit">Отозвать</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="muted">У пользователя пока нет подключённых устройств.</p>
+  {{end}}
+</div>
+{{end}}
+
+{{if not .Users}}
+<p class="empty">Пока нет пользователей. Создайте первого — он станет автором проводок.</p>
+{{end}}
+{{end}}
+{{end}}

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/trefas/asledger/pkg/core/auth"
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/store"
 )
@@ -543,4 +544,251 @@ func today() string { return time.Now().Format("2006-01-02") }
 // strconvID переводит идентификатор в строку.
 func strconvID(id int64) string {
 	return strconv.FormatInt(id, 10)
+}
+
+// TestASL_11_ChartEditor проверяет дерево, переименование, архивирование и
+// защиту служебных счетов.
+func TestASL_11_ChartEditor(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+
+	t.Run("создание счёта и пересчёт пути потомков", func(t *testing.T) {
+		rec := w.postForm(t, "/chart/create", url.Values{"name": {"Отпуск"}, "type": {"актив"}, "parent_id": {strconvID(w.accountID(t, "Активы"))}})
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("создание: код %d", rec.Code)
+		}
+		child := w.accountID(t, "Активы:Отпуск")
+
+		rec = w.postForm(t, "/chart/rename", url.Values{"account_id": {strconvID(child)}, "name": {"Отпуск 2026"}})
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("переименование: код %d", rec.Code)
+		}
+		if _, err := w.db.AccountByPath(context.Background(), "Активы:Отпуск 2026"); err != nil {
+			t.Fatalf("путь после переименования: %v", err)
+		}
+	})
+
+	t.Run("несовпадение типа с родителем", func(t *testing.T) {
+		rec := w.postForm(t, "/chart/create", url.Values{"name": {"Странный"}, "type": {"доход"}, "parent_id": {strconvID(w.accountID(t, "Активы"))}})
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("код %d", rec.Code)
+		}
+		if !strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("ошибка типа не показана: %q", rec.Header().Get("Location"))
+		}
+		if _, err := w.db.AccountByPath(context.Background(), "Активы:Странный"); err == nil {
+			t.Fatal("счёт с неверным типом создан")
+		}
+	})
+
+	t.Run("служебный счёт защищён", func(t *testing.T) {
+		capital := w.accountID(t, "Капитал:Начальные")
+		rec := w.postForm(t, "/chart/rename", url.Values{"account_id": {strconvID(capital)}, "name": {"Другое"}})
+		if !strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("служебный счёт переименован: %q", rec.Header().Get("Location"))
+		}
+		rec = w.postForm(t, "/chart/archive", url.Values{"account_id": {strconvID(capital)}})
+		if !strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("служебный счёт заархивирован: %q", rec.Header().Get("Location"))
+		}
+	})
+
+	t.Run("архивирование без удаления", func(t *testing.T) {
+		card := w.accountID(t, "Активы:Карта")
+		rec := w.postForm(t, "/chart/archive", url.Values{"account_id": {strconvID(card)}})
+		if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("архивирование: %q", rec.Header().Get("Location"))
+		}
+		acc, err := w.db.Account(context.Background(), card)
+		if err != nil {
+			t.Fatalf("счёт исчез: %v", err)
+		}
+		if !acc.IsArchived {
+			t.Fatal("счёт не заархивирован")
+		}
+		// Скрыт из обычного списка, но доступен вместе с архивом.
+		visible, err := w.db.ListAccounts(context.Background(), store.AccountFilter{})
+		if err != nil {
+			t.Fatalf("ListAccounts: %v", err)
+		}
+		for _, item := range visible {
+			if item.ID == card {
+				t.Fatal("заархивированный счёт виден в обычном списке")
+			}
+		}
+	})
+
+	t.Run("режим контроля остатка", func(t *testing.T) {
+		rec := w.postForm(t, "/chart/mode", url.Values{"mode": {store.BalanceModeLimited}})
+		if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("смена режима: %q", rec.Header().Get("Location"))
+		}
+		mode, ok, err := w.db.Setting(context.Background(), store.SettingBalanceMode)
+		if err != nil || !ok || mode != store.BalanceModeLimited {
+			t.Fatalf("режим: %q ok=%v err=%v", mode, ok, err)
+		}
+	})
+
+	t.Run("страница дерева", func(t *testing.T) {
+		rec := w.get(t, "/chart")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("код %d", rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "План счетов") || !strings.Contains(body, "Расходы:Продукты") {
+			t.Fatal("дерево счетов не отрисовано")
+		}
+		if !strings.Contains(body, "служебный") {
+			t.Fatal("служебные счета не помечены")
+		}
+	})
+}
+
+// TestASL_11_UsersAndTokens проверяет управление пользователями и токенами.
+func TestASL_11_UsersAndTokens(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+
+	t.Run("создание и переименование", func(t *testing.T) {
+		rec := w.postForm(t, "/users/create", url.Values{"name": {"Мама"}, "secret": {"секрет-мамы"}})
+		if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("создание пользователя: %q", rec.Header().Get("Location"))
+		}
+		user, err := w.db.UserByName(context.Background(), "Мама")
+		if err != nil {
+			t.Fatalf("UserByName: %v", err)
+		}
+		rec = w.postForm(t, "/users/rename", url.Values{"user_id": {strconvID(user.ID)}, "name": {"Мария"}})
+		if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("переименование: %q", rec.Header().Get("Location"))
+		}
+		if _, err := w.db.UserByName(context.Background(), "Мария"); err != nil {
+			t.Fatalf("пользователь не переименован: %v", err)
+		}
+	})
+
+	t.Run("токен показывается один раз и хранится хешем", func(t *testing.T) {
+		user, err := w.db.UserByName(context.Background(), "Мария")
+		if err != nil {
+			t.Fatalf("UserByName: %v", err)
+		}
+		rec := w.postForm(t, "/users/token", url.Values{
+			"user_id": {strconvID(user.ID)}, "client_id": {"телефон-мамы"},
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("выпуск токена: код %d", rec.Code)
+		}
+		token := extractToken(t, rec.Body.String())
+		if token == "" {
+			t.Fatal("токен не показан")
+		}
+
+		device, err := w.db.DeviceByTokenHash(context.Background(), auth.HashToken(token))
+		if err != nil {
+			t.Fatalf("устройство не привязано: %v", err)
+		}
+		if device.ClientID != "телефон-мамы" || device.UserID != user.ID {
+			t.Fatalf("устройство: %+v", device)
+		}
+
+		// Открытый токен больше не показывается при обычном открытии страницы.
+		again := w.get(t, "/users")
+		if strings.Contains(again.Body.String(), token) {
+			t.Fatal("токен показан повторно")
+		}
+	})
+
+	t.Run("отозванный токен перестаёт работать", func(t *testing.T) {
+		rec := w.postForm(t, "/users/revoke", url.Values{"client_id": {"телефон-мамы"}})
+		if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("отзыв: %q", rec.Header().Get("Location"))
+		}
+		devices, err := w.db.ListDevices(context.Background())
+		if err != nil {
+			t.Fatalf("ListDevices: %v", err)
+		}
+		for _, device := range devices {
+			if device.ClientID == "телефон-мамы" {
+				t.Fatal("устройство осталось после отзыва")
+			}
+		}
+	})
+}
+
+// TestASL_11_InitialBalances проверяет ввод стартовых остатков и запрет повтора.
+func TestASL_11_InitialBalances(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+
+	rec := w.get(t, "/initial")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("форма остатков: код %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Капитал:Начальные") {
+		t.Fatal("форма не показывает служебную строку капитала")
+	}
+
+	form := url.Values{
+		"date":              {today()},
+		"asset_account":     {strconvID(w.accountID(t, "Активы:Наличные")), strconvID(w.accountID(t, "Активы:Карта"))},
+		"asset_amount":      {"100 000,00", "50 000,00"},
+		"liability_account": {strconvID(w.accountID(t, "Обязательства:Кредит"))},
+		"liability_amount":  {"30 000,00"},
+	}
+	rec = w.postForm(t, "/initial", form)
+	if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "kind=error") {
+		t.Fatalf("ввод остатков: %q", rec.Header().Get("Location"))
+	}
+
+	ctx := context.Background()
+	transactions, err := w.db.ListTransactions(ctx, store.TransactionFilter{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	if len(transactions) != 1 {
+		t.Fatalf("проводок %d, ожидалась 1", len(transactions))
+	}
+	// ΣА − ΣП = ΣК: капитал — 120 000,00 ₽.
+	total, err := w.db.SubtreeBalance(ctx, "Капитал")
+	if err != nil {
+		t.Fatalf("SubtreeBalance: %v", err)
+	}
+	if total != 12000000 {
+		t.Fatalf("капитал %d, ожидалось 12000000", total)
+	}
+
+	t.Run("повторный ввод запрещён", func(t *testing.T) {
+		rec := w.postForm(t, "/initial", form)
+		if !strings.Contains(rec.Header().Get("Location"), "kind=error") {
+			t.Fatalf("повтор принят: %q", rec.Header().Get("Location"))
+		}
+		transactions, err := w.db.ListTransactions(ctx, store.TransactionFilter{Limit: 10})
+		if err != nil {
+			t.Fatalf("ListTransactions: %v", err)
+		}
+		if len(transactions) != 1 {
+			t.Fatalf("повтор создал проводку: %d", len(transactions))
+		}
+		// Форма заменяется сообщением о завершённом вводе.
+		page := w.get(t, "/initial")
+		if !strings.Contains(page.Body.String(), "Остатки уже внесены") {
+			t.Fatal("форма не заблокирована после ввода")
+		}
+	})
+}
+
+// extractToken достаёт выпущенный токен из страницы пользователей.
+func extractToken(t *testing.T, body string) string {
+	t.Helper()
+	const marker = `<code class="token">`
+	start := strings.Index(body, marker)
+	if start < 0 {
+		return ""
+	}
+	start += len(marker)
+	end := strings.Index(body[start:], "</code>")
+	if end < 0 {
+		return ""
+	}
+	return body[start : start+end]
 }

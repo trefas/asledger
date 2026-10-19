@@ -600,9 +600,63 @@
     recompute();
   }
 
+  // === Начальные остатки: строка капитала ===
+
+  function initInitialForm() {
+    var form = document.getElementById('initial-form');
+    var capital = document.getElementById('capital-line');
+    var submit = document.getElementById('initial-submit');
+    if (!form || !capital) {
+      return;
+    }
+
+    function recompute() {
+      var sumAssets = 0;
+      var sumLiabilities = 0;
+      var filled = 0;
+      form.querySelectorAll('[data-side]').forEach(function (row) {
+        var input = row.querySelector('[data-amount]');
+        var raw = input.value.trim();
+        if (raw === '') {
+          return;
+        }
+        var kop = parseKop(raw);
+        if (kop === null) {
+          row.dataset.valid = '0';
+          return;
+        }
+        row.dataset.valid = '1';
+        filled++;
+        if (row.dataset.side === 'asset') {
+          sumAssets += kop;
+        } else {
+          sumLiabilities += kop;
+        }
+      });
+
+      var diff = sumAssets - sumLiabilities;
+      var hint = diff < 0
+        ? 'обязательства больше активов на ' + formatKop(-diff) + ' (капитал с отрицательным знаком)'
+        : 'капитал ' + formatKop(diff);
+      capital.textContent = 'Строка капитала: ' + hint;
+      capital.classList.toggle('bad', filled === 0);
+
+      var invalid = form.querySelector('[data-side][data-valid="0"]');
+      if (submit) {
+        submit.disabled = filled === 0 || invalid !== null;
+      }
+    }
+
+    form.addEventListener('input', recompute);
+    recompute();
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     if (document.getElementById('entry-form')) {
       initEntryForm();
+    }
+    if (document.getElementById('initial-form')) {
+      initInitialForm();
     }
   });
 })();
