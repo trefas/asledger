@@ -76,3 +76,14 @@ func (db *DB) Tx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 
 // Now возвращает текущее время в unix-секундах для колонок *_at.
 func Now() int64 { return time.Now().Unix() }
+
+// fromUnix переводит unix-секунды в time.Time (UTC).
+func fromUnix(v int64) time.Time { return time.Unix(v, 0).UTC() }
+
+// toUnix переводит время в unix-секунды; нулевое время даёт 0.
+func toUnix(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Unix()
+}

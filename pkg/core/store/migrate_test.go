@@ -109,11 +109,12 @@ func TestConstraints(t *testing.T) {
 	ctx := context.Background()
 
 	// Минимальный пользователь и транзакция нужны для проверки внешних ключей.
-	mustExec(t, db, `INSERT INTO users(id, name, token_hash) VALUES(1, 'Андрей', 'sha256:нет')`)
-	mustExec(t, db, `INSERT INTO accounts(id, name, full_path, type, is_leaf, min_balance, is_archived, is_system, created_at)
-		VALUES(1, 'Наличные', 'Активы:Наличные', 'актив', 1, 0, 0, 0, 0)`)
-	mustExec(t, db, `INSERT INTO transactions(id, uuid, op_type, date, actor_id, created_at, commit_id)
-		VALUES(1, 'uuid-1', 'трата', 0, 1, 0, 0)`)
+	// Идентификаторы не задаются явно: часть счетов уже создана автосидом.
+	mustExec(t, db, `INSERT INTO users(name, token_hash) VALUES('Андрей', 'sha256:нет')`)
+	mustExec(t, db, `INSERT INTO accounts(name, full_path, type, is_leaf, min_balance, is_archived, is_system, created_at)
+		VALUES('Проверка', 'Проверка:Счёт', 'актив', 1, 0, 0, 0, 0)`)
+	mustExec(t, db, `INSERT INTO transactions(uuid, op_type, date, actor_id, created_at, commit_id)
+		VALUES('uuid-1', 'трата', 0, (SELECT id FROM users WHERE name = 'Андрей'), 0, 0)`)
 
 	tests := []struct {
 		name string
@@ -128,16 +129,16 @@ func TestConstraints(t *testing.T) {
 		{
 			name: "дубликат пути счёта",
 			sql:  `INSERT INTO accounts(name, full_path, type, is_leaf, min_balance, is_archived, is_system, created_at) VALUES(?, ?, 'актив', 1, 0, 0, 0, 0)`,
-			args: []any{"Ещё", "Активы:Наличные"},
+			args: []any{"Ещё", "Проверка:Счёт"},
 		},
 		{
 			name: "недопустимый тип операции",
-			sql:  `INSERT INTO transactions(uuid, op_type, date, actor_id, created_at, commit_id) VALUES(?, 'перевод2', 0, 1, 0, 0)`,
+			sql:  `INSERT INTO transactions(uuid, op_type, date, actor_id, created_at, commit_id) VALUES(?, 'перевод2', 0, (SELECT id FROM users WHERE name = 'Андрей'), 0, 0)`,
 			args: []any{"uuid-2"},
 		},
 		{
 			name: "дубликат uuid транзакции",
-			sql:  `INSERT INTO transactions(uuid, op_type, date, actor_id, created_at, commit_id) VALUES(?, 'трата', 0, 1, 0, 0)`,
+			sql:  `INSERT INTO transactions(uuid, op_type, date, actor_id, created_at, commit_id) VALUES(?, 'трата', 0, (SELECT id FROM users WHERE name = 'Андрей'), 0, 0)`,
 			args: []any{"uuid-1"},
 		},
 		{
@@ -147,15 +148,15 @@ func TestConstraints(t *testing.T) {
 		},
 		{
 			name: "нулевая сумма строки",
-			sql:  `INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side) VALUES(1, 1, 0, 'DEBIT')`,
+			sql:  `INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side) VALUES((SELECT id FROM transactions WHERE uuid = 'uuid-1'), (SELECT id FROM accounts WHERE full_path = 'Проверка:Счёт'), 0, 'DEBIT')`,
 		},
 		{
 			name: "отрицательная сумма строки",
-			sql:  `INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side) VALUES(1, 1, -100, 'DEBIT')`,
+			sql:  `INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side) VALUES((SELECT id FROM transactions WHERE uuid = 'uuid-1'), (SELECT id FROM accounts WHERE full_path = 'Проверка:Счёт'), -100, 'DEBIT')`,
 		},
 		{
 			name: "недопустимая сторона",
-			sql:  `INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side) VALUES(1, 1, 100, 'DEBET')`,
+			sql:  `INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side) VALUES((SELECT id FROM transactions WHERE uuid = 'uuid-1'), (SELECT id FROM accounts WHERE full_path = 'Проверка:Счёт'), 100, 'DEBET')`,
 		},
 	}
 	for _, tc := range tests {

@@ -1,0 +1,106 @@
+package store
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/trefas/asledger/pkg/core/model"
+)
+
+// SettingInitialBalances — ключ настройки «начальные остатки введены».
+//
+// Флаг фиксирует, что стартовые остатки внесены, и запрещает повторный ввод.
+const SettingInitialBalances = "начальные_остатки_введены"
+
+// CreateUser создаёт пользователя семьи.
+func (db *DB) CreateUser(ctx context.Context, name, tokenHash string) (*model.User, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, errors.New("store: имя пользователя не может быть пустым")
+	}
+	res, err := db.ExecContext(ctx, `INSERT INTO users(name, token_hash) VALUES(?, ?)`, name, tokenHash)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, fmt.Errorf("store: пользователь %q уже существует", name)
+		}
+		return nil, fmt.Errorf("store: не удалось создать пользователя: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("store: не удалось получить id пользователя: %w", err)
+	}
+	return &model.User{ID: id, Name: name, TokenHash: tokenHash}, nil
+}
+
+// User возвращает пользователя по идентификатору.
+func (db *DB) User(ctx context.Context, id int64) (*model.User, error) {
+	row := db.QueryRowContext(ctx, `SELECT id, name, token_hash FROM users WHERE id = ?`, id)
+	return scanUser(row, id, "")
+}
+
+// UserByName возвращает пользователя по имени.
+func (db *DB) UserByName(ctx context.Context, name string) (*model.User, error) {
+	row := db.QueryRowContext(ctx, `SELECT id, name, token_hash FROM users WHERE name = ?`, name)
+	return scanUser(row, 0, name)
+}
+
+// ListUsers возвращает всех пользователей семьи.
+func (db *DB) ListUsers(ctx context.Context) ([]model.User, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, name, token_hash FROM users ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("store: не удалось прочитать пользователей: %w", err)
+	}
+	defer rows.Close()
+
+	var users []model.User
+	for rows.Next() {
+		var u model.User
+		if err := rows.Scan(&u.ID, &u.Name, &u.TokenHash); err != nil {
+			return nil, fmt.Errorf("store: не удалось разобрать пользователя: %w", err)
+		}
+		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: ошибка чтения пользователей: %w", err)
+	}
+	return users, nil
+}
+
+// SetSetting сохраняет значение настройки.
+func (db *DB) SetSetting(ctx context.Context, key, value string) error {
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO settings(key, value) VALUES(?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
+	if err != nil {
+		return fmt.Errorf("store: не удалось сохранить настройку %q: %w", key, err)
+	}
+	return nil
+}
+
+// Setting возвращает значение настройки; второй результат — признак наличия.
+func (db *DB) Setting(ctx context.Context, key string) (string, bool, error) {
+	var value string
+	err := db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("store: не удалось прочитать настройку %q: %w", key, err)
+	}
+	return value, true, nil
+}
+
+// scanUser разбирает строку выборки пользователя.
+func scanUser(s rowScanner, id int64, name string) (*model.User, error) {
+	var u model.User
+	if err := s.Scan(&u.ID, &u.Name, &u.TokenHash); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: пользователь %d/%q", ErrNotFound, id, name)
+		}
+		return nil, err
+	}
+	return &u, nil
+}

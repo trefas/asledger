@@ -101,7 +101,9 @@ func (db *DB) Migrate(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
+	// Служебные счета создаются после схемы: строка капитала генерируется
+	// движком, а ветка «Активы:Дебиторка» используется операцией займа.
+	return db.EnsureSystemAccounts(ctx)
 }
 
 // migrationApplied сообщает, применена ли миграция указанной версии.

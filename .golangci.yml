@@ -31,6 +31,12 @@ linters:
           - gocritic
           - prealloc
           - unparam
+  settings:
+    errcheck:
+      # Ошибка sql.Rows.Close при обходе rows несущественна: результат обхода
+      # всё равно проверяется через rows.Err(). Это стандартная практика.
+      exclude-functions:
+        - (*database/sql.Rows).Close
 
 formatters:
   enable:
