@@ -181,7 +181,12 @@ func (s *Service) Push(ctx context.Context, req PushRequest) (*PushResult, error
 // resultFromCommit повторяет ответ ранее принятого пакета (идемпотентность).
 func (s *Service) resultFromCommit(ctx context.Context, commit *model.Commit, payload CommitPayload) (*PushResult, error) {
 	applied := make([]string, 0, len(payload.Operations))
+	seen := make(map[string]bool, len(payload.Operations))
 	for _, op := range payload.Operations {
+		if seen[op.UUID] {
+			continue
+		}
+		seen[op.UUID] = true
 		tr, err := s.db.TransactionByUUID(ctx, op.UUID)
 		if errors.Is(err, store.ErrNotFound) {
 			continue

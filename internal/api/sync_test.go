@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -86,8 +87,9 @@ func TestASL_10_Snapshot(t *testing.T) {
 // TestASL_10_PushFastForward проверяет fast-forward и идемпотентность.
 func TestASL_10_PushFastForward(t *testing.T) {
 	a := newTestAPI(t)
+	headBefore := a.head(t)
 
-	body := a.pushBody(t, "commit-1", a.head(t),
+	body := a.pushBody(t, "commit-1", headBefore,
 		a.expenseBody(t, "push-1", 10000),
 		a.expenseBody(t, "push-2", 20000),
 	)
@@ -104,6 +106,10 @@ func TestASL_10_PushFastForward(t *testing.T) {
 	}
 	if result.ResultSeq != a.head(t) {
 		t.Fatalf("result_seq = %d, head = %d", result.ResultSeq, a.head(t))
+	}
+	if a.head(t) != headBefore+2 {
+		t.Fatalf("head_seq вырос до %d, ожидалось %d (ровно на число применённых операций)",
+			a.head(t), headBefore+2)
 	}
 
 	t.Run("повтор даёт тот же статус", func(t *testing.T) {
@@ -148,6 +154,65 @@ func TestASL_10_PushAtomicity(t *testing.T) {
 	}
 	if a.transactionCount(t) != before || a.head(t) != headBefore {
 		t.Fatalf("пакет не откатился: проводок %d, head %d", a.transactionCount(t), a.head(t))
+	}
+}
+
+// TestASL_10_PushTenOpsAtomicity проверяет критерий эпика: коммит из 10
+// операций с невалидной 7-й не оставляет ни одной из десяти.
+func TestASL_10_PushTenOpsAtomicity(t *testing.T) {
+	a := newTestAPI(t)
+	before := a.transactionCount(t)
+	headBefore := a.head(t)
+
+	ops := make([]map[string]any, 0, 10)
+	for i := 1; i <= 10; i++ {
+		op := a.expenseBody(t, fmt.Sprintf("ten-%d", i), int64(i)*1000)
+		if i == 7 {
+			op["entries"] = []map[string]any{
+				{"account_id": a.account(t, "Расходы:Продукты").ID, "amount_kop": 1000, "role": "расход"},
+				{"account_id": a.account(t, "Доходы:Зарплата").ID, "amount_kop": 1000, "role": "источник"},
+			}
+		}
+		ops = append(ops, op)
+	}
+
+	rec := a.do(t, http.MethodPost, "/api/v1/sync/push", a.token,
+		a.pushBody(t, "commit-ten", a.head(t), ops...))
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("код %d, ожидался 422", rec.Code)
+	}
+	if a.transactionCount(t) != before || a.head(t) != headBefore {
+		t.Fatalf("пакет из 10 операций не откатился: проводок %d, head %d",
+			a.transactionCount(t), a.head(t))
+	}
+}
+
+// TestASL_10_PushDuplicateUUID проверяет, что две операции с одинаковым uuid
+// дают одну запись и одинаковый ответ при повторе.
+func TestASL_10_PushDuplicateUUID(t *testing.T) {
+	a := newTestAPI(t)
+	first := a.expenseBody(t, "dup-uuid", 10000)
+	second := a.expenseBody(t, "dup-uuid", 99999)
+
+	body := a.pushBody(t, "commit-dup", a.head(t), first, second)
+	rec := a.do(t, http.MethodPost, "/api/v1/sync/push", a.token, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	result := pushResult(t, rec)
+	if len(result.Applied) != 1 {
+		t.Fatalf("применено %d операций, ожидалась 1", len(result.Applied))
+	}
+	if a.transactionCount(t) != 1 {
+		t.Fatalf("проводок %d, ожидалась 1", a.transactionCount(t))
+	}
+	if result.Status != syncsvc.StatusAcceptedWithWarnings {
+		t.Fatalf("статус = %q, ожидался accepted-with-warnings", result.Status)
+	}
+
+	again := pushResult(t, a.do(t, http.MethodPost, "/api/v1/sync/push", a.token, body))
+	if again.Status != result.Status || again.ResultSeq != result.ResultSeq || len(again.Applied) != 1 {
+		t.Fatalf("повтор дал другой ответ: %q / %d / %v", again.Status, again.ResultSeq, again.Applied)
 	}
 }
 

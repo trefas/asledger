@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -149,5 +150,100 @@ func TestASL_7_ChainHashDeterministic(t *testing.T) {
 	}
 	if len(a) != 64 {
 		t.Fatalf("длина хеша %d, ожидалось 64", len(a))
+	}
+}
+
+// TestASL_7_RebaseDeterministic проверяет детерминизм переигровки: одинаковые
+// входные данные дают одинаковый результат и одинаковые предупреждения.
+func TestASL_7_RebaseDeterministic(t *testing.T) {
+	ctx := context.Background()
+
+	run := func(t *testing.T) []string {
+		t.Helper()
+		svc, actor, expenseID, walletID := newTestService(t)
+		if _, err := svc.Push(ctx, PushRequest{
+			ClientID: "dev", ActorID: actor, BaseSeq: 0, CommitID: "first",
+			Operations: []Operation{expenseOp("det-1", 1000, expenseID, walletID)},
+		}); err != nil {
+			t.Fatalf("первый push: %v", err)
+		}
+		result, err := svc.Push(ctx, PushRequest{
+			ClientID: "dev", ActorID: actor, BaseSeq: 0, CommitID: "rebased",
+			Operations: []Operation{expenseOp("det-2", 2000, expenseID, walletID)},
+		})
+		if err != nil {
+			t.Fatalf("rebase push: %v", err)
+		}
+		if result.Status != StatusAcceptedWithWarnings {
+			t.Fatalf("статус = %q, ожидался accepted-with-warnings", result.Status)
+		}
+		return result.Warnings
+	}
+
+	first := run(t)
+	second := run(t)
+	if strings.Join(first, "|") != strings.Join(second, "|") {
+		t.Fatalf("переигровка не детерминирована: %v против %v", first, second)
+	}
+}
+
+// TestASL_7_ChainVerification проверяет критерий эпика: два клиента с
+// пересекающимися проводками после pull идентичны, хэш-цепочка совпадает.
+func TestASL_7_ChainVerification(t *testing.T) {
+	ctx := context.Background()
+	svc, actor, expenseID, walletID := newTestService(t)
+
+	if _, err := svc.Push(ctx, PushRequest{
+		ClientID: "dev-1", ActorID: actor, BaseSeq: 0, CommitID: "a",
+		Operations: []Operation{expenseOp("ver-1", 1000, expenseID, walletID)},
+	}); err != nil {
+		t.Fatalf("push dev-1: %v", err)
+	}
+	if _, err := svc.Push(ctx, PushRequest{
+		ClientID: "dev-2", ActorID: actor, BaseSeq: 1, CommitID: "b",
+		Operations: []Operation{expenseOp("ver-2", 2000, expenseID, walletID)},
+	}); err != nil {
+		t.Fatalf("push dev-2: %v", err)
+	}
+
+	clientA, err := svc.Pull(ctx, 0, "")
+	if err != nil {
+		t.Fatalf("Pull клиента A: %v", err)
+	}
+	clientB, err := svc.Pull(ctx, 0, "")
+	if err != nil {
+		t.Fatalf("Pull клиента B: %v", err)
+	}
+
+	if len(clientA.Commits) != 2 || len(clientB.Commits) != len(clientA.Commits) {
+		t.Fatalf("клиенты видят разное число коммитов: %d и %d", len(clientA.Commits), len(clientB.Commits))
+	}
+	if len(clientA.Transactions) != len(clientB.Transactions) {
+		t.Fatalf("клиенты видят разное число проводок: %d и %d",
+			len(clientA.Transactions), len(clientB.Transactions))
+	}
+
+	// Клиент досчитывает цепочку от нуля и сверяет с хешом сервера.
+	recompute := func(pull *Pull) string {
+		h := ""
+		for _, commit := range pull.Commits {
+			h = ChainHash(h, commit.OpsJSON)
+		}
+		return h
+	}
+	if got := recompute(clientA); got != clientA.ChainHash {
+		t.Fatalf("цепочка клиента A = %q, хеш сервера = %q", got, clientA.ChainHash)
+	}
+	if recompute(clientA) != recompute(clientB) {
+		t.Fatal("клиенты досчитали разные цепочки")
+	}
+
+	// Клиент на голове подтверждает цепочку без полного ресинка.
+	head, err := svc.Pull(ctx, clientA.HeadSeq, clientA.ChainHash)
+	if err != nil {
+		t.Fatalf("Pull на голове: %v", err)
+	}
+	if head.ResyncRequired {
+		t.Fatal("верная цепочка на голове потребовала ресинка")
 	}
 }
