@@ -1,0 +1,42 @@
+# Конфигурация golangci-lint v2 для asledger.
+#
+# Денежная арифметика ведётся только целыми копейками; типы с плавающей
+# точкой запрещены отдельной проверкой (см. scripts/check-no-float.sh).
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - gocritic
+    - misspell
+    - nilerr
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+  exclusions:
+    generated: lax
+    rules:
+      # В тестах допускаются менее строгие требования.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gocritic
+          - prealloc
+          - unparam
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/trefas/asledger
