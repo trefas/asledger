@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 396 500"
+   width="396"
+   height="500"
+   version="1.1"
+   id="svg59"
+   sodipodi:docname="asledger-logo.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview59"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showguides="true"
+     inkscape:zoom="1"
+     inkscape:cx="291.5"
+     inkscape:cy="262"
+     inkscape:window-width="1536"
+     inkscape:window-height="891"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg59" />
+  <defs
+     id="defs1">
+    <style
+       id="style1">
+      .display-text {
+        font-family: &quot;JetBrains Mono&quot;, &quot;Courier New&quot;, monospace;
+        font-weight: bold;
+        fill: #7CFC00;
+      }
+    </style>
+  </defs>
+  <!-- Белый фон -->
+  <!-- ============ КАЛЬКУЛЯТОР 1: БОЛЬШОЙ (4×4) ============ -->
+  <rect
+     x="113"
+     y="138"
+     width="170"
+     height="224"
+     rx="8.5"
+     fill="#145214"
+     id="rect2"
+     style="stroke-width:0.436348" />
+  <g
+     id="g60"
+     transform="matrix(0.42929293,0,0,0.448,-24.593892,128.81026)">
+    <rect
+       x="355.44168"
+       y="45.441669"
+       width="326.1423"
+       height="90.142303"
+       rx="3.6238034"
+       fill="#0a0a0a"
+       stroke="#7cfc00"
+       stroke-width="2.8577"
+       id="rect3" />
+    <text
+       x="418.3075"
+       y="98.216476"
+       class="display-text"
+       font-size="57.1738px"
+       id="text3"
+       transform="scale(0.87644686,1.1409705)"
+       style="stroke-width:1.36127">&gt;_ 1 250 ₽</text>
+  </g>
+  <g
+     id="g59"
+     transform="matrix(0.42929293,0,0,0.448,-24.164594,128.81026)">
+    <rect
+       x="352.51282"
+       y="160.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect4" />
+    <rect
+       x="437.51282"
+       y="160.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect5" />
+    <rect
+       x="522.51282"
+       y="160.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect6" />
+    <rect
+       x="607.51282"
+       y="160.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect7" />
+    <rect
+       x="352.51282"
+       y="245.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect8" />
+    <rect
+       x="437.51282"
+       y="245.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect9" />
+    <rect
+       x="522.51282"
+       y="245.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect10" />
+    <rect
+       x="607.51282"
+       y="245.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect11" />
+    <rect
+       x="352.51282"
+       y="330.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect12" />
+    <rect
+       x="437.51282"
+       y="330.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect13" />
+    <rect
+       x="522.51282"
+       y="330.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect14" />
+    <rect
+       x="352.51282"
+       y="415.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect16" />
+    <rect
+       x="437.51282"
+       y="415.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect17" />
+    <rect
+       x="522.51282"
+       y="415.51282"
+       width="75"
+       height="75"
+       rx="6"
+       fill="#a8d94a"
+       id="rect18" />
+    <rect
+       x="607.51282"
+       y="330.44415"
+       width="75"
+       height="160.06866"
+       rx="6"
+       fill="#a8d94a"
+       id="rect19"
+       style="stroke-width:1.46091" />
+  </g>
+  <!-- ============ КАЛЬКУЛЯТОР 2: СРЕДНИЙ (4×4) ============ -->
+  <!-- ============ КАЛЬКУЛЯТОР 3: МАЛЫЙ (3×3) ============ -->
+  <!-- ============ КАЛЬКУЛЯТОР 4: МИНИ (3×3, только >_) ============ -->
+</svg>
