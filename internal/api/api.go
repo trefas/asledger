@@ -62,6 +62,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/auth/token", s.auth(http.HandlerFunc(s.handleRevokeToken)))
 
 	mux.Handle("POST /api/v1/transactions", s.auth(http.HandlerFunc(s.handleTransactions)))
+	mux.Handle("POST /api/v1/transactions/{uuid}/reverse", s.auth(http.HandlerFunc(s.handleReverse)))
 
 	mux.Handle("GET /api/v1/sync/snapshot", s.auth(http.HandlerFunc(s.handleSnapshot)))
 	mux.Handle("POST /api/v1/sync/push", s.auth(http.HandlerFunc(s.handlePush)))

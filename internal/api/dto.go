@@ -5,6 +5,7 @@ import (
 
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
+	syncsvc "github.com/trefas/asledger/pkg/core/sync"
 )
 
 // lineDTO — строка проводки в ответе.
@@ -24,6 +25,8 @@ type transactionDTO struct {
 	ReversesID  *int64       `json:"reverses_id,omitempty"`
 	CommitID    int64        `json:"commit_id,omitempty"`
 	Lines       []lineDTO    `json:"lines"`
+	// Duplicates — возможные дубли проводки: плашка «Возможный дубль».
+	Duplicates []syncsvc.Duplicate `json:"duplicates,omitempty"`
 }
 
 // toTransactionDTO переводит проводку в формат ответа.

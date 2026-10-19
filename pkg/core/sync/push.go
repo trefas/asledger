@@ -72,6 +72,19 @@ type PushResult struct {
 	ResultSeq int64    `json:"result_seq"`
 	Applied   []string `json:"applied"`
 	Warnings  []string `json:"warnings"`
+	// Duplicates — возможные дубли принятых проводок (эвристика раздела 9.3).
+	Duplicates []Duplicate `json:"duplicates,omitempty"`
+}
+
+// Duplicate — возможный дубль новой проводки среди уже записанных.
+//
+// Плашка «Возможный дубль» показывается клиенту и в web-интерфейсе; коммит при
+// этом принимается, а отменить запись можно сторно.
+type Duplicate struct {
+	// UUID — uuid новой проводки.
+	UUID string `json:"uuid"`
+	// Existing — uuid уже записанных проводок с той же подписью.
+	Existing []string `json:"existing"`
 }
 
 // ErrRejected — пакет отклонён целиком; причина разбирается вызывающим кодом
@@ -114,6 +127,7 @@ func (s *Service) Push(ctx context.Context, req PushRequest) (*PushResult, error
 	}
 
 	applied := make([]*model.Transaction, 0, len(req.Operations))
+	var duplicates []Duplicate
 	seen := make(map[string]bool, len(req.Operations))
 	for _, op := range req.Operations {
 		if seen[op.UUID] {
@@ -135,11 +149,14 @@ func (s *Service) Push(ctx context.Context, req PushRequest) (*PushResult, error
 			warnings = append(warnings, fmt.Sprintf("операция %s уже применена, пропущена", op.UUID))
 			continue
 		}
-		duplicate, err := s.possibleDuplicate(ctx, prepared.Transaction)
+		existing, err := s.duplicateUUIDs(ctx, prepared.Transaction)
 		if err != nil {
 			return nil, err
 		}
-		if duplicate {
+		if len(existing) > 0 {
+			// Дубль не блокирует приём: проводка принимается, а пользователь
+			// получает плашку «Возможный дубль» с действием «отменить».
+			duplicates = append(duplicates, Duplicate{UUID: op.UUID, Existing: existing})
 			warnings = append(warnings, fmt.Sprintf(
 				"операция %s: возможный дубль — совпадают тип, дата, счета и суммы", op.UUID))
 		}
@@ -170,11 +187,12 @@ func (s *Service) Push(ctx context.Context, req PushRequest) (*PushResult, error
 		uuids = append(uuids, tr.UUID)
 	}
 	return &PushResult{
-		Status:    statusFor(warnings),
-		CommitID:  req.CommitID,
-		ResultSeq: commit.ResultSeq,
-		Applied:   uuids,
-		Warnings:  warnings,
+		Status:     statusFor(warnings),
+		CommitID:   req.CommitID,
+		ResultSeq:  commit.ResultSeq,
+		Applied:    uuids,
+		Warnings:   warnings,
+		Duplicates: duplicates,
 	}, nil
 }
 
@@ -215,30 +233,34 @@ func statusFor(warnings []string) Status {
 	return StatusAccepted
 }
 
-// possibleDuplicate ищет проводку, совпадающую по типу, дате, счетам и суммам.
+// duplicateUUIDs ищет проводки, совпадающие по типу, дате, счетам и суммам.
 //
 // Это эвристика раздела 9.3: коммит принимается, но клиент и web-интерфейс
-// получают плашку «Возможный дубль».
-func (s *Service) possibleDuplicate(ctx context.Context, tr *model.Transaction) (bool, error) {
+// получают плашку «Возможный дубль» с действием «отменить». Ложные срабатывания
+// возможны только при полном совпадении подписи в пределах одного дня, поэтому
+// обычные операции разных дней не помечаются.
+func (s *Service) duplicateUUIDs(ctx context.Context, tr *model.Transaction) ([]string, error) {
 	dayStart := time.Date(tr.Date.Year(), tr.Date.Month(), tr.Date.Day(), 0, 0, 0, 0, time.UTC)
 	existing, err := s.db.ListTransactions(ctx, store.TransactionFilter{
 		From: dayStart.Unix(),
-		To:   dayStart.AddDate(0, 0, 1).Unix(),
+		To:   dayStart.AddDate(0, 0, 1).Unix() - 1,
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	signature := transactionSignature(tr)
+	var matches []string
 	for i := range existing {
 		other := &existing[i]
 		if other.OpType != tr.OpType {
 			continue
 		}
 		if transactionSignature(other) == signature {
-			return true, nil
+			matches = append(matches, other.UUID)
 		}
 	}
-	return false, nil
+	sort.Strings(matches)
+	return matches, nil
 }
 
 // transactionSignature — устойчивая подпись проводки для поиска дублей.

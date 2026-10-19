@@ -175,6 +175,20 @@ type ChangelogEntry struct {
 	ChangedAt time.Time
 }
 
+// Reconciliation — результат сверки счёта с фактическим остатком.
+type Reconciliation struct {
+	ID        int64
+	AccountID int64
+	// Fact — введённый пользователем фактический остаток.
+	Fact money.Kop
+	// Expected — расчётный остаток на момент сверки.
+	Expected money.Kop
+	// CheckedAt — время сверки.
+	CheckedAt time.Time
+	// TransactionID — сгенерированная корректировка (если создана).
+	TransactionID *int64
+}
+
 // Сущности журнала изменений.
 const (
 	EntityAccount     = "accounts"

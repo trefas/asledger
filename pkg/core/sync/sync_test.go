@@ -247,3 +247,87 @@ func TestASL_7_ChainVerification(t *testing.T) {
 		t.Fatal("верная цепочка на голове потребовала ресинка")
 	}
 }
+
+// TestASL_9_DuplicateHeuristic проверяет эвристику возможных дублей.
+func TestASL_9_DuplicateHeuristic(t *testing.T) {
+	ctx := context.Background()
+	svc, actor, expenseID, walletID := newTestService(t)
+
+	head, err := svc.db.HeadSeq(ctx)
+	if err != nil {
+		t.Fatalf("HeadSeq: %v", err)
+	}
+	first, err := svc.Push(ctx, PushRequest{
+		ClientID: "dev-1", ActorID: actor, BaseSeq: head, CommitID: "c1",
+		Operations: []Operation{expenseOp("dup-1", 15000, expenseID, walletID)},
+	})
+	if err != nil {
+		t.Fatalf("первый push: %v", err)
+	}
+	if len(first.Duplicates) != 0 || first.Status != StatusAccepted {
+		t.Fatalf("первый push: статус %q, дубли %+v", first.Status, first.Duplicates)
+	}
+
+	// Вторая операция того же дня с теми же счетами и суммой — возможный дубль.
+	head, err = svc.db.HeadSeq(ctx)
+	if err != nil {
+		t.Fatalf("HeadSeq: %v", err)
+	}
+	second, err := svc.Push(ctx, PushRequest{
+		ClientID: "dev-2", ActorID: actor, BaseSeq: head, CommitID: "c2",
+		Operations: []Operation{expenseOp("dup-2", 15000, expenseID, walletID)},
+	})
+	if err != nil {
+		t.Fatalf("второй push: %v", err)
+	}
+	if second.Status != StatusAcceptedWithWarnings {
+		t.Errorf("статус второго push: %q, ожидался accepted-with-warnings", second.Status)
+	}
+	// Дубль не блокирует приём: операция принята.
+	if len(second.Applied) != 1 || second.Applied[0] != "dup-2" {
+		t.Errorf("принятые операции: %v", second.Applied)
+	}
+	if len(second.Duplicates) != 1 {
+		t.Fatalf("дубли: %+v", second.Duplicates)
+	}
+	if second.Duplicates[0].UUID != "dup-2" || len(second.Duplicates[0].Existing) != 1 ||
+		second.Duplicates[0].Existing[0] != "dup-1" {
+		t.Errorf("содержимое плашки дубля: %+v", second.Duplicates[0])
+	}
+
+	t.Run("без ложных срабатываний", func(t *testing.T) {
+		// Другая сумма в тот же день.
+		head, err := svc.db.HeadSeq(ctx)
+		if err != nil {
+			t.Fatalf("HeadSeq: %v", err)
+		}
+		other, err := svc.Push(ctx, PushRequest{
+			ClientID: "dev-3", ActorID: actor, BaseSeq: head, CommitID: "c3",
+			Operations: []Operation{expenseOp("dup-3", 16000, expenseID, walletID)},
+		})
+		if err != nil {
+			t.Fatalf("push(другая сумма): %v", err)
+		}
+		if len(other.Duplicates) != 0 {
+			t.Errorf("ложный дубль по сумме: %+v", other.Duplicates)
+		}
+
+		// Та же сумма, но другой день.
+		nextDay := expenseOp("dup-4", 15000, expenseID, walletID)
+		nextDay.Date = time.Now().AddDate(0, 0, 1)
+		head, err = svc.db.HeadSeq(ctx)
+		if err != nil {
+			t.Fatalf("HeadSeq: %v", err)
+		}
+		other, err = svc.Push(ctx, PushRequest{
+			ClientID: "dev-4", ActorID: actor, BaseSeq: head, CommitID: "c4",
+			Operations: []Operation{nextDay},
+		})
+		if err != nil {
+			t.Fatalf("push(другой день): %v", err)
+		}
+		if len(other.Duplicates) != 0 {
+			t.Errorf("ложный дубль по дате: %+v", other.Duplicates)
+		}
+	})
+}

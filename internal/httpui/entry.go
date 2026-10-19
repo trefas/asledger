@@ -1,8 +1,6 @@
 package httpui
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +13,7 @@ import (
 	"github.com/trefas/asledger/pkg/core/engine"
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
+	"github.com/trefas/asledger/pkg/core/uuid"
 )
 
 // entryOp описывает одну операцию MVP на экране ввода: две стороны формы и
@@ -541,14 +540,11 @@ func parseID(raw string, fallback int64) int64 {
 
 // newUUID возвращает новый UUID версии 4 для проводки.
 func newUUID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
+	id, err := uuid.New()
+	if err != nil {
 		return "web-" + strconv.FormatInt(time.Now().UnixNano(), 16)
 	}
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	h := hex.EncodeToString(b[:])
-	return h[0:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
+	return id
 }
 
 // writeWebJSON отдаёт JSON-ответ web-интерфейса (всегда 200).

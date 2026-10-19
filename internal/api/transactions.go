@@ -3,8 +3,10 @@ package api
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	syncsvc "github.com/trefas/asledger/pkg/core/sync"
+	"github.com/trefas/asledger/pkg/core/uuid"
 )
 
 // handleTransactions принимает онлайн-проводку и прогоняет её через движок.
@@ -32,7 +34,7 @@ func (s *Server) handleTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.sync.Push(r.Context(), syncsvc.PushRequest{
+	result, err := s.sync.Push(r.Context(), syncsvc.PushRequest{
 		ClientID:   device.ClientID,
 		ActorID:    device.UserID,
 		BaseSeq:    head,
@@ -58,5 +60,45 @@ func (s *Server) handleTransactions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "ERR_INTERNAL", "внутренняя ошибка сервера")
 		return
 	}
-	writeJSON(w, http.StatusCreated, toTransactionDTO(tr))
+	response := toTransactionDTO(tr)
+	response.Duplicates = result.Duplicates
+	writeJSON(w, http.StatusCreated, response)
+}
+
+// handleReverse создаёт сторно проводки по uuid.
+//
+// Сторно — инверсия уже принятой операции: счета те же, стороны
+// противоположные, reverses_id указывает на отменяемую запись. Повторная отмена
+// идемпотентна и возвращает уже созданное сторно.
+func (s *Server) handleReverse(w http.ResponseWriter, r *http.Request) {
+	device, _ := actorFrom(r.Context())
+	originalUUID := r.PathValue("uuid")
+
+	original, err := s.db.TransactionByUUID(r.Context(), originalUUID)
+	if err != nil {
+		if writeEngineError(w, err) {
+			return
+		}
+		s.logger.Error("не удалось прочитать проводку", "err", err, "uuid", originalUUID)
+		writeError(w, http.StatusInternalServerError, "ERR_INTERNAL", "внутренняя ошибка сервера")
+		return
+	}
+
+	reversalUUID, err := uuid.New()
+	if err != nil {
+		s.logger.Error("не удалось создать uuid сторно", "err", err)
+		writeError(w, http.StatusInternalServerError, "ERR_INTERNAL", "внутренняя ошибка сервера")
+		return
+	}
+	reversal, err := s.sync.Engine().Reverse(r.Context(), original.ID, device.UserID, reversalUUID,
+		time.Now().UTC(), "Сторно: "+original.Description)
+	if err != nil {
+		if writeEngineError(w, err) {
+			return
+		}
+		s.logger.Error("не удалось создать сторно", "err", err, "uuid", originalUUID)
+		writeError(w, http.StatusInternalServerError, "ERR_INTERNAL", "внутренняя ошибка сервера")
+		return
+	}
+	writeJSON(w, http.StatusCreated, toTransactionDTO(reversal))
 }
