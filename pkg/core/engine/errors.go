@@ -125,3 +125,31 @@ func CodeOf(err error) string {
 	}
 	return ""
 }
+
+// Codes возвращает полный перечень машинных кодов движка.
+//
+// Используется документацией и тестами: каждый код обязан быть описан в
+// docs/validation-codes.md.
+func Codes() []string {
+	return []string{
+		CodeAccountNotLeaf,
+		CodeAccountArchived,
+		CodeAccountNotFound,
+		CodeMatrixCell,
+		CodeReservedCell,
+		CodeUnbalanced,
+		CodeMinBalance,
+		CodeUUIDDup,
+		CodeUUIDEmpty,
+		CodeDateRange,
+		CodeAmountNotPositive,
+		CodeOpTypeUnknown,
+		CodeAccountTypeUnknown,
+		CodeRoleUnknown,
+		CodeInitialDone,
+		CodeSystemAccount,
+		CodeReverseInvalid,
+		CodeEntryMissing,
+		CodeDirectionRequired,
+	}
+}
