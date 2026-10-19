@@ -1,0 +1,76 @@
+name: CI
+
+# Сборка, тесты и статические проверки на каждый push и pull request.
+# Тесты выполняются на обеих целевых платформах: Linux и Windows.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-linux:
+    name: Сборка и тесты (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Проверки переиспользуют цели Makefile, чтобы локальный результат
+      # совпадал с результатом CI.
+      - name: Проверки (make check)
+        run: make check
+
+      - name: Тесты с детектором гонок
+        run: make test-race
+
+      - name: Сборка команд
+        run: make build
+
+  test-windows:
+    name: Сборка и тесты (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Тесты
+        run: go test ./...
+
+      - name: Сборка команд
+        run: go build ./...
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Запрет типов с плавающей точкой в денежном коде
+        run: make lint-money
+
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.15.0
