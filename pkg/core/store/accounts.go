@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/trefas/asledger/pkg/core/model"
@@ -424,4 +425,72 @@ func scanAccount(s rowScanner) (*model.Account, error) {
 	acc.IsSystem = isSystem == 1
 	acc.CreatedAt = fromUnix(createdUnix)
 	return &acc, nil
+}
+
+// SuggestAccounts ищет счета по частичному вводу без учёта регистра.
+//
+// Сравнение выполняется в Go (strings.ToLower), потому что SQLite NOCASE не
+// сворачивает регистр кириллицы. Сначала идут листовые счета (пригодные для
+// проводки), затем папки; внутри группы — совпадения по имени, затем по пути.
+// Пустой запрос возвращает листовые счета по алфавиту.
+func (db *DB) SuggestAccounts(ctx context.Context, query string, limit int) ([]model.Account, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	accounts, err := db.ListAccounts(ctx, AccountFilter{})
+	if err != nil {
+		return nil, err
+	}
+
+	q := strings.ToLower(strings.TrimSpace(query))
+	type ranked struct {
+		acc  model.Account
+		leaf int
+		kind int
+	}
+	matches := make([]ranked, 0, len(accounts))
+	for _, acc := range accounts {
+		leaf := 1
+		if acc.IsLeaf {
+			leaf = 0
+		}
+		kind := 0
+		if q != "" {
+			name := strings.ToLower(acc.Name)
+			path := strings.ToLower(acc.FullPath)
+			switch {
+			case strings.HasPrefix(name, q):
+				kind = 0
+			case strings.Contains(name, q):
+				kind = 1
+			case strings.Contains(path, q):
+				kind = 2
+			default:
+				continue
+			}
+		}
+		matches = append(matches, ranked{acc: acc, leaf: leaf, kind: kind})
+	}
+
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].leaf != matches[j].leaf {
+			return matches[i].leaf < matches[j].leaf
+		}
+		if matches[i].kind != matches[j].kind {
+			return matches[i].kind < matches[j].kind
+		}
+		if len(matches[i].acc.FullPath) != len(matches[j].acc.FullPath) {
+			return len(matches[i].acc.FullPath) < len(matches[j].acc.FullPath)
+		}
+		return matches[i].acc.FullPath < matches[j].acc.FullPath
+	})
+
+	if len(matches) > limit {
+		matches = matches[:limit]
+	}
+	result := make([]model.Account, 0, len(matches))
+	for _, m := range matches {
+		result = append(result, m.acc)
+	}
+	return result, nil
 }

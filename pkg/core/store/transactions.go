@@ -43,42 +43,53 @@ func (db *DB) InsertTransaction(ctx context.Context, tr *model.Transaction) (int
 
 	var id int64
 	err := db.Tx(ctx, func(tx *sql.Tx) error {
-		var existing int64
-		err := tx.QueryRowContext(ctx, `SELECT id FROM transactions WHERE uuid = ?`, tr.UUID).Scan(&existing)
-		if err == nil {
-			return fmt.Errorf("%w: %s", ErrDuplicateUUID, tr.UUID)
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("store: не удалось проверить uuid транзакции: %w", err)
-		}
-		if err := validateLineAccountsTx(ctx, tx, tr.Lines); err != nil {
-			return err
-		}
-
-		res, err := tx.ExecContext(ctx,
-			`INSERT INTO transactions(uuid, op_type, date, description, actor_id, reverses_id, source, source_hash, created_at, commit_id)
-			 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			tr.UUID, string(tr.OpType), toUnix(tr.Date), tr.Description, tr.ActorID,
-			nullableID(tr.ReversesID), nullString(tr.Source), nullString(tr.SourceHash),
-			Now(), tr.CommitID)
-		if err != nil {
-			return fmt.Errorf("store: не удалось создать транзакцию: %w", err)
-		}
-		id, err = res.LastInsertId()
-		if err != nil {
-			return fmt.Errorf("store: не удалось получить id транзакции: %w", err)
-		}
-
-		for _, line := range tr.Lines {
-			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side) VALUES(?, ?, ?, ?)`,
-				id, line.AccountID, int64(line.Amount), string(line.Side)); err != nil {
-				return fmt.Errorf("store: не удалось создать строку проводки: %w", err)
-			}
-		}
-		return appendChangelog(ctx, tx, model.EntityTransaction, id, model.OpInsert)
+		var err error
+		id, err = insertTransactionTx(ctx, tx, tr)
+		return err
 	})
 	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+// insertTransactionTx сохраняет транзакцию вместе со строками в готовой
+// транзакции БД: используется и одиночной записью, и пакетом коммита.
+func insertTransactionTx(ctx context.Context, tx *sql.Tx, tr *model.Transaction) (int64, error) {
+	var existing int64
+	err := tx.QueryRowContext(ctx, `SELECT id FROM transactions WHERE uuid = ?`, tr.UUID).Scan(&existing)
+	if err == nil {
+		return 0, fmt.Errorf("%w: %s", ErrDuplicateUUID, tr.UUID)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("store: не удалось проверить uuid транзакции: %w", err)
+	}
+	if err := validateLineAccountsTx(ctx, tx, tr.Lines); err != nil {
+		return 0, err
+	}
+
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO transactions(uuid, op_type, date, description, actor_id, reverses_id, source, source_hash, created_at, commit_id)
+		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tr.UUID, string(tr.OpType), toUnix(tr.Date), tr.Description, tr.ActorID,
+		nullableID(tr.ReversesID), nullString(tr.Source), nullString(tr.SourceHash),
+		Now(), tr.CommitID)
+	if err != nil {
+		return 0, fmt.Errorf("store: не удалось создать транзакцию: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("store: не удалось получить id транзакции: %w", err)
+	}
+
+	for _, line := range tr.Lines {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side) VALUES(?, ?, ?, ?)`,
+			id, line.AccountID, int64(line.Amount), string(line.Side)); err != nil {
+			return 0, fmt.Errorf("store: не удалось создать строку проводки: %w", err)
+		}
+	}
+	if err := appendChangelog(ctx, tx, model.EntityTransaction, id, model.OpInsert); err != nil {
 		return 0, err
 	}
 	return id, nil

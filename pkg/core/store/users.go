@@ -126,6 +126,28 @@ func (db *DB) Setting(ctx context.Context, key string) (string, bool, error) {
 	return value, true, nil
 }
 
+// Settings возвращает все настройки книги.
+func (db *DB) Settings(ctx context.Context) (map[string]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT key, value FROM settings`)
+	if err != nil {
+		return nil, fmt.Errorf("store: не удалось прочитать настройки: %w", err)
+	}
+	defer rows.Close()
+
+	settings := map[string]string{}
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, fmt.Errorf("store: не удалось разобрать настройку: %w", err)
+		}
+		settings[key] = value
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: ошибка чтения настроек: %w", err)
+	}
+	return settings, nil
+}
+
 // DeleteSetting удаляет настройку; отсутствие ключа ошибкой не считается.
 func (db *DB) DeleteSetting(ctx context.Context, key string) error {
 	if _, err := db.ExecContext(ctx, `DELETE FROM settings WHERE key = ?`, key); err != nil {

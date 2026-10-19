@@ -142,6 +142,30 @@ type User struct {
 	TokenHash string
 }
 
+// Device — привязанное устройство (клиент синхронизации).
+//
+// Открытый токен не хранится: в книге лежит только его хеш.
+type Device struct {
+	ClientID  string
+	UserID    int64
+	TokenHash string
+	CreatedAt time.Time
+}
+
+// Commit — коммит синхронизации (аналог коммита git).
+type Commit struct {
+	ID        int64
+	ClientID  string
+	ActorID   int64
+	BaseSeq   int64
+	OpsJSON   string
+	ResultSeq int64
+	// Hash — звено хэш-цепочки: SHA-256(предыдущий хеш || ops_json).
+	Hash      string
+	Warnings  []string
+	CreatedAt time.Time
+}
+
 // ChangelogEntry — запись журнала изменений для синхронизации.
 type ChangelogEntry struct {
 	Seq       int64

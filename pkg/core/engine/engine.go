@@ -78,11 +78,21 @@ type Operation struct {
 	Entries []Entry
 }
 
-// Post собирает, проверяет и сохраняет проводку.
+// Prepared — результат подготовки проводки без записи.
+type Prepared struct {
+	// Transaction — собранная и проверенная проводка.
+	Transaction *model.Transaction
+	// Existing — проводка с таким uuid уже есть в книге (идемпотентность).
+	Existing bool
+}
+
+// Prepare собирает и проверяет проводку, не записывая её.
 //
-// Повтор с тем же uuid идемпотентен: возвращается уже существующая проводка
-// с тем же ответом.
-func (e *Engine) Post(ctx context.Context, op Operation, actorID int64) (*model.Transaction, error) {
+// Используется одиночной записью (Post) и пакетным коммитом синхронизации:
+// пакет проверяет все операции через Prepare, а записывает их одной
+// транзакцией БД. Если uuid уже существует, возвращается готовая проводка с
+// признаком Existing — повтор не создаёт дубль.
+func (e *Engine) Prepare(ctx context.Context, op Operation, actorID int64) (*Prepared, error) {
 	if !op.OpType.Valid() {
 		return nil, NewError(CodeOpTypeUnknown, "неизвестный тип операции «"+string(op.OpType)+"»")
 	}
@@ -93,7 +103,7 @@ func (e *Engine) Post(ctx context.Context, op Operation, actorID int64) (*model.
 	existing, err := e.db.TransactionByUUID(ctx, op.UUID)
 	switch {
 	case err == nil:
-		return existing, nil
+		return &Prepared{Transaction: existing, Existing: true}, nil
 	case !errors.Is(err, store.ErrNotFound):
 		return nil, err
 	}
@@ -122,13 +132,35 @@ func (e *Engine) Post(ctx context.Context, op Operation, actorID int64) (*model.
 	if err := e.validate(ctx, tr, true); err != nil {
 		return nil, err
 	}
+	return &Prepared{Transaction: tr}, nil
+}
 
-	id, err := e.db.InsertTransaction(ctx, tr)
+// MarkInitialApplied фиксирует, что начальные остатки внесены.
+//
+// Флаг запрещает повторный ввод стартовых остатков (критерий эпика).
+func (e *Engine) MarkInitialApplied(ctx context.Context) error {
+	return e.db.SetSetting(ctx, store.SettingInitialBalances, "1")
+}
+
+// Post собирает, проверяет и сохраняет проводку.
+//
+// Повтор с тем же uuid идемпотентен: возвращается уже существующая проводка
+// с тем же ответом.
+func (e *Engine) Post(ctx context.Context, op Operation, actorID int64) (*model.Transaction, error) {
+	prepared, err := e.Prepare(ctx, op, actorID)
+	if err != nil {
+		return nil, err
+	}
+	if prepared.Existing {
+		return prepared.Transaction, nil
+	}
+
+	id, err := e.db.InsertTransaction(ctx, prepared.Transaction)
 	if err != nil {
 		return nil, mapStoreError(err)
 	}
 	if op.OpType == model.OpInitial {
-		if err := e.db.SetSetting(ctx, store.SettingInitialBalances, "1"); err != nil {
+		if err := e.MarkInitialApplied(ctx); err != nil {
 			return nil, err
 		}
 	}
