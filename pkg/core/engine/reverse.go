@@ -64,7 +64,7 @@ func (e *Engine) Reverse(ctx context.Context, originalID, actorID int64, uuid st
 	// Сторно — инверсия уже принятой операции, поэтому ячейки матрицы не
 	// перепроверяются; сквозные инварианты (листовые счета, положительные
 	// суммы, баланс, дата, min_balance) проверяются.
-	if err := e.validate(ctx, tr, false); err != nil {
+	if err := e.validate(ctx, tr, reversedChecks); err != nil {
 		return nil, err
 	}
 

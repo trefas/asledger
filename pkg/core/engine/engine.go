@@ -129,7 +129,7 @@ func (e *Engine) Prepare(ctx context.Context, op Operation, actorID int64) (*Pre
 		SourceHash:  op.SourceHash,
 		Lines:       lines,
 	}
-	if err := e.validate(ctx, tr, true); err != nil {
+	if err := e.validate(ctx, tr, regularChecks); err != nil {
 		return nil, err
 	}
 	return &Prepared{Transaction: tr}, nil
@@ -342,16 +342,46 @@ func (e *Engine) buildDirectional(ctx context.Context, op Operation) ([]model.Tr
 	}, nil
 }
 
-// validate проверяет сквозные инварианты проводки перед записью.
+// validateOptions — набор проверок валидатора проводки.
+type validateOptions struct {
+	// checkMatrix включает проверку ячеек матрицы операций.
+	checkMatrix bool
+	// checkCreatedAt проверяет, что дата проводки не раньше даты создания счёта.
+	checkCreatedAt bool
+	// checkMinBalance применяет политику контроля остатка.
+	checkMinBalance bool
+}
+
+// regularChecks — проверки обычной (не импортируемой) проводки.
+var regularChecks = validateOptions{checkMatrix: true, checkCreatedAt: true, checkMinBalance: true}
+
+// reversedChecks — проверки сторно: матрица не применяется, остальные — да.
+var reversedChecks = validateOptions{checkMatrix: false, checkCreatedAt: true, checkMinBalance: true}
+
+// importedChecks — проверки импортируемой проводки.
 //
-// checkMatrix включает проверку ячеек матрицы; для сторно она отключается, так
-// как сторно — инверсия уже принятой операции.
-func (e *Engine) validate(ctx context.Context, tr *model.Transaction, checkMatrix bool) error {
+// Стороны строк заданы исходной книгой, поэтому матрица не применяется. Нижняя
+// граница даты не проверяется: импортируемые проводки историчны, а счета
+// создаёт сам импорт. Политика контроля остатка тоже не применяется — она
+// относится к новым операциям, а не к переносу истории.
+var importedChecks = validateOptions{}
+
+// ValidateImported проверяет готовую проводку импорта без пересчёта по матрице.
+//
+// Проверяются суммы, стороны, существование, листовость и архивность счетов,
+// равенство дебета и кредита и верхняя граница даты. Импорт не минует валидатор
+// движка: он вызывается для каждой импортируемой проводки.
+func (e *Engine) ValidateImported(ctx context.Context, tr *model.Transaction) error {
+	return e.validate(ctx, tr, importedChecks)
+}
+
+// validate проверяет сквозные инварианты проводки перед записью.
+func (e *Engine) validate(ctx context.Context, tr *model.Transaction, opts validateOptions) error {
 	if len(tr.Lines) == 0 {
 		return NewError(CodeEntryMissing, "в проводке нет строк")
 	}
 	rule, ok := RuleFor(tr.OpType)
-	if checkMatrix && !ok {
+	if opts.checkMatrix && !ok {
 		return NewError(CodeOpTypeUnknown, "неизвестный тип операции «"+string(tr.OpType)+"»")
 	}
 
@@ -383,7 +413,7 @@ func (e *Engine) validate(ctx context.Context, tr *model.Transaction, checkMatri
 			return NewError(CodeAccountNotLeaf,
 				"счёт — папка, выберите листовой счёт").WithAccount(acc.FullPath)
 		}
-		if checkMatrix {
+		if opts.checkMatrix {
 			if _, ok := rule.sideOfType(acc.Type); !ok {
 				if rule.Reserved(acc.Type) {
 					return NewError(CodeReservedCell,
@@ -408,7 +438,7 @@ func (e *Engine) validate(ctx context.Context, tr *model.Transaction, checkMatri
 		return NewError(CodeUnbalanced,
 			fmt.Sprintf("дебет %d коп. не равен кредиту %d коп.", debit.Kopecks(), credit.Kopecks()))
 	}
-	if checkMatrix {
+	if opts.checkMatrix {
 		if debitN < rule.MinDebit {
 			return NewError(CodeEntryMissing,
 				fmt.Sprintf("операция «%s» требует минимум %d строк дебета", tr.OpType, rule.MinDebit))
@@ -418,15 +448,19 @@ func (e *Engine) validate(ctx context.Context, tr *model.Transaction, checkMatri
 				fmt.Sprintf("операция «%s» требует минимум %d строк кредита", tr.OpType, rule.MinCredit))
 		}
 	}
-	if err := e.validateDate(tr, accounts); err != nil {
+	if err := e.validateDate(tr, accounts, opts.checkCreatedAt); err != nil {
 		return err
+	}
+	if !opts.checkMinBalance {
+		return nil
 	}
 	return e.validateMinBalance(ctx, tr, accounts)
 }
 
-// validateDate проверяет диапазон даты: не раньше даты создания счёта и не
-// больше «завтра».
-func (e *Engine) validateDate(tr *model.Transaction, accounts map[int64]*model.Account) error {
+// validateDate проверяет диапазон даты: не раньше даты создания счёта (для
+// исторических импортируемых проводок граница не применяется) и не больше
+// «завтра».
+func (e *Engine) validateDate(tr *model.Transaction, accounts map[int64]*model.Account, checkCreatedAt bool) error {
 	if tr.Date.IsZero() {
 		return NewError(CodeDateRange, "не задана дата проводки")
 	}
@@ -434,6 +468,9 @@ func (e *Engine) validateDate(tr *model.Transaction, accounts map[int64]*model.A
 	tomorrowEnd := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, 2)
 	if tr.Date.After(tomorrowEnd) {
 		return NewError(CodeDateRange, "дата проводки больше «завтра»")
+	}
+	if !checkCreatedAt {
+		return nil
 	}
 	for _, acc := range accounts {
 		created := acc.CreatedAt.UTC()
