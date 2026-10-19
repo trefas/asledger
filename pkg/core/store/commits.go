@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,11 +12,25 @@ import (
 	"github.com/trefas/asledger/pkg/core/model"
 )
 
+// ChainHash вычисляет звено хэш-цепочки: SHA-256(prevHash || opsJSON).
+//
+// ops_json каноничен по построению: это сериализация структуры с фиксированным
+// порядком полей, поэтому один и тот же пакет даёт один и тот же хеш.
+func ChainHash(prevHash, opsJSON string) string {
+	sum := sha256.Sum256([]byte(prevHash + opsJSON))
+	return hex.EncodeToString(sum[:])
+}
+
 // ApplyCommit применяет пакет операций одним коммитом.
 //
 // Все проводки пакета записываются в одной транзакции БД: любая ошибка
 // отклоняет пакет целиком и не оставляет ни одной проводки (атомарность,
 // критерий эпика). Коммит хранит звено хэш-цепочки и результат head_seq.
+//
+// Звено цепочки, признак rebase и head_seq вычисляются внутри той же
+// транзакции под общей блокировкой, поэтому одновременные коммиты выстраиваются
+// в линейную хэш-цепочку, а не разветвляют её, и отставший base_seq всегда
+// получает rebase-предупреждение.
 func (db *DB) ApplyCommit(ctx context.Context, commit *model.Commit, transactions []*model.Transaction) ([]int64, error) {
 	for _, tr := range transactions {
 		if err := validateTransaction(tr); err != nil {
@@ -22,8 +38,29 @@ func (db *DB) ApplyCommit(ctx context.Context, commit *model.Commit, transaction
 		}
 	}
 
+	db.commitMu.Lock()
+	defer db.commitMu.Unlock()
+
 	ids := make([]int64, 0, len(transactions))
 	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		var headBefore sql.NullInt64
+		if err := tx.QueryRowContext(ctx, `SELECT MAX(seq) FROM changelog`).Scan(&headBefore); err != nil {
+			return fmt.Errorf("store: не удалось прочитать head_seq: %w", err)
+		}
+		if commit.BaseSeq < headBefore.Int64 {
+			commit.Warnings = append(commit.Warnings, fmt.Sprintf(
+				"rebase: base_seq %d отстал от head_seq %d, операции переигрываются поверх актуального состояния",
+				commit.BaseSeq, headBefore.Int64))
+		}
+
+		var prevHash sql.NullString
+		if err := tx.QueryRowContext(ctx,
+			`SELECT prev_hash FROM commits ORDER BY id DESC LIMIT 1`).Scan(&prevHash); err != nil &&
+			!errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("store: не удалось прочитать хеш цепочки: %w", err)
+		}
+		commit.Hash = ChainHash(prevHash.String, commit.OpsJSON)
+
 		warnings, err := json.Marshal(commit.Warnings)
 		if err != nil {
 			return fmt.Errorf("store: не удалось сохранить предупреждения коммита: %w", err)

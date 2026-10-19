@@ -2,8 +2,6 @@ package sync
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 
 	"github.com/trefas/asledger/pkg/core/store"
@@ -11,11 +9,10 @@ import (
 
 // ChainHash вычисляет звено хэш-цепочки: SHA-256(prevHash || opsJSON).
 //
-// ops_json каноничен по построению: это сериализация структуры с фиксированным
-// порядком полей, поэтому один и тот же пакет даёт один и тот же хеш.
+// Вычисления живут в store: звено цепочки вычисляется там же, где коммит
+// записывается, — под блокировкой и в одной транзакции с head_seq.
 func ChainHash(prevHash, opsJSON string) string {
-	sum := sha256.Sum256([]byte(prevHash + opsJSON))
-	return hex.EncodeToString(sum[:])
+	return store.ChainHash(prevHash, opsJSON)
 }
 
 // chainHash возвращает текущий хеш цепочки (пустая строка для пустой истории).

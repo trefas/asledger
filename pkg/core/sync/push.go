@@ -114,18 +114,8 @@ func (s *Service) Push(ctx context.Context, req PushRequest) (*PushResult, error
 	if err != nil {
 		return nil, err
 	}
-	prevHash, err := s.chainHash(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	var warnings []string
-	if req.BaseSeq < head {
-		warnings = append(warnings, fmt.Sprintf(
-			"rebase: base_seq %d отстал от head_seq %d, операции переигрываются поверх актуального состояния",
-			req.BaseSeq, head))
-	}
-
 	applied := make([]*model.Transaction, 0, len(req.Operations))
 	var duplicates []Duplicate
 	seen := make(map[string]bool, len(req.Operations))
@@ -168,7 +158,6 @@ func (s *Service) Push(ctx context.Context, req PushRequest) (*PushResult, error
 		ActorID:  req.ActorID,
 		BaseSeq:  req.BaseSeq,
 		OpsJSON:  string(opsJSON),
-		Hash:     ChainHash(prevHash, string(opsJSON)),
 		Warnings: warnings,
 	}
 	if _, err := s.db.ApplyCommit(ctx, commit, applied); err != nil {
@@ -187,11 +176,11 @@ func (s *Service) Push(ctx context.Context, req PushRequest) (*PushResult, error
 		uuids = append(uuids, tr.UUID)
 	}
 	return &PushResult{
-		Status:     statusFor(warnings),
+		Status:     statusFor(commit.Warnings),
 		CommitID:   req.CommitID,
 		ResultSeq:  commit.ResultSeq,
 		Applied:    uuids,
-		Warnings:   warnings,
+		Warnings:   commit.Warnings,
 		Duplicates: duplicates,
 	}, nil
 }

@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
 	"github.com/trefas/asledger/pkg/core/store"
-	"github.com/trefas/asledger/pkg/core/sync"
 )
 
 // Source — значение источника проводок, импортированных из hledger.
@@ -284,10 +282,6 @@ func (im *Importer) write(ctx context.Context, transactions []*model.Transaction
 	if err != nil {
 		return err
 	}
-	prevHash, err := im.chainHash(ctx)
-	if err != nil {
-		return err
-	}
 
 	hashes := make([]string, 0, len(transactions))
 	for _, tr := range transactions {
@@ -305,24 +299,11 @@ func (im *Importer) write(ctx context.Context, transactions []*model.Transaction
 		ActorID:  opts.ActorID,
 		BaseSeq:  head,
 		OpsJSON:  string(payload),
-		Hash:     sync.ChainHash(prevHash, string(payload)),
 	}
 	if _, err := im.db.ApplyCommit(ctx, commit, transactions); err != nil {
 		return err
 	}
 	return nil
-}
-
-// chainHash возвращает текущее звено хэш-цепочки (пустая строка для пустой истории).
-func (im *Importer) chainHash(ctx context.Context) (string, error) {
-	commit, err := im.db.LastCommit(ctx)
-	if errors.Is(err, store.ErrNotFound) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return commit.Hash, nil
 }
 
 // importPayload — содержимое коммита импорта (звено хэш-цепочки).

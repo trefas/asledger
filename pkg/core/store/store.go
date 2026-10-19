@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
 	// Драйвер SQLite на чистом Go — не требует cgo и одинаково работает
@@ -29,6 +30,9 @@ const (
 type DB struct {
 	*sql.DB
 	path string
+	// commitMu сериализует создание коммитов: хэш-цепочка и head_seq должны
+	// оставаться согласованными при одновременных push и импортах.
+	commitMu sync.Mutex
 }
 
 // Open открывает книгу по указанному пути.
