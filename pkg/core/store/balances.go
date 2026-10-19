@@ -147,13 +147,15 @@ func (db *DB) Turnovers(ctx context.Context, from, to int64) (map[int64]Turnover
 		SELECT a.id,
 			COALESCE(SUM(CASE WHEN t.date < ? THEN CASE WHEN l.side = 'DEBIT'  THEN l.amount_kop ELSE 0 END ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN t.date < ? THEN CASE WHEN l.side = 'CREDIT' THEN l.amount_kop ELSE 0 END ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN t.date >= ? AND t.date <= ? THEN CASE WHEN l.side = 'DEBIT'  THEN l.amount_kop ELSE 0 END ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN t.date >= ? AND t.date <= ? THEN CASE WHEN l.side = 'CREDIT' THEN l.amount_kop ELSE 0 END ELSE 0 END), 0)
+			COALESCE(SUM(CASE WHEN (? = 0 OR t.date >= ?) AND (? = 0 OR t.date <= ?)
+				THEN CASE WHEN l.side = 'DEBIT'  THEN l.amount_kop ELSE 0 END ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN (? = 0 OR t.date >= ?) AND (? = 0 OR t.date <= ?)
+				THEN CASE WHEN l.side = 'CREDIT' THEN l.amount_kop ELSE 0 END ELSE 0 END), 0)
 		  FROM accounts a
 		  LEFT JOIN transaction_lines l ON l.account_id = a.id
 		  LEFT JOIN transactions t ON t.id = l.transaction_id
 		 GROUP BY a.id`,
-		from, from, from, to, from, to)
+		from, from, from, from, to, to, from, from, to, to)
 	if err != nil {
 		return nil, fmt.Errorf("store: не удалось посчитать обороты: %w", err)
 	}

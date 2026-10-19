@@ -46,6 +46,18 @@ func FromKopecks(v int64) Kop { return Kop(v) }
 // Kopecks возвращает сумму в копейках.
 func (k Kop) Kopecks() int64 { return int64(k) }
 
+// ParseKopecks разбирает целое число копеек.
+//
+// Используется машинными интерфейсами (REST API, фильтры отчётов), где сумма
+// передаётся уже в копейках и дробная часть не ожидается.
+func ParseKopecks(s string) (Kop, error) {
+	v, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %q", ErrFormat, s)
+	}
+	return Kop(v), nil
+}
+
 // Parse разбирает денежную строку в сумму.
 //
 // Принимаются формы «123.45», «123,45», «1 250 ₽», «+10», «−5,5».

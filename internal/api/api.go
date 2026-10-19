@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/trefas/asledger/pkg/core/engine"
+	reconcilesvc "github.com/trefas/asledger/pkg/core/reconcile"
 	"github.com/trefas/asledger/pkg/core/store"
 	syncsvc "github.com/trefas/asledger/pkg/core/sync"
 )
@@ -33,10 +34,11 @@ type Config struct {
 
 // Server — HTTP-обработчики REST API.
 type Server struct {
-	db     *store.DB
-	sync   *syncsvc.Service
-	cfg    Config
-	logger *slog.Logger
+	db        *store.DB
+	sync      *syncsvc.Service
+	reconcile *reconcilesvc.Service
+	cfg       Config
+	logger    *slog.Logger
 }
 
 // New создаёт API-сервер поверх книги.
@@ -46,10 +48,11 @@ func New(db *store.DB, cfg Config) *Server {
 		logger = slog.New(slog.DiscardHandler)
 	}
 	return &Server{
-		db:     db,
-		sync:   syncsvc.New(db),
-		cfg:    cfg,
-		logger: logger,
+		db:        db,
+		sync:      syncsvc.New(db),
+		reconcile: reconcilesvc.New(db),
+		cfg:       cfg,
+		logger:    logger,
 	}
 }
 
@@ -72,6 +75,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/charts/templates", s.auth(http.HandlerFunc(s.handleChartTemplates)))
 	mux.Handle("POST /api/v1/import", s.auth(http.HandlerFunc(s.handleImport)))
 	mux.Handle("GET /api/v1/export", s.auth(http.HandlerFunc(s.handleExport)))
+
+	mux.Handle("GET /api/v1/reports/balances", s.auth(http.HandlerFunc(s.handleReportsBalances)))
+	mux.Handle("GET /api/v1/reports/turnovers", s.auth(http.HandlerFunc(s.handleReportsTurnovers)))
+	mux.Handle("GET /api/v1/reports/expenses", s.auth(http.HandlerFunc(s.handleReportsExpenses)))
+	mux.Handle("GET /api/v1/reports/journal", s.auth(http.HandlerFunc(s.handleReportsJournal)))
+	mux.Handle("GET /api/v1/reports/discrepancies", s.auth(http.HandlerFunc(s.handleReportsDiscrepancies)))
+	mux.Handle("POST /api/v1/reconcile", s.auth(http.HandlerFunc(s.handleReconcile)))
 
 	var handler http.Handler = mux
 	handler = s.jsonFallback(handler)
