@@ -1,0 +1,69 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Первичная настройка</h1>
+<p class="muted">Настройте план счетов один раз: выберите готовый шаблон или импортируйте JSON. Позже план можно править в разделе «План счетов».</p>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+
+{{if .NeedUser}}
+<div class="card">
+  <h2>Пользователь семьи</h2>
+  <p class="muted">Проводки подписываются автором, поэтому сначала создайте первого пользователя. Секрет понадобится устройствам для подключения к API.</p>
+  <div class="row">
+    <div>
+      <label for="user_name">Имя</label>
+      <input type="text" id="user_name" name="user_name" form="setup-template" placeholder="например, Папа">
+    </div>
+    <div>
+      <label for="user_secret">Секрет</label>
+      <input type="password" id="user_secret" name="user_secret" form="setup-template" placeholder="длинная фраза">
+    </div>
+  </div>
+  <p class="muted">Поля обязательны и для импорта JSON: имя и секрет вводятся теми же значениями.</p>
+</div>
+{{end}}
+
+<div class="card">
+  <h2>Начать с шаблона</h2>
+  {{if .Templates}}
+  <form id="setup-template" method="post" action="/setup/template">
+    <table>
+      <thead><tr><th></th><th>Шаблон</th><th class="num">Счетов</th></tr></thead>
+      <tbody>
+      {{range .Templates}}
+        <tr>
+          <td><input type="radio" name="template" value="{{.File}}" required></td>
+          <td>{{.Name}} <span class="muted">({{.File}})</span></td>
+          <td class="num">{{.Accounts}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    <div class="form-actions"><button type="submit" class="btn">Создать план счетов</button></div>
+  </form>
+  {{else}}
+  <p class="empty">Шаблоны не найдены. Проверьте каталог шаблонов в настройках приложения.</p>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>Импорт плана счетов из JSON</h2>
+  <form id="setup-import" method="post" action="/setup/import" enctype="multipart/form-data">
+    <label for="content">JSON плана счетов</label>
+    <textarea id="content" name="content" spellcheck="false" placeholder='{"name":"Мой план","accounts":[{"name":"Активы","type":"актив","children":[{"name":"Наличные","type":"актив"}]}]}'>{{.Content}}</textarea>
+    <label for="file">или выберите файл</label>
+    <input type="file" id="file" name="file" accept="application/json,.json">
+    <div class="form-actions"><button type="submit" class="btn">Импортировать</button></div>
+  </form>
+</div>
+
+{{if .Users}}
+<div class="card">
+  <h2>Пользователи</h2>
+  <ul>
+    {{range .Users}}<li>{{.Name}}</li>{{end}}
+  </ul>
+</div>
+{{end}}
+{{end}}
+{{end}}

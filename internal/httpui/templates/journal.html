@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1>Журнал проводок</h1>
+{{with .Data}}
+{{if .Empty}}
+  <p class="empty">Пока нет ни одной проводки. <a href="/entry">Добавить проводку</a>.</p>
+{{else}}
+  <p class="muted">Показаны последние {{len .Transactions}} проводок.</p>
+  <ul class="journal">
+  {{range .Transactions}}
+    <li class="tx">
+      <div class="tx-head">
+        <span class="tx-date">{{date .Date}}</span>
+        <span class="tx-type">{{.OpType}}</span>
+        {{if .Description}}<span class="tx-desc">{{.Description}}</span>{{end}}
+        <span class="tx-sum">{{money .Total}}</span>
+      </div>
+      <ul class="tx-lines">
+      {{range .Lines}}
+        <li class="line line-{{.Class}}">
+          <span class="line-account">{{.Account}}</span>
+          <span class="line-side">{{side .Side}}</span>
+          <span class="line-amount">{{money .Amount}}</span>
+        </li>
+      {{end}}
+      </ul>
+    </li>
+  {{end}}
+  </ul>
+{{end}}
+{{end}}
+{{end}}

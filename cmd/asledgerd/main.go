@@ -71,10 +71,21 @@ func run(args []string) error {
 		Logger:    logger,
 	})
 
+	webServer, err := httpui.New(httpui.Config{
+		Version:   version.Version,
+		AssetsDir: cfg.AssetsDir,
+		ChartsDir: cfg.ChartsDir,
+		DB:        db,
+		Logger:    logger,
+	})
+	if err != nil {
+		return err
+	}
+
 	servers := []*http.Server{
 		{
 			Addr:              cfg.WebAddr,
-			Handler:           httpui.NewWebMux(cfg.AssetsDir, version.Version),
+			Handler:           webServer.Handler(),
 			ReadHeaderTimeout: readHeaderTimeout,
 			ReadTimeout:       readTimeout,
 			WriteTimeout:      writeTimeout,

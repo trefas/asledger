@@ -20,6 +20,7 @@ import (
 	"github.com/trefas/asledger/internal/httpui"
 	"github.com/trefas/asledger/internal/logging"
 	"github.com/trefas/asledger/internal/version"
+	"github.com/trefas/asledger/pkg/core/store"
 )
 
 func main() {
@@ -39,7 +40,27 @@ func run(args []string) error {
 	}
 	logger := logging.New(cfg.LogLevel, cfg.LogFormat)
 
-	srv := &http.Server{Addr: cfg.WebAddr, Handler: httpui.NewWebMux(cfg.AssetsDir, version.Version)}
+	db, err := store.Open(context.Background(), cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	if err := db.Migrate(context.Background()); err != nil {
+		return err
+	}
+
+	webServer, err := httpui.New(httpui.Config{
+		Version:   version.Version,
+		AssetsDir: cfg.AssetsDir,
+		ChartsDir: cfg.ChartsDir,
+		DB:        db,
+		Logger:    logger,
+	})
+	if err != nil {
+		return err
+	}
+
+	srv := &http.Server{Addr: cfg.WebAddr, Handler: webServer.Handler()}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

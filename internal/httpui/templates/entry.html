@@ -1,0 +1,93 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Ввод проводки</h1>
+<div id="entry-config" data-ops="{{.RolesJSON}}" hidden></div>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+
+<form id="entry-form" method="post" action="/entry">
+  <fieldset class="card">
+    <legend>1. Тип операции</legend>
+    <div class="op-types">
+      {{range .Ops}}
+        <label class="op-type">
+          <input type="radio" name="op_type" value="{{.Type}}"{{if eq .Type $.Data.Selected}} checked{{end}}>
+          <span>{{.Title}}</span>
+        </label>
+      {{end}}
+    </div>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>2. <span id="section-a-title">{{.Current.LabelA}}</span></legend>
+    <div class="entry-lines" id="rows-a" data-prefix="a" data-role="{{.Current.RoleA}}">
+      {{range .RowsA}}
+        <div class="entry-line" data-row>
+          <div class="ac">
+            <label>Счёт</label>
+            <input type="text" class="ac-input" value="{{.AccountPath}}" placeholder="начать вводить, например «продукт»" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
+            <input type="hidden" name="a_account" value="{{if .AccountID}}{{.AccountID}}{{end}}">
+            <ul class="ac-list" hidden></ul>
+            <div class="matrix-warning" hidden></div>
+          </div>
+          <div>
+            <label>Сумма, ₽</label>
+            <input type="text" name="a_amount" inputmode="decimal" value="{{.Amount}}" placeholder="0,00">
+          </div>
+          <button type="button" class="btn btn-secondary btn-small remove" title="Убрать строку">×</button>
+        </div>
+      {{end}}
+    </div>
+    <p><button type="button" class="btn btn-secondary btn-small" data-add="rows-a">Добавить строку</button></p>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>3. <span id="section-b-title">{{.Current.LabelB}}</span></legend>
+    <div class="entry-lines" id="rows-b" data-prefix="b" data-role="{{.Current.RoleB}}">
+      {{range .RowsB}}
+        <div class="entry-line" data-row>
+          <div class="ac">
+            <label>Счёт</label>
+            <input type="text" class="ac-input" value="{{.AccountPath}}" placeholder="начать вводить" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
+            <input type="hidden" name="b_account" value="{{if .AccountID}}{{.AccountID}}{{end}}">
+            <ul class="ac-list" hidden></ul>
+            <div class="matrix-warning" hidden></div>
+          </div>
+          <div>
+            <label>Сумма, ₽</label>
+            <input type="text" name="b_amount" inputmode="decimal" value="{{.Amount}}" placeholder="0,00">
+          </div>
+          <button type="button" class="btn btn-secondary btn-small remove" title="Убрать строку">×</button>
+        </div>
+      {{end}}
+    </div>
+    <p><button type="button" class="btn btn-secondary btn-small" data-add="rows-b">Добавить строку</button></p>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>4. Дата и описание</legend>
+    <div class="row">
+      <div>
+        <label for="date">Дата</label>
+        <input type="date" id="date" name="date" value="{{.Date}}" required>
+      </div>
+      <div>
+        <label for="actor_id">Автор проводки</label>
+        <select id="actor_id" name="actor_id">
+          {{range .Users}}<option value="{{.ID}}"{{if eq .ID $.Data.ActorID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <label for="description">Описание</label>
+    <input type="text" id="description" name="description" value="{{.Description}}" placeholder="необязательно">
+  </fieldset>
+
+  <div class="summary" id="balance-summary">Проверка баланса…</div>
+  <div class="form-actions">
+    <button type="submit" class="btn" id="submit">5. Сохранить проводку</button>
+    <button type="button" class="btn btn-secondary" id="clear-draft">Очистить черновик</button>
+  </div>
+  <p class="draft-note" id="draft-note" hidden>Черновик формы сохранён в браузере.</p>
+</form>
+{{end}}
+{{end}}

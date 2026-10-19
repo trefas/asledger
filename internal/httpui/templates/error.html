@@ -1,0 +1,7 @@
+{{define "content"}}
+<div class="card card-narrow">
+  <h1>Что-то пошло не так</h1>
+  {{with .Data}}<p class="error-text">{{.Message}}</p>{{end}}
+  <p><a class="btn" href="/">Вернуться в журнал</a></p>
+</div>
+{{end}}

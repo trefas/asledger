@@ -13,7 +13,7 @@ LDFLAGS := -X github.com/trefas/asledger/internal/version.Version=$(VERSION) \
            -X github.com/trefas/asledger/internal/version.Commit=$(COMMIT) \
            -X github.com/trefas/asledger/internal/version.Date=$(DATE)
 
-.PHONY: all build test test-race cover fmt fmt-check vet lint lint-money lint-go check run clean help
+.PHONY: all build test test-race cover fmt fmt-check vet lint lint-money lint-go check run assets clean help
 
 all: check build
 
@@ -71,6 +71,10 @@ check: lint test
 ## run: запустить демон с локальной конфигурацией
 run:
 	$(GO) run ./cmd/asledgerd
+
+## assets: перегенерировать комплект иконок из assets/logo/asledger-logo.svg
+assets:
+	./scripts/gen-assets.sh
 
 ## clean: удалить артефакты сборки
 clean:
