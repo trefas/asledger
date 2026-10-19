@@ -81,6 +81,7 @@ var pageFiles = map[string]string{
 	"journal": "journal.html",
 	"entry":   "entry.html",
 	"setup":   "setup.html",
+	"data":    "data.html",
 	"chart":   "chart.html",
 	"users":   "users.html",
 	"initial": "initial.html",
@@ -163,6 +164,10 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /initial", s.handleInitialForm)
 	mux.HandleFunc("POST /initial", s.handleInitialSubmit)
+
+	mux.HandleFunc("GET /data", s.handleData)
+	mux.HandleFunc("POST /data/import", s.handleDataImport)
+	mux.HandleFunc("GET /data/export/{format}", s.handleDataExport)
 
 	mux.HandleFunc("GET /suggest.json", s.handleSuggestJSON)
 	mux.HandleFunc("GET /matrix.json", s.handleMatrixJSON)

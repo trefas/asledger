@@ -229,19 +229,43 @@ Authorization: Bearer <токен>
 
 ### POST /api/v1/import
 
-Импорт файла. Пока поддерживается `chart-json` (вложенный формат `children`):
+Импорт файла. Поддерживаются `chart-json` (вложенный формат `children`) и
+`hledger` (plaintext-книга, см. [hledger.md](hledger.md)):
 
 ```json
-{ "format": "chart-json", "mode": "строгий", "content": "{ … }" }
+{ "format": "chart-json", "content": "{ … }" }
+{ "format": "hledger", "mode": "гибкий", "file_name": "book.journal", "content": "2026-01-15 …" }
 ```
 
-Ответ `200`: `{ "format": "chart-json", "created": 5, "existing": 0 }`.
-Форматы hledger появятся в вехе S5 и пока отвечают `501 ERR_NOT_IMPLEMENTED`.
+Ответ для `chart-json`: `{ "format": "chart-json", "created": 5, "existing": 0 }`.
 
-### GET /api/v1/export?format=csv|hledger|json
+Ответ для `hledger` — отчёт об импорте:
 
-Экспорт книги. `json` отдаёт снапшот сразу; `csv` и `hledger` появятся в вехе
-S5 и пока отвечают `501 ERR_NOT_IMPLEMENTED`.
+```json
+{
+  "format": "hledger", "mode": "гибкий", "accepted": 12, "skipped": 1, "duplicates": 0,
+  "created_accounts": ["Расходы:Продукты"], "rejected": false,
+  "problems": [ { "line": 42, "message": "счёт «Недвижимость» отсутствует в плане счетов" } ]
+}
+```
+
+Проблемы данных не считаются ошибкой запроса: ответ `200` с отчётом. Строгий
+режим (`"mode": "строгий"`) при любой проблеме не меняет книгу и возвращает
+`"rejected": true`. Повторный импорт того же файла идемпотентен: проводки
+попадают в `duplicates`.
+
+### GET /api/v1/export?format=json|csv|hledger
+
+Экспорт книги.
+
+- `json` — полный снапшот книги (формат синхронизации);
+- `hledger` — plaintext-книга hledger (файл `asledger.journal`);
+- `csv` — журнал или отчёт (файл `asledger-<отчёт>.csv`). Параметр `report`
+  выбирает отчёт: `journal` (по умолчанию), `balances`, `turnover`; для
+  оборотов период задаётся `from` и `to` (ГГГГ-ММ-ДД).
+
+CSV отдаётся в UTF-8 с меткой порядка байтов и разделителем `;` — так его
+открывают электронные таблицы без искажений кириллицы.
 
 ## Ошибки
 
@@ -258,7 +282,6 @@ S5 и пока отвечают `501 ERR_NOT_IMPLEMENTED`.
 
 Коды HTTP: `400` — некорректный запрос, `401` — нет или неверен токен,
 `404` — маршрут не найден, `405` — неверный метод, `422` — нарушение
-инвариантов движка, `500` — внутренняя ошибка, `501` — формат пока не
-реализован.
+инвариантов движка, `500` — внутренняя ошибка.
 
 Все ответы содержат заголовок `X-Request-Id`.

@@ -1,0 +1,98 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Импорт и экспорт</h1>
+<p class="muted">Перенос книги в plaintext-формате hledger (миграция с другого инструмента) и выгрузка данных для резервных копий и таблиц.</p>
+
+{{if .Error}}<div class="flash flash-error" role="status">{{.Error}}</div>{{end}}
+
+{{if .Report}}
+<div class="card">
+  <h2>Отчёт об импорте</h2>
+  <table>
+    <tbody>
+      <tr><th>Режим</th><td>{{.Report.Mode}}</td></tr>
+      {{if .Report.FileName}}<tr><th>Файл</th><td>{{.Report.FileName}}</td></tr>{{end}}
+      <tr><th>Принято проводок</th><td>{{.Report.Accepted}}</td></tr>
+      <tr><th>Пропущено проводок</th><td>{{.Report.Skipped}}</td></tr>
+      <tr><th>Уже было импортировано</th><td>{{.Report.Duplicates}}</td></tr>
+      {{if .Report.Rejected}}<tr><th>Итог</th><td><strong>импорт отклонён целиком, книга не изменена</strong></td></tr>{{end}}
+    </tbody>
+  </table>
+
+  {{if .Report.CreatedAccounts}}
+  <h3>Созданные счета</h3>
+  <ul>
+    {{range .Report.CreatedAccounts}}<li><code>{{.}}</code></li>{{end}}
+  </ul>
+  {{end}}
+
+  {{if .Report.Problems}}
+  <h3>Проблемы</h3>
+  <ul class="problems">
+    {{range .Report.Problems}}<li>{{.}}</li>{{end}}
+  </ul>
+  {{else}}
+  <p class="muted">Ошибок разбора и отклонённых проводок нет.</p>
+  {{end}}
+
+  {{if .Report.Message}}<p class="muted">{{.Report.Message}}</p>{{end}}
+</div>
+{{end}}
+
+<div class="card">
+  <h2>Импорт книги hledger</h2>
+  <p class="muted">Гибкий режим дополняет план счетов недостающими счетами и пропускает проблемные проводки с причиной. Строгий режим ничего не меняет при первой же проблеме.</p>
+  <form method="post" action="/data/import" enctype="multipart/form-data">
+    <div class="row">
+      <div>
+        <label for="import-mode">Режим</label>
+        <select id="import-mode" name="mode">
+          <option value="гибкий"{{if eq .Mode "гибкий"}} selected{{end}}>гибкий</option>
+          <option value="строгий"{{if eq .Mode "строгий"}} selected{{end}}>строгий</option>
+        </select>
+      </div>
+      <div>
+        <label for="import-actor">Автор проводок</label>
+        <select id="import-actor" name="actor">
+          {{range .Users}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div>
+        <label for="import-file">Файл книги</label>
+        <input type="file" id="import-file" name="file" accept=".journal,.hledger,.txt,text/plain">
+      </div>
+    </div>
+    <div>
+      <label for="import-content">Или текст книги</label>
+      <textarea id="import-content" name="content" rows="12" spellcheck="false" placeholder="2026-01-15 Пятёрочка&#10;    Расходы:Продукты    1 234,56&#10;    Активы:Наличные">{{.Content}}</textarea>
+    </div>
+    <button class="btn" type="submit">Импортировать</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Выгрузка книги</h2>
+  <p class="muted">Книга hledger читается внешними инструментами hledger. CSV открывается электронными таблицами: разделитель — точка с запятой, кодировка UTF-8.</p>
+  <p><a class="btn btn-secondary" href="/data/export/hledger">Скачать книгу hledger</a></p>
+  <form method="get" action="/data/export/csv" class="row">
+    <div>
+      <label for="export-report">Отчёт</label>
+      <select id="export-report" name="report">
+        <option value="journal">Журнал проводок</option>
+        <option value="balances">Остатки по счетам</option>
+        <option value="turnover">Обороты за период</option>
+      </select>
+    </div>
+    <div>
+      <label for="export-from">С</label>
+      <input type="date" id="export-from" name="from">
+    </div>
+    <div>
+      <label for="export-to">По</label>
+      <input type="date" id="export-to" name="to">
+    </div>
+    <div style="align-self:end"><button class="btn btn-secondary" type="submit">Скачать CSV</button></div>
+  </form>
+</div>
+{{end}}
+{{end}}

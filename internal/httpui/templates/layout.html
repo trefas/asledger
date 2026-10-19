@@ -24,6 +24,7 @@
     {{if .HasChart}}<a href="/chart"{{if eq .Active "chart"}} class="active" aria-current="page"{{end}}>План счетов</a>{{end}}
     {{if .HasChart}}<a href="/initial"{{if eq .Active "initial"}} class="active" aria-current="page"{{end}}>Остатки</a>{{end}}
     {{if .HasChart}}<a href="/users"{{if eq .Active "users"}} class="active" aria-current="page"{{end}}>Пользователи</a>{{end}}
+    {{if .HasChart}}<a href="/data"{{if eq .Active "data"}} class="active" aria-current="page"{{end}}>Данные</a>{{end}}
     <a href="/setup"{{if eq .Active "setup"}} class="active" aria-current="page"{{end}}>Настройка</a>
   </nav>
 </header>

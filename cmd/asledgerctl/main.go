@@ -1,9 +1,10 @@
 // Команда asledgerctl — утилита администратора asledger.
 //
 // Подкоманды: migrate (привести книгу к актуальной схеме), backup (создать
-// консистентную резервную копию), charts list|import (шаблонные планы счетов)
-// и version. Конфигурация — та же, что у asledgerd: файл JSON, переменные
-// окружения ASLEDGER_* и флаги командной строки.
+// консистентную резервную копию), charts list|import (шаблонные планы счетов),
+// import hledger (импорт книги hledger), export hledger|csv|json (выгрузка
+// книги) и version. Конфигурация — та же, что у asledgerd: файл JSON,
+// переменные окружения ASLEDGER_* и флаги командной строки.
 package main
 
 import (
@@ -35,12 +36,17 @@ const usageText = `asledgerctl — утилита администратора a
   backup                 создать консистентную резервную копию книги
   charts list            показать доступные шаблоны планов счетов
   charts import <файл>   импортировать план счетов из JSON
+  import hledger <файл>  импортировать книгу hledger (флаги -mode, -actor)
+  export hledger         выгрузить книгу в plaintext hledger (флаг -archived)
+  export csv             выгрузить журнал или отчёт в CSV (флаги -report, -from, -to)
+  export json            выгрузить полный снапшот книги
   version                показать версию сборки
   help                   показать эту справку
 
 Общие флаги:
   -config <путь>   файл конфигурации JSON (или ASLEDGER_CONFIG)
   -db <путь>       путь к книге SQLite (или ASLEDGER_DB_PATH)
+  -out <путь>      файл выгрузки (у export; по умолчанию — стандартный вывод)
 
 Коды выхода:
   0 — успех
@@ -72,6 +78,10 @@ func run(args []string) int {
 		return runBackup(args[1:])
 	case "charts":
 		return runCharts(args[1:])
+	case "import":
+		return runImport(args[1:])
+	case "export":
+		return runExport(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "asledgerctl: неизвестная подкоманда %q\n\n", args[0])
 		fmt.Fprint(os.Stderr, usageText)

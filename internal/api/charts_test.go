@@ -47,16 +47,12 @@ func TestASL_10_ImportExport(t *testing.T) {
 		}
 	})
 
-	t.Run("hledger пока не реализован", func(t *testing.T) {
+	t.Run("hledger отклоняется в строгом режиме без проводок", func(t *testing.T) {
 		rec := a.do(t, http.MethodPost, "/api/v1/import", a.token, map[string]any{
 			"format": "hledger", "mode": "строгий", "content": "2026-01-01 Тест\n",
 		})
-		if rec.Code != http.StatusNotImplemented {
-			t.Fatalf("код %d, ожидался 501", rec.Code)
-		}
-		var env errorEnvelope
-		if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil || env.Error.Code != "ERR_NOT_IMPLEMENTED" {
-			t.Fatalf("нет кода ERR_NOT_IMPLEMENTED: %s", rec.Body.String())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("код %d, тело %s", rec.Code, rec.Body.String())
 		}
 	})
 
@@ -69,14 +65,20 @@ func TestASL_10_ImportExport(t *testing.T) {
 		}
 	})
 
-	t.Run("экспорт JSON и заглушки форматов", func(t *testing.T) {
+	t.Run("экспорт JSON, CSV и hledger", func(t *testing.T) {
 		if rec := a.do(t, http.MethodGet, "/api/v1/export?format=json", a.token, nil); rec.Code != http.StatusOK {
 			t.Fatalf("json: код %d", rec.Code)
 		}
-		for _, format := range []string{"csv", "hledger"} {
-			rec := a.do(t, http.MethodGet, "/api/v1/export?format="+format, a.token, nil)
-			if rec.Code != http.StatusNotImplemented {
-				t.Fatalf("%s: код %d, ожидался 501", format, rec.Code)
+		for _, path := range []string{
+			"/api/v1/export?format=csv",
+			"/api/v1/export?format=hledger",
+		} {
+			rec := a.do(t, http.MethodGet, path, a.token, nil)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s: код %d, тело %s", path, rec.Code, rec.Body.String())
+			}
+			if rec.Body.Len() == 0 {
+				t.Fatalf("%s: пустое тело выгрузки", path)
 			}
 		}
 		rec := a.do(t, http.MethodGet, "/api/v1/export?format=загадка", a.token, nil)
