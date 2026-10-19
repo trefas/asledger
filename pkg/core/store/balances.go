@@ -112,12 +112,78 @@ func (db *DB) SubtreeBalance(ctx context.Context, prefix string) (money.Kop, err
 	return total, nil
 }
 
-// balanceFor переводит дебетовый и кредитовый обороты в остаток по природе типа.
-func balanceFor(t model.AccountType, debit, credit money.Kop) money.Kop {
+// BalanceFor переводит дебетовый и кредитовый обороты в остаток по природе типа.
+//
+// Формула: актив и расход — ΣDEBIT − ΣCREDIT, пассив, капитал и доход —
+// ΣCREDIT − ΣDEBIT.
+func BalanceFor(t model.AccountType, debit, credit money.Kop) money.Kop {
 	switch t {
 	case model.TypeAsset, model.TypeExpense:
 		return debit - credit
 	default: // пассив, капитал, доход
 		return credit - debit
 	}
+}
+
+// Turnover — обороты и остатки счёта за период.
+type Turnover struct {
+	// AccountID — счёт.
+	AccountID int64
+	// OpeningDebit и OpeningCredit — обороты до начала периода.
+	OpeningDebit  money.Kop
+	OpeningCredit money.Kop
+	// PeriodDebit и PeriodCredit — обороты внутри периода.
+	PeriodDebit  money.Kop
+	PeriodCredit money.Kop
+}
+
+// Turnovers возвращает обороты всех счетов за период [from, to] включительно.
+//
+// Нуль в from или to означает отсутствие границы. Остатки на начало и конец
+// периода вычисляются вызывающим кодом через BalanceFor: хранимых остатков в
+// книге нет.
+func (db *DB) Turnovers(ctx context.Context, from, to int64) (map[int64]Turnover, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT a.id,
+			COALESCE(SUM(CASE WHEN t.date < ? THEN CASE WHEN l.side = 'DEBIT'  THEN l.amount_kop ELSE 0 END ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN t.date < ? THEN CASE WHEN l.side = 'CREDIT' THEN l.amount_kop ELSE 0 END ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN t.date >= ? AND t.date <= ? THEN CASE WHEN l.side = 'DEBIT'  THEN l.amount_kop ELSE 0 END ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN t.date >= ? AND t.date <= ? THEN CASE WHEN l.side = 'CREDIT' THEN l.amount_kop ELSE 0 END ELSE 0 END), 0)
+		  FROM accounts a
+		  LEFT JOIN transaction_lines l ON l.account_id = a.id
+		  LEFT JOIN transactions t ON t.id = l.transaction_id
+		 GROUP BY a.id`,
+		from, from, from, to, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("store: не удалось посчитать обороты: %w", err)
+	}
+	defer rows.Close()
+
+	turnovers := map[int64]Turnover{}
+	for rows.Next() {
+		var (
+			id                          int64
+			openingDebit, openingCredit int64
+			periodDebit, periodCredit   int64
+		)
+		if err := rows.Scan(&id, &openingDebit, &openingCredit, &periodDebit, &periodCredit); err != nil {
+			return nil, fmt.Errorf("store: не удалось разобрать обороты: %w", err)
+		}
+		turnovers[id] = Turnover{
+			AccountID:     id,
+			OpeningDebit:  money.FromKopecks(openingDebit),
+			OpeningCredit: money.FromKopecks(openingCredit),
+			PeriodDebit:   money.FromKopecks(periodDebit),
+			PeriodCredit:  money.FromKopecks(periodCredit),
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: ошибка чтения оборотов: %w", err)
+	}
+	return turnovers, nil
+}
+
+// balanceFor переводит дебетовый и кредитовый обороты в остаток по природе типа.
+func balanceFor(t model.AccountType, debit, credit money.Kop) money.Kop {
+	return BalanceFor(t, debit, credit)
 }
