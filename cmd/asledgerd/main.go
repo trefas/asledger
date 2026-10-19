@@ -15,10 +15,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/trefas/asledger/internal/api"
 	"github.com/trefas/asledger/internal/config"
 	"github.com/trefas/asledger/internal/httpui"
 	"github.com/trefas/asledger/internal/logging"
 	"github.com/trefas/asledger/internal/version"
+	"github.com/trefas/asledger/pkg/core/store"
+)
+
+// Таймауты HTTP-серверов (раздел 12: демон — единственная точка записи).
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 60 * time.Second
+	idleTimeout       = 120 * time.Second
 )
 
 func main() {
@@ -43,13 +53,42 @@ func run(args []string) error {
 	}
 	logger := logging.New(cfg.LogLevel, cfg.LogFormat)
 
-	servers := []*http.Server{
-		{Addr: cfg.WebAddr, Handler: httpui.NewWebMux(cfg.AssetsDir, version.Version)},
-		{Addr: cfg.APIAddr, Handler: httpui.NewAPIMux(version.Version)},
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	db, err := store.Open(ctx, cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	if err := db.Migrate(ctx); err != nil {
+		return err
+	}
+
+	apiServer := api.New(db, api.Config{
+		Version:   version.Version,
+		ChartsDir: cfg.ChartsDir,
+		Logger:    logger,
+	})
+
+	servers := []*http.Server{
+		{
+			Addr:              cfg.WebAddr,
+			Handler:           httpui.NewWebMux(cfg.AssetsDir, version.Version),
+			ReadHeaderTimeout: readHeaderTimeout,
+			ReadTimeout:       readTimeout,
+			WriteTimeout:      writeTimeout,
+			IdleTimeout:       idleTimeout,
+		},
+		{
+			Addr:              cfg.APIAddr,
+			Handler:           apiServer.Handler(),
+			ReadHeaderTimeout: readHeaderTimeout,
+			ReadTimeout:       readTimeout,
+			WriteTimeout:      writeTimeout,
+			IdleTimeout:       idleTimeout,
+		},
+	}
 
 	errc := make(chan error, len(servers))
 	for _, srv := range servers {

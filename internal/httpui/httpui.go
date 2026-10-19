@@ -6,7 +6,6 @@
 package httpui
 
 import (
-	"encoding/json"
 	"html/template"
 	"net/http"
 )
@@ -53,24 +52,4 @@ func NewWebMux(assetsDir, version string) http.Handler {
 		}
 	})
 	return mux
-}
-
-// NewAPIMux собирает маршруты REST API. На этапе каркаса доступна только
-// проверка работоспособности; остальные маршруты появятся в вехе S3.
-func NewAPIMux(version string) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{
-			"status":  "ok",
-			"version": version,
-		})
-	})
-	return mux
-}
-
-// writeJSON отправляет значение в формате JSON с указанным кодом ответа.
-func writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(v)
 }

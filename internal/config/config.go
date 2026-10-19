@@ -25,6 +25,8 @@ const (
 	DefaultDBPath = "asledger.db"
 	// DefaultAssetsDir — каталог бренд-ассетов (лого и favicon).
 	DefaultAssetsDir = "assets/logo"
+	// DefaultChartsDir — каталог шаблонных планов счетов.
+	DefaultChartsDir = "templates/charts"
 	// DefaultLogLevel — уровень журналирования по умолчанию.
 	DefaultLogLevel = "info"
 	// DefaultLogFormat — формат журнала по умолчанию.
@@ -41,6 +43,8 @@ type Config struct {
 	DBPath string `json:"db_path"`
 	// AssetsDir — каталог бренд-ассетов.
 	AssetsDir string `json:"assets_dir"`
+	// ChartsDir — каталог шаблонных планов счетов.
+	ChartsDir string `json:"charts_dir"`
 	// LogLevel — уровень журналирования: debug, info, warn, error.
 	LogLevel string `json:"log_level"`
 	// LogFormat — формат журнала: text или json.
@@ -54,6 +58,7 @@ func Default() *Config {
 		APIAddr:   DefaultAPIAddr,
 		DBPath:    DefaultDBPath,
 		AssetsDir: DefaultAssetsDir,
+		ChartsDir: DefaultChartsDir,
 		LogLevel:  DefaultLogLevel,
 		LogFormat: DefaultLogFormat,
 	}
@@ -122,6 +127,7 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) {
 	set(&c.APIAddr, "ASLEDGER_API_ADDR")
 	set(&c.DBPath, "ASLEDGER_DB_PATH")
 	set(&c.AssetsDir, "ASLEDGER_ASSETS_DIR")
+	set(&c.ChartsDir, "ASLEDGER_CHARTS_DIR")
 	set(&c.LogLevel, "ASLEDGER_LOG_LEVEL")
 	set(&c.LogFormat, "ASLEDGER_LOG_FORMAT")
 }
@@ -135,6 +141,7 @@ func (c *Config) applyFlags(args []string) error {
 	fs.StringVar(&c.APIAddr, "api-addr", c.APIAddr, "адрес REST API")
 	fs.StringVar(&c.DBPath, "db", c.DBPath, "путь к файлу книги SQLite")
 	fs.StringVar(&c.AssetsDir, "assets", c.AssetsDir, "каталог бренд-ассетов")
+	fs.StringVar(&c.ChartsDir, "charts-dir", c.ChartsDir, "каталог шаблонных планов счетов")
 	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "уровень журнала: debug, info, warn, error")
 	fs.StringVar(&c.LogFormat, "log-format", c.LogFormat, "формат журнала: text или json")
 	if err := fs.Parse(args); err != nil {
@@ -157,6 +164,8 @@ func (c *Config) Validate() error {
 		return errors.New("config: не задан путь к книге (db)")
 	case strings.TrimSpace(c.AssetsDir) == "":
 		return errors.New("config: не задан каталог ассетов (assets)")
+	case strings.TrimSpace(c.ChartsDir) == "":
+		return errors.New("config: не задан каталог шаблонов (charts-dir)")
 	}
 	switch strings.ToLower(c.LogLevel) {
 	case "debug", "info", "warn", "warning", "error":
