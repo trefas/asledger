@@ -13,7 +13,7 @@ LDFLAGS := -X github.com/trefas/asledger/internal/version.Version=$(VERSION) \
            -X github.com/trefas/asledger/internal/version.Commit=$(COMMIT) \
            -X github.com/trefas/asledger/internal/version.Date=$(DATE)
 
-.PHONY: all build test test-race cover fmt fmt-check vet lint lint-money lint-go check run assets clean help
+.PHONY: all build test test-race cover fmt fmt-check vet lint lint-money lint-go lint-trace check run assets clean help
 
 all: check build
 
@@ -54,6 +54,10 @@ vet:
 lint-money:
 	./scripts/check-no-float.sh
 
+## lint-trace: карта «критерий раздела 14 → автотест» без пропусков
+lint-trace:
+	./scripts/check-traceability.sh
+
 ## lint-go: golangci-lint (в CI обязателен, локально может отсутствовать)
 lint-go:
 	@if command -v golangci-lint >/dev/null 2>&1; then \
@@ -63,7 +67,7 @@ lint-go:
 	fi
 
 ## lint: все статические проверки
-lint: fmt-check vet lint-money lint-go
+lint: fmt-check vet lint-money lint-trace lint-go
 
 ## check: полная проверка перед коммитом
 check: lint test
