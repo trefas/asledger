@@ -270,6 +270,46 @@ func TestASL_5_InsertTransactionAccountRules(t *testing.T) {
 	})
 }
 
+// TestASL_5_EnsureTransactionIdempotent проверяет идемпотентную запись:
+// повтор с тем же uuid возвращает существующую проводку.
+func TestASL_5_EnsureTransactionIdempotent(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	actor := mustCreateUser(t, db, "Андрей")
+	wallet := mustCreateAccount(t, db, "Кошелёк", model.TypeAsset, nil)
+	capital, err := db.AccountByPath(ctx, "Капитал:Начальные")
+	if err != nil {
+		t.Fatalf("AccountByPath: %v", err)
+	}
+
+	id, created, err := db.EnsureTransaction(ctx, initialTransaction("tx-ensure", actor, wallet.ID, capital.ID))
+	if err != nil {
+		t.Fatalf("EnsureTransaction: %v", err)
+	}
+	if !created {
+		t.Fatal("первая запись помечена как существующая")
+	}
+
+	again, created, err := db.EnsureTransaction(ctx, initialTransaction("tx-ensure", actor, wallet.ID, capital.ID))
+	if err != nil {
+		t.Fatalf("повторный EnsureTransaction: %v", err)
+	}
+	if created {
+		t.Fatal("повторная запись создана заново")
+	}
+	if again != id {
+		t.Fatalf("повтор вернул id=%d, ожидался %d", again, id)
+	}
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM transactions WHERE uuid = 'tx-ensure'`).Scan(&count); err != nil {
+		t.Fatalf("подсчёт транзакций: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("транзакций с uuid tx-ensure: %d, ожидалась 1", count)
+	}
+}
+
 // TestASL_5_InsertTransactionBySource проверяет фильтр выборки по источнику.
 func TestASL_5_InsertTransactionBySource(t *testing.T) {
 	db := openTestDB(t)

@@ -115,6 +115,14 @@ func (db *DB) Setting(ctx context.Context, key string) (string, bool, error) {
 	return value, true, nil
 }
 
+// DeleteSetting удаляет настройку; отсутствие ключа ошибкой не считается.
+func (db *DB) DeleteSetting(ctx context.Context, key string) error {
+	if _, err := db.ExecContext(ctx, `DELETE FROM settings WHERE key = ?`, key); err != nil {
+		return fmt.Errorf("store: не удалось удалить настройку %q: %w", key, err)
+	}
+	return nil
+}
+
 // scanUser разбирает строку выборки пользователя.
 func scanUser(s rowScanner, id int64, name string) (*model.User, error) {
 	var u model.User

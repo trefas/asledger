@@ -82,6 +82,25 @@ func (db *DB) InsertTransaction(ctx context.Context, tr *model.Transaction) (int
 	return id, nil
 }
 
+// EnsureTransaction сохраняет транзакцию идемпотентно.
+//
+// Если запись с таким uuid уже существует, возвращается её идентификатор и
+// created = false — повторная отправка коммита не создаёт дубль.
+func (db *DB) EnsureTransaction(ctx context.Context, tr *model.Transaction) (int64, bool, error) {
+	id, err := db.InsertTransaction(ctx, tr)
+	if err == nil {
+		return id, true, nil
+	}
+	if !errors.Is(err, ErrDuplicateUUID) {
+		return 0, false, err
+	}
+	existing, err := db.TransactionByUUID(ctx, tr.UUID)
+	if err != nil {
+		return 0, false, err
+	}
+	return existing.ID, false, nil
+}
+
 // Transaction возвращает транзакцию со строками по идентификатору.
 func (db *DB) Transaction(ctx context.Context, id int64) (*model.Transaction, error) {
 	tr, err := scanTransaction(db.QueryRowContext(ctx,
@@ -234,7 +253,7 @@ func validateTransaction(tr *model.Transaction) error {
 	if debit != credit {
 		return &ValidationError{
 			Code:    CodeUnbalanced,
-			Message: fmt.Sprintf("дебет %s не равен кредиту %s", debit, credit),
+			Message: fmt.Sprintf("дебет %d коп. не равен кредиту %d коп.", debit.Kopecks(), credit.Kopecks()),
 		}
 	}
 	return nil

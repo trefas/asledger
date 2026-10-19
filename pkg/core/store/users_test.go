@@ -117,4 +117,15 @@ func TestASL_5_Settings(t *testing.T) {
 	if err != nil || value != "0" {
 		t.Fatalf("после перезаписи: value=%q err=%v", value, err)
 	}
+
+	if err := db.DeleteSetting(ctx, SettingInitialBalances); err != nil {
+		t.Fatalf("DeleteSetting: %v", err)
+	}
+	if _, ok, err := db.Setting(ctx, SettingInitialBalances); err != nil || ok {
+		t.Fatalf("после удаления: ok=%v err=%v", ok, err)
+	}
+	// Повторное удаление отсутствующего ключа не ошибка.
+	if err := db.DeleteSetting(ctx, SettingInitialBalances); err != nil {
+		t.Fatalf("повторный DeleteSetting: %v", err)
+	}
 }
