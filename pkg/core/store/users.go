@@ -16,6 +16,17 @@ import (
 // Флаг фиксирует, что стартовые остатки внесены, и запрещает повторный ввод.
 const SettingInitialBalances = "начальные_остатки_введены"
 
+// SettingBalanceMode — ключ настройки режима контроля остатка (раздел 9.2).
+const SettingBalanceMode = "режим_контроля_остатка"
+
+// Режимы контроля остатка.
+const (
+	// BalanceModeFree — проводка принимается, минус подсвечивается.
+	BalanceModeFree = "свободный"
+	// BalanceModeLimited — проводка ниже min_balance отклоняется.
+	BalanceModeLimited = "лимитный"
+)
+
 // CreateUser создаёт пользователя семьи.
 //
 // Секрет (пароль или токен) хешируется PBKDF2-HMAC-SHA256 со случайной солью:

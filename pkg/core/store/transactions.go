@@ -22,6 +22,8 @@ type TransactionFilter struct {
 	AccountID *int64
 	// Source ограничивает выборку источником ('hledger', 'web', 'api:…').
 	Source string
+	// ReversesID ограничивает выборку сторно указанной проводки.
+	ReversesID *int64
 	// From и To задают период по дате (включительно); нуль — без ограничения.
 	From int64
 	To   int64
@@ -149,6 +151,10 @@ func (db *DB) ListTransactions(ctx context.Context, f TransactionFilter) ([]mode
 	if f.Source != "" {
 		query += ` AND t.source = ?`
 		args = append(args, f.Source)
+	}
+	if f.ReversesID != nil {
+		query += ` AND t.reverses_id = ?`
+		args = append(args, *f.ReversesID)
 	}
 	if f.From > 0 {
 		query += ` AND t.date >= ?`
