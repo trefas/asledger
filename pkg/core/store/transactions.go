@@ -20,6 +20,10 @@ type TransactionFilter struct {
 	ActorID *int64
 	// AccountID ограничивает выборку проводками по счёту.
 	AccountID *int64
+	// AccountPrefix ограничивает выборку поддеревом по префиксу пути.
+	AccountPrefix string
+	// OpType ограничивает выборку типом операции.
+	OpType *model.OpType
 	// Source ограничивает выборку источником ('hledger', 'web', 'api:…').
 	Source string
 	// ReversesID ограничивает выборку сторно указанной проводки.
@@ -27,6 +31,12 @@ type TransactionFilter struct {
 	// From и To задают период по дате (включительно); нуль — без ограничения.
 	From int64
 	To   int64
+	// AmountAtLeast и AmountAtMost ограничивают выборку по сумме проводки
+	// (ΣDEBIT, копейки); nil — без ограничения с соответствующей стороны.
+	AmountAtLeast *money.Kop
+	AmountAtMost  *money.Kop
+	// Offset пропускает первые записи (постраничная выдача).
+	Offset int
 	// Limit ограничивает число записей (0 — без ограничения).
 	Limit int
 }
@@ -148,37 +158,16 @@ func (db *DB) TransactionByUUID(ctx context.Context, uuid string) (*model.Transa
 
 // ListTransactions возвращает транзакции по условиям фильтра (свежие первыми).
 func (db *DB) ListTransactions(ctx context.Context, f TransactionFilter) ([]model.Transaction, error) {
-	query := `SELECT ` + transactionColumns + ` FROM transactions t WHERE 1 = 1`
-	var args []any
-
-	if f.ActorID != nil {
-		query += ` AND t.actor_id = ?`
-		args = append(args, *f.ActorID)
-	}
-	if f.AccountID != nil {
-		query += ` AND EXISTS (SELECT 1 FROM transaction_lines l WHERE l.transaction_id = t.id AND l.account_id = ?)`
-		args = append(args, *f.AccountID)
-	}
-	if f.Source != "" {
-		query += ` AND t.source = ?`
-		args = append(args, f.Source)
-	}
-	if f.ReversesID != nil {
-		query += ` AND t.reverses_id = ?`
-		args = append(args, *f.ReversesID)
-	}
-	if f.From > 0 {
-		query += ` AND t.date >= ?`
-		args = append(args, f.From)
-	}
-	if f.To > 0 {
-		query += ` AND t.date <= ?`
-		args = append(args, f.To)
-	}
-	query += ` ORDER BY t.date DESC, t.id DESC`
-	if f.Limit > 0 {
-		query += ` LIMIT ?`
-		args = append(args, f.Limit)
+	where, args := transactionWhere(f)
+	query := `SELECT ` + transactionColumns + ` FROM transactions t` + where +
+		` ORDER BY t.date DESC, t.id DESC`
+	if f.Limit > 0 || f.Offset > 0 {
+		limit := f.Limit
+		if limit == 0 {
+			limit = -1 // в SQLite OFFSET требует LIMIT
+		}
+		query += ` LIMIT ? OFFSET ?`
+		args = append(args, limit, f.Offset)
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -204,6 +193,71 @@ func (db *DB) ListTransactions(ctx context.Context, f TransactionFilter) ([]mode
 		}
 	}
 	return transactions, nil
+}
+
+// CountTransactions возвращает число транзакций по условиям фильтра.
+//
+// Нужно постраничной выдаче журнала: клиент знает общее число записей и число
+// страниц. Поля Offset и Limit фильтра не учитываются.
+func (db *DB) CountTransactions(ctx context.Context, f TransactionFilter) (int, error) {
+	where, args := transactionWhere(f)
+	var count int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM transactions t`+where, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("store: не удалось посчитать транзакции: %w", err)
+	}
+	return count, nil
+}
+
+// transactionWhere собирает условие выборки транзакций и его аргументы.
+func transactionWhere(f TransactionFilter) (string, []any) {
+	query := ` WHERE 1 = 1`
+	var args []any
+
+	if f.ActorID != nil {
+		query += ` AND t.actor_id = ?`
+		args = append(args, *f.ActorID)
+	}
+	if f.AccountID != nil {
+		query += ` AND EXISTS (SELECT 1 FROM transaction_lines l WHERE l.transaction_id = t.id AND l.account_id = ?)`
+		args = append(args, *f.AccountID)
+	}
+	if f.AccountPrefix != "" {
+		query += ` AND EXISTS (SELECT 1 FROM transaction_lines l JOIN accounts a ON a.id = l.account_id
+			WHERE l.transaction_id = t.id AND (a.full_path = ? OR a.full_path LIKE ? ESCAPE '\'))`
+		args = append(args, f.AccountPrefix, escapeLike(f.AccountPrefix)+pathSeparator+"%")
+	}
+	if f.OpType != nil {
+		query += ` AND t.op_type = ?`
+		args = append(args, string(*f.OpType))
+	}
+	if f.Source != "" {
+		query += ` AND t.source = ?`
+		args = append(args, f.Source)
+	}
+	if f.ReversesID != nil {
+		query += ` AND t.reverses_id = ?`
+		args = append(args, *f.ReversesID)
+	}
+	if f.From > 0 {
+		query += ` AND t.date >= ?`
+		args = append(args, f.From)
+	}
+	if f.To > 0 {
+		query += ` AND t.date <= ?`
+		args = append(args, f.To)
+	}
+	if f.AmountAtLeast != nil {
+		query += ` AND (SELECT COALESCE(SUM(l.amount_kop), 0) FROM transaction_lines l
+			WHERE l.transaction_id = t.id AND l.side = 'DEBIT') >= ?`
+		args = append(args, f.AmountAtLeast.Kopecks())
+	}
+	if f.AmountAtMost != nil {
+		query += ` AND (SELECT COALESCE(SUM(l.amount_kop), 0) FROM transaction_lines l
+			WHERE l.transaction_id = t.id AND l.side = 'DEBIT') <= ?`
+		args = append(args, f.AmountAtMost.Kopecks())
+	}
+	return query, args
 }
 
 // loadLines дополняет транзакцию строками проводки.
