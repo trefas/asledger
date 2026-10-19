@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/trefas/asledger/pkg/core/auth"
 	"github.com/trefas/asledger/pkg/core/model"
 )
 
@@ -16,10 +17,17 @@ import (
 const SettingInitialBalances = "начальные_остатки_введены"
 
 // CreateUser создаёт пользователя семьи.
-func (db *DB) CreateUser(ctx context.Context, name, tokenHash string) (*model.User, error) {
+//
+// Секрет (пароль или токен) хешируется PBKDF2-HMAC-SHA256 со случайной солью:
+// в колонке token_hash открытое значение никогда не сохраняется.
+func (db *DB) CreateUser(ctx context.Context, name, secret string) (*model.User, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("store: имя пользователя не может быть пустым")
+	}
+	tokenHash, err := auth.Hash(secret)
+	if err != nil {
+		return nil, fmt.Errorf("store: не удалось захешировать секрет: %w", err)
 	}
 	res, err := db.ExecContext(ctx, `INSERT INTO users(name, token_hash) VALUES(?, ?)`, name, tokenHash)
 	if err != nil {
@@ -33,6 +41,20 @@ func (db *DB) CreateUser(ctx context.Context, name, tokenHash string) (*model.Us
 		return nil, fmt.Errorf("store: не удалось получить id пользователя: %w", err)
 	}
 	return &model.User{ID: id, Name: name, TokenHash: tokenHash}, nil
+}
+
+// Authenticate проверяет секрет пользователя и при успехе возвращает его.
+//
+// Отсутствие пользователя даёт ErrNotFound, несовпадение секрета — ErrAuthFailed.
+func (db *DB) Authenticate(ctx context.Context, name, secret string) (*model.User, error) {
+	user, err := db.UserByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if !auth.Verify(user.TokenHash, secret) {
+		return nil, fmt.Errorf("%w: %s", ErrAuthFailed, name)
+	}
+	return user, nil
 }
 
 // User возвращает пользователя по идентификатору.

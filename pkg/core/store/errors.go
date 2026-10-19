@@ -20,6 +20,8 @@ var (
 	ErrMoveIntoDescendant = errors.New("store: нельзя переместить счёт в своего потомка")
 	// ErrDuplicateUUID — транзакция с таким uuid уже существует.
 	ErrDuplicateUUID = errors.New("store: транзакция с таким uuid уже существует")
+	// ErrAuthFailed — пользователь есть, но секрет не совпал.
+	ErrAuthFailed = errors.New("store: неверный секрет пользователя")
 )
 
 // Коды нарушений инвариантов записи. Совпадают с кодами валидации движка,
@@ -33,6 +35,14 @@ const (
 	CodeSideInvalid = "ERR_SIDE_INVALID"
 	// CodeNoLines — в проводке нет строк.
 	CodeNoLines = "ERR_NO_LINES"
+	// CodeAccountNotLeaf — счёт проводки не листовой (выбрана папка).
+	CodeAccountNotLeaf = "ERR_ACCOUNT_NOT_LEAF"
+	// CodeAccountArchived — счёт проводки заархивирован.
+	CodeAccountArchived = "ERR_ACCOUNT_ARCHIVED"
+	// CodeAccountNotFound — счёт проводки не существует.
+	CodeAccountNotFound = "ERR_ACCOUNT_NOT_FOUND"
+	// CodeAccountTypeMismatch — тип счёта не совпадает с типом родителя.
+	CodeAccountTypeMismatch = "ERR_ACCOUNT_TYPE_MISMATCH"
 )
 
 // ValidationError описывает нарушение инварианта сохранения проводки.

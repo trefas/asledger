@@ -9,16 +9,16 @@ import (
 )
 
 // openTestDB открывает временную книгу с применёнными миграциями.
-func openTestDB(t *testing.T) *DB {
-	t.Helper()
+func openTestDB(tb testing.TB) *DB {
+	tb.Helper()
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "test.db"))
+	db, err := Open(ctx, filepath.Join(tb.TempDir(), "test.db"))
 	if err != nil {
-		t.Fatalf("Open: %v", err)
+		tb.Fatalf("Open: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	tb.Cleanup(func() { _ = db.Close() })
 	if err := db.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate: %v", err)
+		tb.Fatalf("Migrate: %v", err)
 	}
 	return db
 }

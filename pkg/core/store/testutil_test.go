@@ -10,7 +10,7 @@ import (
 // mustCreateUser создаёт пользователя и завершает тест при ошибке.
 func mustCreateUser(t *testing.T, db *DB, name string) int64 {
 	t.Helper()
-	user, err := db.CreateUser(context.Background(), name, "sha256:тест")
+	user, err := db.CreateUser(context.Background(), name, "секрет-"+name)
 	if err != nil {
 		t.Fatalf("CreateUser(%q): %v", name, err)
 	}

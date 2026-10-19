@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/trefas/asledger/pkg/core/model"
@@ -116,5 +117,63 @@ func TestASL_5_SubtreeBalance(t *testing.T) {
 	}
 	if empty != 0 {
 		t.Fatalf("остаток пустого поддерева = %s, ожидался 0", empty)
+	}
+}
+
+// BenchmarkBalance фиксирует производительность расчёта остатка на журнале из
+// 10 000 проводок (20 000 строк).
+func BenchmarkBalance(b *testing.B) {
+	db := openTestDB(b)
+	ctx := context.Background()
+
+	user, err := db.CreateUser(ctx, "Андрей", "секрет")
+	if err != nil {
+		b.Fatalf("CreateUser: %v", err)
+	}
+	asset, err := db.CreateAccount(ctx, AccountInput{Name: "Кошелёк", Type: model.TypeAsset})
+	if err != nil {
+		b.Fatalf("CreateAccount(актив): %v", err)
+	}
+	expense, err := db.CreateAccount(ctx, AccountInput{Name: "Продукты", Type: model.TypeExpense})
+	if err != nil {
+		b.Fatalf("CreateAccount(расход): %v", err)
+	}
+
+	const volume = 10_000
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		b.Fatalf("BeginTx: %v", err)
+	}
+	for i := range volume {
+		res, err := tx.ExecContext(ctx,
+			`INSERT INTO transactions(uuid, op_type, date, actor_id, created_at, commit_id)
+			 VALUES(?, 'трата', 0, ?, 0, 0)`, fmt.Sprintf("bench-%d", i), user.ID)
+		if err != nil {
+			b.Fatalf("insert transactions: %v", err)
+		}
+		txID, err := res.LastInsertId()
+		if err != nil {
+			b.Fatalf("LastInsertId: %v", err)
+		}
+		for _, line := range []struct {
+			account int64
+			side    string
+		}{{expense.ID, "DEBIT"}, {asset.ID, "CREDIT"}} {
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side)
+				 VALUES(?, ?, 100, ?)`, txID, line.account, line.side); err != nil {
+				b.Fatalf("insert lines: %v", err)
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		b.Fatalf("Commit: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := db.Balance(ctx, expense.ID); err != nil {
+			b.Fatalf("Balance: %v", err)
+		}
 	}
 }

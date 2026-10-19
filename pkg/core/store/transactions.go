@@ -20,7 +20,9 @@ type TransactionFilter struct {
 	ActorID *int64
 	// AccountID ограничивает выборку проводками по счёту.
 	AccountID *int64
-	// From и To задают период по дате (включительно); нулевое время — без ограничения.
+	// Source ограничивает выборку источником ('hledger', 'web', 'api:…').
+	Source string
+	// From и To задают период по дате (включительно); нуль — без ограничения.
 	From int64
 	To   int64
 	// Limit ограничивает число записей (0 — без ограничения).
@@ -46,6 +48,9 @@ func (db *DB) InsertTransaction(ctx context.Context, tr *model.Transaction) (int
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("store: не удалось проверить uuid транзакции: %w", err)
+		}
+		if err := validateLineAccountsTx(ctx, tx, tr.Lines); err != nil {
+			return err
 		}
 
 		res, err := tx.ExecContext(ctx,
@@ -121,6 +126,10 @@ func (db *DB) ListTransactions(ctx context.Context, f TransactionFilter) ([]mode
 	if f.AccountID != nil {
 		query += ` AND EXISTS (SELECT 1 FROM transaction_lines l WHERE l.transaction_id = t.id AND l.account_id = ?)`
 		args = append(args, *f.AccountID)
+	}
+	if f.Source != "" {
+		query += ` AND t.source = ?`
+		args = append(args, f.Source)
 	}
 	if f.From > 0 {
 		query += ` AND t.date >= ?`
@@ -226,6 +235,36 @@ func validateTransaction(tr *model.Transaction) error {
 		return &ValidationError{
 			Code:    CodeUnbalanced,
 			Message: fmt.Sprintf("дебет %s не равен кредиту %s", debit, credit),
+		}
+	}
+	return nil
+}
+
+// validateLineAccountsTx проверяет сквозной инвариант 2: счета строк —
+// только существующие, листовые и не заархивированные.
+func validateLineAccountsTx(ctx context.Context, tx *sql.Tx, lines []model.TransactionLine) error {
+	for i, line := range lines {
+		acc, err := getAccountTx(ctx, tx, line.AccountID)
+		if errors.Is(err, ErrNotFound) {
+			return &ValidationError{
+				Code:    CodeAccountNotFound,
+				Message: fmt.Sprintf("строка %d: счёт %d не существует", i+1, line.AccountID),
+			}
+		}
+		if err != nil {
+			return err
+		}
+		if acc.IsArchived {
+			return &ValidationError{
+				Code:    CodeAccountArchived,
+				Message: fmt.Sprintf("строка %d: счёт %q заархивирован", i+1, acc.FullPath),
+			}
+		}
+		if !acc.IsLeaf {
+			return &ValidationError{
+				Code:    CodeAccountNotLeaf,
+				Message: fmt.Sprintf("строка %d: счёт %q — папка, выберите листовой счёт", i+1, acc.FullPath),
+			}
 		}
 	}
 	return nil

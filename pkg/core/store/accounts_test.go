@@ -255,6 +255,25 @@ func TestASL_5_SystemAccountsCreated(t *testing.T) {
 	}
 }
 
+// TestASL_5_AccountTypeMismatch проверяет согласованность типа с родителем.
+func TestASL_5_AccountTypeMismatch(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	root := mustCreateAccount(t, db, "Имущество", model.TypeAsset, nil)
+
+	_, err := db.CreateAccount(ctx, AccountInput{Name: "Питание", Type: model.TypeExpense, ParentID: &root.ID})
+	var ve *ValidationError
+	if !errors.As(err, &ve) || ve.Code != CodeAccountTypeMismatch {
+		t.Fatalf("err=%v, ожидалась ValidationError с кодом %s", err, CodeAccountTypeMismatch)
+	}
+
+	// Совпадающий тип принимается.
+	if _, err := db.CreateAccount(ctx, AccountInput{Name: "Наличные", Type: model.TypeAsset, ParentID: &root.ID}); err != nil {
+		t.Fatalf("создание счёта с типом родителя: %v", err)
+	}
+}
+
 // TestASL_5_SystemAccountProtected проверяет защиту служебных счетов.
 func TestASL_5_SystemAccountProtected(t *testing.T) {
 	db := openTestDB(t)

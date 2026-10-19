@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -11,19 +12,22 @@ func TestASL_5_UserCRUD(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	created, err := db.CreateUser(ctx, "Андрей", "sha256:андрей")
+	created, err := db.CreateUser(ctx, "Андрей", "секрет-андрея")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
 	if created.ID == 0 || created.Name != "Андрей" {
 		t.Fatalf("созданный пользователь: %+v", created)
 	}
+	if created.TokenHash == "секрет-андрея" || !strings.HasPrefix(created.TokenHash, "pbkdf2_sha256$") {
+		t.Fatalf("секрет сохранён неверно: %q", created.TokenHash)
+	}
 
 	byID, err := db.User(ctx, created.ID)
 	if err != nil {
 		t.Fatalf("User: %v", err)
 	}
-	if byID.Name != "Андрей" || byID.TokenHash != "sha256:андрей" {
+	if byID.Name != "Андрей" || byID.TokenHash != created.TokenHash {
 		t.Fatalf("пользователь по id: %+v", byID)
 	}
 
@@ -35,12 +39,37 @@ func TestASL_5_UserCRUD(t *testing.T) {
 		t.Fatalf("UserByName вернул id=%d, ожидался %d", byName.ID, created.ID)
 	}
 
-	if _, err := db.CreateUser(ctx, "Андрей", "sha256:дубль"); err == nil {
+	if _, err := db.CreateUser(ctx, "Андрей", "секрет-дубля"); err == nil {
 		t.Fatal("повторное имя пользователя принято")
 	}
 
 	if _, err := db.User(ctx, 999); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("User(999): err=%v, ожидалась ErrNotFound", err)
+	}
+}
+
+// TestASL_5_Authenticate проверяет проверку секрета пользователя.
+func TestASL_5_Authenticate(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	if _, err := db.CreateUser(ctx, "Андрей", "верный-секрет"); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	user, err := db.Authenticate(ctx, "Андрей", "верный-секрет")
+	if err != nil {
+		t.Fatalf("Authenticate: %v", err)
+	}
+	if user.Name != "Андрей" {
+		t.Fatalf("Authenticate вернул пользователя %q", user.Name)
+	}
+
+	if _, err := db.Authenticate(ctx, "Андрей", "неверный-секрет"); !errors.Is(err, ErrAuthFailed) {
+		t.Fatalf("неверный секрет: err=%v, ожидалась ErrAuthFailed", err)
+	}
+	if _, err := db.Authenticate(ctx, "Никого", "секрет"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("неизвестный пользователь: err=%v, ожидалась ErrNotFound", err)
 	}
 }
 

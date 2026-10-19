@@ -220,6 +220,89 @@ func TestASL_5_ListTransactions(t *testing.T) {
 	}
 }
 
+// TestASL_5_InsertTransactionAccountRules проверяет инвариант «только листовые
+// неархивированные счета» в строках проводки.
+func TestASL_5_InsertTransactionAccountRules(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	actor := mustCreateUser(t, db, "Андрей")
+
+	folder := mustCreateAccount(t, db, "Расходы", model.TypeExpense, nil)
+	leaf := mustCreateAccount(t, db, "Продукты", model.TypeExpense, &folder.ID)
+	capital, err := db.AccountByPath(ctx, "Капитал:Начальные")
+	if err != nil {
+		t.Fatalf("AccountByPath: %v", err)
+	}
+
+	t.Run("папка в проводке", func(t *testing.T) {
+		tr := initialTransaction("tx-folder", actor, folder.ID, capital.ID)
+		_, err := db.InsertTransaction(ctx, tr)
+		var ve *ValidationError
+		if !errors.As(err, &ve) || ve.Code != CodeAccountNotLeaf {
+			t.Fatalf("err=%v, ожидалась ValidationError с кодом %s", err, CodeAccountNotLeaf)
+		}
+	})
+
+	t.Run("несуществующий счёт", func(t *testing.T) {
+		tr := initialTransaction("tx-missing", actor, 999999, capital.ID)
+		_, err := db.InsertTransaction(ctx, tr)
+		var ve *ValidationError
+		if !errors.As(err, &ve) || ve.Code != CodeAccountNotFound {
+			t.Fatalf("err=%v, ожидалась ValidationError с кодом %s", err, CodeAccountNotFound)
+		}
+	})
+
+	t.Run("заархивированный счёт", func(t *testing.T) {
+		archived := mustCreateAccount(t, db, "Старое", model.TypeExpense, nil)
+		if err := db.ArchiveAccount(ctx, archived.ID); err != nil {
+			t.Fatalf("ArchiveAccount: %v", err)
+		}
+		tr := initialTransaction("tx-archived", actor, archived.ID, capital.ID)
+		_, err := db.InsertTransaction(ctx, tr)
+		var ve *ValidationError
+		if !errors.As(err, &ve) || ve.Code != CodeAccountArchived {
+			t.Fatalf("err=%v, ожидалась ValidationError с кодом %s", err, CodeAccountArchived)
+		}
+	})
+
+	t.Run("листовой счёт", func(t *testing.T) {
+		mustInsertTransaction(t, db, initialTransaction("tx-leaf", actor, leaf.ID, capital.ID))
+	})
+}
+
+// TestASL_5_InsertTransactionBySource проверяет фильтр выборки по источнику.
+func TestASL_5_InsertTransactionBySource(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	actor := mustCreateUser(t, db, "Андрей")
+	wallet := mustCreateAccount(t, db, "Кошелёк", model.TypeAsset, nil)
+	capital, err := db.AccountByPath(ctx, "Капитал:Начальные")
+	if err != nil {
+		t.Fatalf("AccountByPath: %v", err)
+	}
+
+	imported := initialTransaction("tx-source", actor, wallet.ID, capital.ID)
+	imported.Source = "hledger"
+	imported.SourceHash = "sha256:строка"
+	mustInsertTransaction(t, db, imported)
+
+	found, err := db.ListTransactions(ctx, TransactionFilter{Source: "hledger"})
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	if len(found) != 1 || found[0].Source != "hledger" || found[0].SourceHash != "sha256:строка" {
+		t.Fatalf("выборка по источнику: %+v", found)
+	}
+
+	empty, err := db.ListTransactions(ctx, TransactionFilter{Source: "web"})
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("выборка по отсутствующему источнику вернула %d записей", len(empty))
+	}
+}
+
 // TestASL_5_TransactionByUUID проверяет чтение проводки по uuid.
 func TestASL_5_TransactionByUUID(t *testing.T) {
 	db := openTestDB(t)

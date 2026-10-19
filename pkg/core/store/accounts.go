@@ -66,6 +66,12 @@ func (db *DB) CreateAccount(ctx context.Context, in AccountInput) (*model.Accoun
 			if parent.IsArchived {
 				return fmt.Errorf("%w: %s", ErrAccountArchived, parent.FullPath)
 			}
+			if parent.Type != in.Type {
+				return &ValidationError{
+					Code:    CodeAccountTypeMismatch,
+					Message: fmt.Sprintf("тип счёта %q не совпадает с типом родителя %q (%s)", in.Type, parent.FullPath, parent.Type),
+				}
+			}
 			fullPath = parent.FullPath + pathSeparator + in.Name
 		}
 
