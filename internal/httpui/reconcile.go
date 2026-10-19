@@ -20,6 +20,8 @@ type reconcileView struct {
 	// AccountID и Amount — предзаполнение формы.
 	AccountID int64
 	Amount    string
+	// Date — дата сверки (по умолчанию сегодня).
+	Date string
 }
 
 // reconcileAccount — счёт, доступный для сверки.
@@ -82,10 +84,20 @@ func (s *Server) handleReconcileSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	generate := r.FormValue("generate") != ""
 
+	date := time.Now().UTC()
+	if text := strings.TrimSpace(r.FormValue("date")); text != "" {
+		parsed, err := time.Parse(time.DateOnly, text)
+		if err != nil {
+			s.mutationError(w, r, "/reconcile", "неверная дата сверки")
+			return
+		}
+		date = parsed.UTC()
+	}
+
 	result, err := s.recon.Check(ctx, reconcilesvc.Request{
 		AccountID: accountID,
 		Fact:      fact,
-		Date:      time.Now().UTC(),
+		Date:      date,
 		ActorID:   users[0].ID,
 		Generate:  generate,
 		UUID:      newUUID(),
@@ -125,7 +137,7 @@ func (s *Server) reconcileView(r *http.Request) (reconcileView, error) {
 	if err != nil {
 		return reconcileView{}, err
 	}
-	view := reconcileView{Empty: true}
+	view := reconcileView{Empty: true, Date: todayString()}
 	for _, d := range discrepancies {
 		if d.Difference == 0 {
 			continue

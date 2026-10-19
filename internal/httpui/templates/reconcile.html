@@ -39,6 +39,10 @@
       <label for="reconcile-amount">Фактический остаток (₽)</label>
       <input type="text" id="reconcile-amount" name="amount" value="{{.Amount}}" required placeholder="например, 1 250,00">
     </div>
+    <div>
+      <label for="reconcile-date">Дата</label>
+      <input type="date" id="reconcile-date" name="date" value="{{.Date}}">
+    </div>
     <div class="check" style="align-self:end">
       <label><input type="checkbox" name="generate" value="1" checked> создать корректировку</label>
     </div>
