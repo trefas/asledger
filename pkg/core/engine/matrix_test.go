@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/trefas/asledger/pkg/core/model"
@@ -132,6 +133,29 @@ func TestRolesFor(t *testing.T) {
 			}
 			if !role.DirectionRequired && !role.Side.Valid() {
 				t.Fatalf("%s/%s: недопустимая сторона %q", op, role.Role, role.Side)
+			}
+			rule, _ := RuleFor(op)
+			if role.Reserved != !rule.MVP {
+				t.Fatalf("%s/%s: reserved=%v, MVP=%v", op, role.Role, role.Reserved, rule.MVP)
+			}
+		}
+
+		// Для операций с фиксированными сторонами ответ обязан совпадать
+		// с roleSpecs — единственным источником правил движка.
+		if op != model.OpRevaluation && op != model.OpAdjustment {
+			specs := roleSpecs[op]
+			if len(roles) != len(specs) {
+				t.Fatalf("%s: ролей %d, в roleSpecs %d", op, len(roles), len(specs))
+			}
+			for _, role := range roles {
+				spec, ok := specs[role.Role]
+				if !ok {
+					t.Fatalf("%s: роли %q нет в roleSpecs", op, role.Role)
+				}
+				if spec.side != role.Side || !slices.Equal(spec.types, role.AccountTypes) {
+					t.Fatalf("%s/%s: ответ %+v не совпадает с roleSpecs %+v",
+						op, role.Role, role, spec)
+				}
 			}
 		}
 	}

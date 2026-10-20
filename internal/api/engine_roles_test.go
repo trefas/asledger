@@ -82,6 +82,26 @@ func TestASL_10_EngineRolesExpense(t *testing.T) {
 	if !resp.AccountsReadOnly {
 		t.Error("accounts_read_only должен быть true")
 	}
+	for _, role := range resp.Roles {
+		if role.Reserved {
+			t.Errorf("роль %q траты помечена reserved", role.Role)
+		}
+	}
+}
+
+// TestASL_10_EngineRolesReserved проверяет признак post-MVP у операций,
+// которые Android-клиент первой версии скрывает.
+func TestASL_10_EngineRolesReserved(t *testing.T) {
+	a := newTestAPI(t)
+	resp := rolesRequest(t, a, string(model.OpDebtPayment))
+	if len(resp.Roles) == 0 {
+		t.Fatal("нет ролей погашения долга")
+	}
+	for _, role := range resp.Roles {
+		if !role.Reserved {
+			t.Errorf("роль %q погашения долга не помечена reserved", role.Role)
+		}
+	}
 }
 
 // TestASL_10_EngineRolesUnknown проверяет ошибки для неизвестного типа

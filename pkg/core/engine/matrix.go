@@ -146,6 +146,8 @@ type RoleInfo struct {
 	AccountTypes []model.AccountType
 	// DirectionRequired — клиент обязан передать направление (вверх/вниз).
 	DirectionRequired bool
+	// Reserved — роль относится к операции post-MVP и в MVP скрывается.
+	Reserved bool
 }
 
 // RolesFor возвращает роли операции в порядке «дебет → кредит».
@@ -153,12 +155,17 @@ type RoleInfo struct {
 // Для переоценки и корректировки сторона зависит от направления, поэтому
 // возвращается одна роль RoleAdjust с пустой стороной и DirectionRequired.
 func RolesFor(op model.OpType) ([]RoleInfo, bool) {
+	rule, ok := RuleFor(op)
+	if !ok {
+		return nil, false
+	}
 	if op == model.OpRevaluation || op == model.OpAdjustment {
 		return []RoleInfo{{
 			Role:              RoleAdjust,
 			Side:              "",
 			AccountTypes:      []model.AccountType{model.TypeAsset, model.TypeLiability, model.TypeCapital},
 			DirectionRequired: true,
+			Reserved:          !rule.MVP,
 		}}, true
 	}
 
@@ -170,7 +177,12 @@ func RolesFor(op model.OpType) ([]RoleInfo, bool) {
 	for role, spec := range specs {
 		types := make([]model.AccountType, len(spec.types))
 		copy(types, spec.types)
-		roles = append(roles, RoleInfo{Role: role, Side: spec.side, AccountTypes: types})
+		roles = append(roles, RoleInfo{
+			Role:         role,
+			Side:         spec.side,
+			AccountTypes: types,
+			Reserved:     !rule.MVP,
+		})
 	}
 	sort.Slice(roles, func(i, j int) bool {
 		if roles[i].Side != roles[j].Side {

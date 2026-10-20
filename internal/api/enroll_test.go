@@ -185,3 +185,63 @@ func TestASL_10_EnrollNoUsers(t *testing.T) {
 		t.Fatalf("код ошибки %q", env.Error.Code)
 	}
 }
+
+// TestASL_10_EnrollRevokedToken проверяет, что после отзыва устройства его
+// токен перестаёт работать — это использует web-страница «Устройства».
+func TestASL_10_EnrollRevokedToken(t *testing.T) {
+	a := newTestAPI(t)
+	a.remote = "192.168.1.25:5555"
+
+	rec := a.do(t, http.MethodPost, "/api/v1/auth/enroll", "", enrollBody("телефон-отзыв", 0))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enroll: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	var resp enrollResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("разбор ответа: %v", err)
+	}
+
+	rec = a.do(t, http.MethodGet, "/api/v1/sync/snapshot", resp.Token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("snapshot до отзыва: код %d", rec.Code)
+	}
+	if err := a.db.DeleteDevice(context.Background(), "телефон-отзыв"); err != nil {
+		t.Fatalf("DeleteDevice: %v", err)
+	}
+	rec = a.do(t, http.MethodGet, "/api/v1/sync/snapshot", resp.Token, nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("snapshot после отзыва: код %d, ожидался 401", rec.Code)
+	}
+}
+
+// TestASL_10_EnrollBadRequest проверяет локальный loopback, пустой client_id и
+// некорректный адрес клиента.
+func TestASL_10_EnrollBadRequest(t *testing.T) {
+	a := newTestAPI(t)
+	a.remote = "127.0.0.1:5555"
+
+	rec := a.do(t, http.MethodPost, "/api/v1/auth/enroll", "", enrollBody("телефон-loopback", 0))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("loopback: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+
+	rec = a.do(t, http.MethodPost, "/api/v1/auth/enroll", "", map[string]any{"device_name": "Без id"})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("без client_id: код %d, ожидался 400", rec.Code)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/enroll", strings.NewReader("{"))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.26:5555"
+	bad := httptest.NewRecorder()
+	a.handler.ServeHTTP(bad, req)
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("битый JSON: код %d, ожидался 400", bad.Code)
+	}
+
+	a.remote = "не-адрес"
+	rec = a.do(t, http.MethodPost, "/api/v1/auth/enroll", "", enrollBody("телефон-без-адреса", 0))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("некорректный RemoteAddr: код %d, ожидался 403", rec.Code)
+	}
+}

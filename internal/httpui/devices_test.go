@@ -67,4 +67,28 @@ func TestASL_11_WebDevices(t *testing.T) {
 	if len(devices) != 0 {
 		t.Fatalf("после отзыва устройств %d, ожидалось 0", len(devices))
 	}
+
+	// Пустой client_id — понятная ошибка, а не молчаливый редирект.
+	rec = w.postForm(t, "/devices/revoke", url.Values{"client_id": {""}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("пустой client_id: код %d", rec.Code)
+	}
+	if message := flashOf(t, rec); !strings.Contains(message, "не удалось определить устройство") {
+		t.Errorf("flash пустого client_id: %q", message)
+	}
+}
+
+// TestASL_11_WebUsersDevicesLink проверяет ссылку со страницы пользователей на
+// страницу устройств.
+func TestASL_11_WebUsersDevicesLink(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+
+	rec := w.get(t, "/users")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("страница пользователей: код %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `href="/devices"`) {
+		t.Error("нет ссылки на страницу устройств")
+	}
 }

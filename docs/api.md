@@ -352,8 +352,8 @@ Authorization: Bearer <токен>
   "op_type": "трата",
   "title": "Трата",
   "roles": [
-    { "role": "расход", "side": "DEBIT", "account_types": ["расход"], "direction_required": false },
-    { "role": "источник", "side": "CREDIT", "account_types": ["актив"], "direction_required": false }
+    { "role": "расход", "side": "DEBIT", "account_types": ["расход"], "direction_required": false, "reserved": false },
+    { "role": "источник", "side": "CREDIT", "account_types": ["актив"], "direction_required": false, "reserved": false }
   ],
   "min_debit": 1,
   "min_credit": 1,
@@ -361,6 +361,10 @@ Authorization: Bearer <токен>
   "accounts_read_only": true
 }
 ```
+
+`reserved` у роли означает операцию post-MVP: Android-клиент первой версии
+такие роли скрывает. `reserved` верхнего уровня перечисляет зарезервированные
+типы счетов по сторонам матрицы.
 
 Для переоценки и корректировки сторона зависит от направления: возвращается
 роль `корректируемый` с пустым `side` и `direction_required: true`.

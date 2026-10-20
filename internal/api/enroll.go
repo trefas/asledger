@@ -118,7 +118,8 @@ func (s *Server) handleEnroll(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("устройство привязано без пароля",
 		"client_id", clientID, "device", strings.TrimSpace(req.DeviceName),
-		"user", user.Name, "request_id", RequestID(r.Context()))
+		"user", user.Name, "remote_addr", r.RemoteAddr,
+		"request_id", RequestID(r.Context()))
 	writeJSON(w, http.StatusOK, enrollResponse{
 		Token:    token,
 		ClientID: clientID,

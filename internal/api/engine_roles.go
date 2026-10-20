@@ -18,6 +18,8 @@ type engineRoleDTO struct {
 	AccountTypes []model.AccountType `json:"account_types"`
 	// DirectionRequired — клиент обязан передать направление.
 	DirectionRequired bool `json:"direction_required"`
+	// Reserved — роль операции post-MVP; в MVP скрывается.
+	Reserved bool `json:"reserved"`
 }
 
 // engineRolesResponse — описание ролей и сторон матрицы для типа операции.
@@ -69,6 +71,7 @@ func (s *Server) handleEngineRoles(w http.ResponseWriter, r *http.Request) {
 			Side:              role.Side,
 			AccountTypes:      role.AccountTypes,
 			DirectionRequired: role.DirectionRequired,
+			Reserved:          role.Reserved,
 		})
 	}
 
