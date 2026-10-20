@@ -7,26 +7,37 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.trefas.asledger.BuildConfig
 import com.trefas.asledger.data.settings.ServerConfig
 import com.trefas.asledger.ui.components.ScreenScaffold
 
-/** Настройки: адрес сервера и сведения о сборке. */
+/** Настройки: сервер, пользователь, диагностика и сведения о сборке. */
 @Composable
 fun SettingsScreen(
     config: ServerConfig?,
+    onDiagnostics: () -> Unit,
+    onChangeUser: () -> Unit,
     onChangeServer: () -> Unit,
-    onSyncStatus: () -> Unit,
+    onForgetServer: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var confirmForget by remember { mutableStateOf(false) }
+
     ScreenScaffold(title = "Настройки", modifier = modifier) {
         Column(
             modifier = Modifier
@@ -51,6 +62,19 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    if (config != null && config.serverVersion.isNotBlank()) {
+                        Text(
+                            text = "Версия: ${config.serverVersion}, формат ${config.formatVersion}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (config != null && config.hasSession) {
+                        Text(
+                            text = "Пользователь: ${config.userName}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                     Text(
                         text = "Порт по умолчанию — 8778. Адрес можно изменить, " +
                             "если компьютер переехал в другую сеть.",
@@ -59,6 +83,17 @@ fun SettingsScreen(
                     )
                     OutlinedButton(onClick = onChangeServer) {
                         Text("Изменить адрес")
+                    }
+                    if (config?.hasSession == true) {
+                        OutlinedButton(onClick = onChangeUser) {
+                            Text("Сменить пользователя")
+                        }
+                    }
+                    TextButton(onClick = { confirmForget = true }) {
+                        Text(
+                            text = "Забыть сервер",
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }
@@ -73,15 +108,15 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Синхронизация", style = MaterialTheme.typography.titleMedium)
+                    Text("Диагностика", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Очередь локальных проводок, время последнего обмена и " +
-                            "предупреждения о расхождениях.",
+                        text = "Проверка связи, версия сервера, время последней " +
+                            "синхронизации и состояние токена. Токен не показывается.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedButton(onClick = onSyncStatus) {
-                        Text("Состояние синхронизации")
+                    Button(onClick = onDiagnostics) {
+                        Text("Открыть диагностику")
                     }
                 }
             }
@@ -111,5 +146,33 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    if (confirmForget) {
+        AlertDialog(
+            onDismissRequest = { confirmForget = false },
+            title = { Text("Забыть сервер?") },
+            text = {
+                Text(
+                    "Адрес и токен будут удалены с устройства. Локальные черновики " +
+                        "проводок не удаляются. Для продолжения потребуется привязка заново."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmForget = false
+                        onForgetServer()
+                    }
+                ) {
+                    Text("Забыть")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmForget = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
     }
 }

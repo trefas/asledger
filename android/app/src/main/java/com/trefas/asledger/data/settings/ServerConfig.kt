@@ -1,14 +1,24 @@
 package com.trefas.asledger.data.settings
 
+import java.util.UUID
+
 /**
- * Адрес книги на сервере.
+ * Адрес книги и состояние привязки устройства.
  *
  * Хост хранится без схемы и пути, порт — отдельно. По умолчанию используется
- * порт API 8778; web-интерфейс на 8777 приложению не нужен.
+ * порт API 8778; web-интерфейс на 8777 приложению не нужен. Секрет (токен) в
+ * этой модели не хранится: он лежит только в зашифрованном виде в Keystore.
  */
 data class ServerConfig(
     val host: String,
-    val port: Int = DEFAULT_PORT
+    val port: Int = DEFAULT_PORT,
+    val clientId: String = "",
+    val userId: Long = 0,
+    val userName: String = "",
+    val serverVersion: String = "",
+    val formatVersion: Int = 0,
+    val onboarded: Boolean = false,
+    val lastSyncAt: Long = 0
 ) {
     /** Базовый URL API без завершающего слэша. */
     val baseUrl: String
@@ -18,9 +28,16 @@ data class ServerConfig(
             "http://$host:$port"
         }
 
+    /** Устройство привязано к пользователю и готово к синхронизации. */
+    val hasSession: Boolean
+        get() = clientId.isNotBlank() && userId > 0
+
     companion object {
         /** Порт API по умолчанию (web-интерфейс слушает 8777). */
         const val DEFAULT_PORT: Int = 8778
+
+        /** Новый постоянный идентификатор устройства. */
+        fun newClientId(): String = UUID.randomUUID().toString()
 
         /** Приводит ввод пользователя к хосту без схемы и пути. */
         fun normalizeHost(raw: String): String {

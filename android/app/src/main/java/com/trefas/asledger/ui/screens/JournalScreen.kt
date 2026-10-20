@@ -24,6 +24,7 @@ import com.trefas.asledger.ui.components.ScreenScaffold
 @Composable
 fun JournalScreen(
     onNewEntry: () -> Unit,
+    userName: String = "",
     modifier: Modifier = Modifier
 ) {
     ScreenScaffold(
@@ -52,7 +53,8 @@ fun JournalScreen(
             Text(
                 text = "После подключения приложение загрузит план счетов и проводки " +
                     "с сервера. Здесь появится журнал с фильтрами и возможностью " +
-                    "создать новую проводку.",
+                    "создать новую проводку." +
+                    if (userName.isNotBlank()) "\n\nТекущий пользователь: $userName" else "",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
