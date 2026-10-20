@@ -36,6 +36,8 @@ type testAPI struct {
 	token    string
 	clientID string
 	actor    int64
+	// remote — адрес клиента для проверки локальной сети; пусто — умолчание.
+	remote string
 }
 
 // newTestAPI поднимает сервер, создаёт пользователя, план счетов и устройство.
@@ -99,6 +101,9 @@ func (a *testAPI) do(t *testing.T, method, path, token string, body any) *httpte
 	}
 	req := httptest.NewRequest(method, path, reader)
 	req.Header.Set("Content-Type", "application/json")
+	if a.remote != "" {
+		req.RemoteAddr = a.remote
+	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}

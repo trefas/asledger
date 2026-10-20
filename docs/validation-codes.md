@@ -53,6 +53,13 @@
 | `ERR_INTERNAL` | Внутренняя ошибка сервера |
 | `ERR_ACCOUNT_NOT_FOUND` | В запросе указан несуществующий счёт |
 | `ERR_RECONCILE_NOT_ADJUSTABLE` | Сверка пытается скорректировать доход или расход |
+| `ERR_UNAUTHORIZED` | Нет или недействителен токен устройства |
+| `ERR_ENROLL_FORBIDDEN` | Привязка устройства запрошена не из локальной сети |
+| `ERR_ENROLL_DISABLED` | Привязка новых устройств запрещена настройкой книги |
+| `ERR_ENROLL_NO_USERS` | В книге нет пользователей для привязки |
+| `ERR_ENROLL_USER_REQUIRED` | Несколько пользователей, нужен выбор |
+| `ERR_ENROLL_USER_UNKNOWN` | Передан несуществующий `user_id` |
+| `ERR_OP_TYPE_UNKNOWN` | Неизвестный тип операции в `GET /engine/roles` |
 
 ## Как читать код в клиенте
 

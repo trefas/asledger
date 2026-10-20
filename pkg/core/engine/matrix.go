@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/trefas/asledger/pkg/core/model"
@@ -132,6 +133,52 @@ func Rules() []Rule {
 func RuleFor(op model.OpType) (Rule, bool) {
 	r, ok := matrixByOp[op]
 	return r, ok
+}
+
+// RoleInfo — описание роли для клиентов: сторона, допустимые типы счетов и
+// необходимость явно задать направление.
+type RoleInfo struct {
+	// Role — семантическая роль строки.
+	Role Role
+	// Side — сторона, которую назначит движок; пусто для операций по направлению.
+	Side model.Side
+	// AccountTypes — допустимые типы счетов для роли.
+	AccountTypes []model.AccountType
+	// DirectionRequired — клиент обязан передать направление (вверх/вниз).
+	DirectionRequired bool
+}
+
+// RolesFor возвращает роли операции в порядке «дебет → кредит».
+//
+// Для переоценки и корректировки сторона зависит от направления, поэтому
+// возвращается одна роль RoleAdjust с пустой стороной и DirectionRequired.
+func RolesFor(op model.OpType) ([]RoleInfo, bool) {
+	if op == model.OpRevaluation || op == model.OpAdjustment {
+		return []RoleInfo{{
+			Role:              RoleAdjust,
+			Side:              "",
+			AccountTypes:      []model.AccountType{model.TypeAsset, model.TypeLiability, model.TypeCapital},
+			DirectionRequired: true,
+		}}, true
+	}
+
+	specs, ok := roleSpecs[op]
+	if !ok {
+		return nil, false
+	}
+	roles := make([]RoleInfo, 0, len(specs))
+	for role, spec := range specs {
+		types := make([]model.AccountType, len(spec.types))
+		copy(types, spec.types)
+		roles = append(roles, RoleInfo{Role: role, Side: spec.side, AccountTypes: types})
+	}
+	sort.Slice(roles, func(i, j int) bool {
+		if roles[i].Side != roles[j].Side {
+			return roles[i].Side == model.SideDebit
+		}
+		return roles[i].Role < roles[j].Role
+	})
+	return roles, true
 }
 
 // sideOfType сообщает, допустим ли тип счёта на стороне строки матрицы.

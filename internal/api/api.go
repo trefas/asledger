@@ -62,6 +62,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	mux.HandleFunc("POST /api/v1/auth/pair", s.handlePair)
+	mux.HandleFunc("POST /api/v1/auth/enroll", s.handleEnroll)
 	mux.Handle("DELETE /api/v1/auth/token", s.auth(http.HandlerFunc(s.handleRevokeToken)))
 
 	mux.Handle("POST /api/v1/transactions", s.auth(http.HandlerFunc(s.handleTransactions)))
@@ -72,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/sync/pull", s.auth(http.HandlerFunc(s.handlePull)))
 
 	mux.Handle("GET /api/v1/accounts/suggest", s.auth(http.HandlerFunc(s.handleSuggest)))
+	mux.Handle("GET /api/v1/engine/roles", s.auth(http.HandlerFunc(s.handleEngineRoles)))
 	mux.Handle("GET /api/v1/charts/templates", s.auth(http.HandlerFunc(s.handleChartTemplates)))
 	mux.Handle("POST /api/v1/import", s.auth(http.HandlerFunc(s.handleImport)))
 	mux.Handle("GET /api/v1/export", s.auth(http.HandlerFunc(s.handleExport)))

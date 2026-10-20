@@ -1,0 +1,57 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Устройства</h1>
+<p class="muted">Android-приложение подключается по адресу и порту и привязывается без пароля — только из локальной сети. Токен устройства хранится в книге в виде хеша, поэтому отозвать доступ можно в любой момент.</p>
+
+<div class="card">
+  <h2>Привязка новых устройств</h2>
+  <p>
+    {{if .Enrollment}}
+    <span class="badge">Разрешена</span>
+    {{else}}
+    <span class="badge badge-warn">Запрещена</span>
+    {{end}}
+    {{if not .EnrollmentExplicit}}<span class="muted">(по умолчанию)</span>{{end}}
+  </p>
+  <p class="muted">Привязка работает только для запросов из локальной сети. Пароль на первом экране Android не нужен; при нескольких пользователях приложение предложит выбрать имя.</p>
+  <form method="post" action="/devices/enrollment" class="row">
+    <div>
+      <label for="enrollment">Режим</label>
+      <select id="enrollment" name="enrollment">
+        <option value="allow"{{if .Enrollment}} selected{{end}}>Разрешить привязку</option>
+        <option value="deny"{{if not .Enrollment}} selected{{end}}>Запретить привязку</option>
+      </select>
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Сохранить</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Подключённые устройства</h2>
+  {{if .Devices}}
+  <table>
+    <thead><tr><th>Устройство</th><th>Пользователь</th><th>Подключено</th><th></th></tr></thead>
+    <tbody>
+    {{range .Devices}}
+      <tr>
+        <td>{{.ClientID}}</td>
+        <td>{{.UserName}}</td>
+        <td>{{date .CreatedAt}}</td>
+        <td>
+          <form method="post" action="/devices/revoke" class="inline-form" onsubmit="return confirm('Отозвать токен устройства «{{.ClientID}}»?')">
+            <input type="hidden" name="client_id" value="{{.ClientID}}">
+            <button class="btn btn-secondary btn-small" type="submit">Отозвать</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="empty">Пока нет подключённых устройств. Запустите Android-приложение и укажите адрес сервера.</p>
+  {{end}}
+</div>
+
+<p class="muted">Выпустить токен вручную и переименовать пользователей можно на странице <a href="/users">«Пользователи»</a>.</p>
+{{end}}
+{{end}}

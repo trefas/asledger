@@ -88,6 +88,7 @@ var pageFiles = map[string]string{
 	"data":      "data.html",
 	"chart":     "chart.html",
 	"users":     "users.html",
+	"devices":   "devices.html",
 	"initial":   "initial.html",
 	"reports":   "reports.html",
 	"reconcile": "reconcile.html",
@@ -170,6 +171,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /users/rename", s.handleUsersRename)
 	mux.HandleFunc("POST /users/token", s.handleUserToken)
 	mux.HandleFunc("POST /users/revoke", s.handleUserRevoke)
+
+	mux.HandleFunc("GET /devices", s.handleDevices)
+	mux.HandleFunc("POST /devices/enrollment", s.handleDevicesEnrollment)
+	mux.HandleFunc("POST /devices/revoke", s.handleDeviceRevoke)
 
 	mux.HandleFunc("GET /initial", s.handleInitialForm)
 	mux.HandleFunc("POST /initial", s.handleInitialSubmit)

@@ -19,6 +19,20 @@ const SettingInitialBalances = "начальные_остатки_введены
 // SettingBalanceMode — ключ настройки режима контроля остатка (раздел 9.2).
 const SettingBalanceMode = "режим_контроля_остатка"
 
+// SettingDevicesEnrollment — ключ настройки привязки новых устройств.
+//
+// Значение store.EnrollmentAllow разрешает привязку из локальной сети,
+// store.EnrollmentDeny запрещает её. Отсутствие настройки означает allow.
+const SettingDevicesEnrollment = "привязка_устройств"
+
+// Значения настройки привязки устройств.
+const (
+	// EnrollmentAllow — привязка новых устройств разрешена.
+	EnrollmentAllow = "allow"
+	// EnrollmentDeny — привязка новых устройств запрещена.
+	EnrollmentDeny = "deny"
+)
+
 // Режимы контроля остатка.
 const (
 	// BalanceModeFree — проводка принимается, минус подсвечивается.
