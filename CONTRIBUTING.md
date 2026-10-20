@@ -61,6 +61,7 @@ packaging/systemd/   юнит и env-файл службы Linux
 ```bash
 make check        # fmt-check, vet, lint-money, lint-trace, goreleaser, golangci-lint, тесты
 make test-race    # гонки
+make cover-check  # общий порог покрытия (COVERAGE_MIN, по умолчанию 70 %)
 ```
 
 CI выполняет то же самое на Linux и Windows (`.github/workflows/ci.yml`).

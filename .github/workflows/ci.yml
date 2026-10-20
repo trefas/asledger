@@ -36,6 +36,9 @@ jobs:
       - name: Тесты с детектором гонок
         run: make test-race
 
+      - name: Порог покрытия
+        run: make cover-check
+
       - name: Сборка команд
         run: make build
 

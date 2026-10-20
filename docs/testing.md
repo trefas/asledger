@@ -50,6 +50,7 @@
 make test        # все тесты
 make test-race   # тесты с детектором гонок
 make cover       # покрытие
+make cover-check # общий порог покрытия (COVERAGE_MIN, по умолчанию 70 %)
 make check       # форматирование, статические проверки и тесты
 ```
 

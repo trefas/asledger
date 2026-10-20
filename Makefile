@@ -13,7 +13,7 @@ LDFLAGS := -X github.com/trefas/asledger/internal/version.Version=$(VERSION) \
            -X github.com/trefas/asledger/internal/version.Commit=$(COMMIT) \
            -X github.com/trefas/asledger/internal/version.Date=$(DATE)
 
-.PHONY: all build test test-race cover fmt fmt-check vet lint lint-money lint-go lint-trace lint-release check run assets clean help
+.PHONY: all build test test-race cover cover-check fmt fmt-check vet lint lint-money lint-go lint-trace lint-release check run assets clean help
 
 all: check build
 
@@ -37,6 +37,10 @@ test-race:
 cover:
 	$(GO) test -coverprofile=coverage.out ./...
 	$(GO) tool cover -func=coverage.out | tail -n 1
+
+## cover-check: общий порог покрытия (COVERAGE_MIN, по умолчанию 70 %)
+cover-check:
+	./scripts/check-coverage.sh
 
 ## fmt: форматировать код
 fmt:
