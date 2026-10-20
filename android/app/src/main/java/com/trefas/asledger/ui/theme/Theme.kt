@@ -31,7 +31,7 @@ private val LightColors = lightColorScheme(
     error = Danger,
     onError = Card,
     errorContainer = DangerBg,
-    onErrorContainer = Danger,
+    onErrorContainer = Danger
 )
 
 private val DarkColors = darkColorScheme(
@@ -54,7 +54,7 @@ private val DarkColors = darkColorScheme(
     outline = DarkOutline,
     outlineVariant = DarkOutline,
     error = DarkError,
-    onError = DarkOnError,
+    onError = DarkOnError
 )
 
 private val AsledgerShapes = Shapes(
@@ -62,7 +62,7 @@ private val AsledgerShapes = Shapes(
     small = RoundedCornerShape(8.dp),
     medium = RoundedCornerShape(10.dp),
     large = RoundedCornerShape(14.dp),
-    extraLarge = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(20.dp)
 )
 
 /**
@@ -74,12 +74,12 @@ private val AsledgerShapes = Shapes(
 @Composable
 fun AsledgerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
+    content: @Composable () -> Unit
 ) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         typography = AsledgerTypography,
         shapes = AsledgerShapes,
-        content = content,
+        content = content
     )
 }

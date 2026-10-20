@@ -84,9 +84,9 @@ ui/ (Compose) ── ViewModel ── domain/ (модели, use case)
 ### Роли и стороны матрицы
 
 `GET /api/v1/engine/roles?op_type=трата` возвращает роли, сторону
-(`DEBIT`/`CREDIT`), допустимые типы счетов и зарезервированные ячейки. Клиент
-строит секции «Дебет» и «Кредит» по этому ответу, поэтому матрица ASL-2.2 не
-дублируется в Kotlin.
+(`DEBIT`/`CREDIT`), допустимые типы счетов, признаки `direction_required` и
+`reserved`. Клиент строит секции «Дебет» и «Кредит» по этому ответу, поэтому
+матрица ASL-2.2 не дублируется в Kotlin.
 
 ## Синхронизация
 
@@ -150,10 +150,11 @@ cd android
 ./gradlew :app:assembleDebug        # debug APK
 ./gradlew :app:testDebugUnitTest    # unit-тесты
 ./gradlew :app:lintDebug            # линт
+./gradlew :app:ktlintCheck          # стиль Kotlin
 ./gradlew :app:assembleRelease      # подписанный APK (нужен keystore)
 ```
 
-Из корня репозитория: `make android-check` (сборка, unit-тесты и lint) или
+Из корня репозитория: `make android-check` (сборка, unit-тесты, lint и ktlint) или
 `make android-debug` (только debug APK). Debug APK собирается в CI на каждый
 push. Релизный APK подписывается ключом из секретов GitHub Actions и
 прикладывается к GitHub Release вместе с SHA-256.

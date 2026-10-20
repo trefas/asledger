@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ktlint)
 }
 
 android {
@@ -42,7 +43,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
+                "proguard-rules.pro"
             )
         }
     }
@@ -69,12 +70,27 @@ android {
         // Новые версии библиотек проверяет Renovate/CI, а не блокирующая сборка.
         disable += "GradleDependency"
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric + Compose UI-тест навигации на JVM, без эмулятора.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
+}
+
+// Стиль Kotlin проверяется ktlint в составе android-check и CI.
+ktlint {
+    version.set("1.5.0")
+    android.set(true)
+    outputToConsole.set(true)
+    ignoreFailures.set(false)
 }
 
 dependencies {
@@ -101,6 +117,10 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.compose.ui.test.manifest)
+    testImplementation(libs.robolectric)
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

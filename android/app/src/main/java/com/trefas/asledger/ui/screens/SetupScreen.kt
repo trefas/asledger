@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 fun SetupScreen(
     onSave: suspend (ServerConfig) -> Unit,
     onConnected: () -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     var host by rememberSaveable { mutableStateOf("") }
     var port by rememberSaveable { mutableStateOf(ServerConfig.DEFAULT_PORT.toString()) }
@@ -92,7 +92,7 @@ fun SetupScreen(
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         BrandHeader()
         Spacer(Modifier.height(32.dp))
@@ -100,22 +100,22 @@ fun SetupScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-            ),
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     text = "Подключение к книге",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleLarge
                 )
                 Text(
                     text = "Укажите адрес компьютера, на котором запущен asledgerd. " +
                         "Приложение найдёт книгу и привяжется к ней автоматически.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 OutlinedTextField(
@@ -131,8 +131,8 @@ fun SetupScreen(
                     isError = error != null,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Next,
-                    ),
+                        imeAction = ImeAction.Next
+                    )
                 )
 
                 OutlinedTextField(
@@ -150,29 +150,29 @@ fun SetupScreen(
                     isError = error != null,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done,
+                        imeAction = ImeAction.Done
                     ),
-                    keyboardActions = KeyboardActions(onDone = { submit() }),
+                    keyboardActions = KeyboardActions(onDone = { submit() })
                 )
 
                 if (error != null) {
                     Text(
                         text = error.orEmpty(),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
 
                 Button(
                     onClick = { submit() },
                     enabled = !saving,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     if (saving) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
                         Text("Подключиться")
@@ -187,7 +187,7 @@ fun SetupScreen(
                 "отозвать устройство можно в web-интерфейсе asledger.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Center
         )
     }
 }

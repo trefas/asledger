@@ -8,7 +8,7 @@ package com.trefas.asledger.data.settings
  */
 data class ServerConfig(
     val host: String,
-    val port: Int = DEFAULT_PORT,
+    val port: Int = DEFAULT_PORT
 ) {
     /** Базовый URL API без завершающего слэша. */
     val baseUrl: String

@@ -5,7 +5,6 @@ import org.junit.Test
 
 /** Проверки нормализации адреса сервера. */
 class ServerConfigTest {
-
     @Test
     fun `порт по умолчанию — 8778`() {
         assertEquals(8778, ServerConfig.DEFAULT_PORT)
@@ -21,11 +20,11 @@ class ServerConfigTest {
     fun `normalizeHost убирает схему и путь`() {
         assertEquals(
             "192.168.1.10",
-            ServerConfig.normalizeHost("http://192.168.1.10:8778/api/v1"),
+            ServerConfig.normalizeHost("http://192.168.1.10:8778/api/v1")
         )
         assertEquals(
             "asledger.local",
-            ServerConfig.normalizeHost(" https://asledger.local/ "),
+            ServerConfig.normalizeHost(" https://asledger.local/ ")
         )
     }
 

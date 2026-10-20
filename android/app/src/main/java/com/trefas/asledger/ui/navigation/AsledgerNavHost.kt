@@ -7,17 +7,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -25,7 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -40,6 +30,7 @@ import com.trefas.asledger.ui.screens.EntryScreen
 import com.trefas.asledger.ui.screens.JournalScreen
 import com.trefas.asledger.ui.screens.SettingsScreen
 import com.trefas.asledger.ui.screens.SetupScreen
+import com.trefas.asledger.ui.screens.SyncStatusScreen
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -50,6 +41,7 @@ object Routes {
     const val ENTRY = "entry"
     const val ACCOUNTS = "accounts"
     const val SETTINGS = "settings"
+    const val SYNC_STATUS = "sync-status"
 }
 
 /** Состояние загрузки адреса сервера. */
@@ -58,19 +50,6 @@ private sealed interface ConfigState {
     data object Missing : ConfigState
     data class Ready(val config: ServerConfig) : ConfigState
 }
-
-private data class TopLevelDestination(
-    val route: String,
-    val label: String,
-    val icon: ImageVector,
-)
-
-private val topLevelDestinations = listOf(
-    TopLevelDestination(Routes.JOURNAL, "Журнал", Icons.Filled.Home),
-    TopLevelDestination(Routes.ENTRY, "Ввод", Icons.Filled.Add),
-    TopLevelDestination(Routes.ACCOUNTS, "Счета", Icons.AutoMirrored.Filled.List),
-    TopLevelDestination(Routes.SETTINGS, "Настройки", Icons.Filled.Settings),
-)
 
 /**
  * Корневая навигация.
@@ -81,11 +60,11 @@ private val topLevelDestinations = listOf(
 @Composable
 fun AsledgerNavHost(
     container: AppContainer,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     val state by produceState<ConfigState>(
         initialValue = ConfigState.Loading,
-        key1 = container,
+        key1 = container
     ) {
         container.serverConfig.config.collect { saved ->
             value = if (saved == null) ConfigState.Missing else ConfigState.Ready(saved)
@@ -113,7 +92,7 @@ private fun LoadingScreen(modifier: Modifier = Modifier) {
 private fun MainNavigation(
     container: AppContainer,
     state: ConfigState,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
@@ -132,31 +111,25 @@ private fun MainNavigation(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (currentRoute != null && currentRoute != Routes.SETUP) {
-                NavigationBar {
-                    topLevelDestinations.forEach { item ->
-                        NavigationBarItem(
-                            selected = currentRoute == item.route,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(item.icon, contentDescription = null) },
-                            label = { Text(item.label) },
-                        )
+                AsledgerBottomBar(
+                    currentRoute = currentRoute,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
-                }
+                )
             }
-        },
+        }
     ) { padding ->
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.padding(padding),
+            modifier = Modifier.padding(padding)
         ) {
             composable(Routes.SETUP) {
                 SetupScreen(
@@ -166,11 +139,13 @@ private fun MainNavigation(
                             popUpTo(Routes.SETUP) { inclusive = true }
                             launchSingleTop = true
                         }
-                    },
+                    }
                 )
             }
             composable(Routes.JOURNAL) {
-                JournalScreen()
+                JournalScreen(
+                    onNewEntry = { navController.navigate(Routes.ENTRY) }
+                )
             }
             composable(Routes.ENTRY) {
                 EntryScreen()
@@ -181,6 +156,7 @@ private fun MainNavigation(
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     config = config,
+                    onSyncStatus = { navController.navigate(Routes.SYNC_STATUS) },
                     onChangeServer = {
                         scope.launch {
                             container.serverConfig.clear()
@@ -191,8 +167,11 @@ private fun MainNavigation(
                                 launchSingleTop = true
                             }
                         }
-                    },
+                    }
                 )
+            }
+            composable(Routes.SYNC_STATUS) {
+                SyncStatusScreen()
             }
         }
     }

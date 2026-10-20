@@ -21,20 +21,20 @@ fun ScreenScaffold(
     title: String,
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
-    content: @Composable () -> Unit,
+    content: @Composable () -> Unit
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(title) },
             actions = actions,
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background,
-            ),
+                containerColor = MaterialTheme.colorScheme.background
+            )
         )
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
         ) {
             content()
         }
@@ -47,24 +47,24 @@ fun EmptyState(
     title: String,
     text: String,
     modifier: Modifier = Modifier,
-    action: (@Composable () -> Unit)? = null,
+    action: (@Composable () -> Unit)? = null
 ) {
     Column(
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp),
+            modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp)
         )
         if (action != null) {
             Box(modifier = Modifier.padding(top = 16.dp)) {

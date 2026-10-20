@@ -15,12 +15,12 @@ import kotlinx.coroutines.flow.map
 
 /** Единственное хранилище настроек приложения. */
 private val Context.serverDataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "server",
+    name = "server"
 )
 
 /** Хранит адрес сервера в DataStore. */
 class DataStoreServerConfigStore(
-    private val context: Context,
+    private val context: Context
 ) : ServerConfigStore {
 
     override val config: Flow<ServerConfig?> = context.serverDataStore.data

@@ -24,7 +24,8 @@ import com.trefas.asledger.ui.components.ScreenScaffold
 fun SettingsScreen(
     config: ServerConfig?,
     onChangeServer: () -> Unit,
-    modifier: Modifier = Modifier,
+    onSyncStatus: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     ScreenScaffold(title = "Настройки", modifier = modifier) {
         Column(
@@ -32,29 +33,29 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text("Сервер", style = MaterialTheme.typography.titleMedium)
                     Text(
                         text = config?.baseUrl ?: "Книга не подключена",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Text(
                         text = "Порт по умолчанию — 8778. Адрес можно изменить, " +
                             "если компьютер переехал в другую сеть.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(onClick = onChangeServer) {
                         Text("Изменить адрес")
@@ -65,24 +66,47 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Синхронизация", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Очередь локальных проводок, время последнего обмена и " +
+                            "предупреждения о расхождениях.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(onClick = onSyncStatus) {
+                        Text("Состояние синхронизации")
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text("О приложении", style = MaterialTheme.typography.titleMedium)
                     Text(
                         text = "asledger ${BuildConfig.VERSION_NAME}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         text = "Android 14 (API 34) и новее. Данные книги хранятся " +
                             "на вашем сервере; приложение работает с локальной копией " +
                             "и синхронизируется, когда сервер доступен.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

@@ -20,12 +20,12 @@ import com.trefas.asledger.R
 @Composable
 fun BrandMark(
     modifier: Modifier = Modifier,
-    size: Dp = 96.dp,
+    size: Dp = 96.dp
 ) {
     Image(
         painter = painterResource(R.drawable.asledger_logo),
         contentDescription = null,
-        modifier = modifier.size(size),
+        modifier = modifier.size(size)
     )
 }
 
@@ -34,21 +34,21 @@ fun BrandMark(
 fun BrandHeader(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         BrandMark(size = 112.dp)
         Spacer(Modifier.height(16.dp))
         Text(
             text = "asledger",
             style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.primary
         )
         Spacer(Modifier.height(4.dp))
         Text(
             text = "Домашняя книга проводок",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Center
         )
     }
 }

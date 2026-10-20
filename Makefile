@@ -92,9 +92,9 @@ run:
 assets:
 	./scripts/gen-assets.sh
 
-## android-check: debug APK, unit-тесты и lint Android (нужны JDK 21 и Android SDK 36)
+## android-check: debug APK, unit-тесты, lint и ktlint (нужны JDK 21 и Android SDK 36)
 android-check:
-	cd android && ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug
+	cd android && ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug ktlintCheck
 
 ## android-debug: собрать debug APK
 android-debug:
