@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Палитра совпадает с web-интерфейсом (internal/httpui/static/style.css). -->
+    <color name="asledger_green_900">#0F3D0F</color>
+    <color name="asledger_green_700">#145214</color>
+    <color name="asledger_green_500">#2F7A2F</color>
+    <color name="asledger_green_100">#E7F1E5</color>
+    <color name="asledger_background">#F7F8F5</color>
+    <color name="asledger_dark_background">#101410</color>
+    <color name="ic_launcher_background">#F7F8F5</color>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Тема нужна только для запуска и splash-экрана: весь интерфейс рисует
+        Compose. Цвета совпадают с зелёной палитрой web-версии.
+    -->
+    <style name="Theme.Asledger" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenBackground">@color/asledger_green_700</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/asledger_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/asledger_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/asledger_background</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

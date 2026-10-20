@@ -1,0 +1,9 @@
+# Сборка Android-приложения.
+.gradle/
+.kotlin/
+build/
+local.properties
+captures/
+*.iml
+.idea/
+.DS_Store

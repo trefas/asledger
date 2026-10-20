@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Asledger" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowSplashScreenBackground">@color/asledger_green_900</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/asledger_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/asledger_dark_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/asledger_dark_background</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>
