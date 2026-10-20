@@ -42,6 +42,10 @@ Makefile передаёт значения в линкер:
 | linux/arm64 | `asledger_<версия>_linux_arm64.tar.gz` | `asledgerd`, `asledgerctl` |
 | windows/amd64 | `asledger_<версия>_windows_amd64.zip` | `asledgerd.exe`, `asledgerctl.exe` |
 
+В именах архивов версия печатается без префикса `v` (`asledger_1.0.0_…`), а в
+самих бинарниках — как в теге (`asledgerd v1.0.0`): GoReleaser подставляет в
+`-ldflags` значение `.Tag`.
+
 В каждый архив входят:
 
 - `README.md`, `LICENSE`;
