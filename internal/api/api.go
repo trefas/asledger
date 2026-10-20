@@ -95,7 +95,11 @@ func (s *Server) Handler() http.Handler {
 
 // handleHealth отвечает состоянием сервиса.
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.cfg.Version})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":         "ok",
+		"version":        s.cfg.Version,
+		"format_version": syncsvc.SnapshotFormatVersion,
+	})
 }
 
 // --- middleware ---

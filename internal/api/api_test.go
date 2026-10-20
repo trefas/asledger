@@ -147,6 +147,17 @@ func TestASL_10_HealthAndRouting(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("health: код %d", rec.Code)
 	}
+	var health struct {
+		Status        string `json:"status"`
+		Version       string `json:"version"`
+		FormatVersion int    `json:"format_version"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &health); err != nil {
+		t.Fatalf("health: не JSON: %v", err)
+	}
+	if health.Status != "ok" || health.FormatVersion == 0 {
+		t.Fatalf("health: %+v", health)
+	}
 
 	rec = a.do(t, http.MethodGet, "/api/v1/нет-такого", "", nil)
 	if rec.Code != http.StatusNotFound {
