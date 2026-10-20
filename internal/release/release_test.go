@@ -48,7 +48,7 @@ func TestASL_13_ReleaseConfig(t *testing.T) {
 		"amd64",
 		"arm64",
 		"CGO_ENABLED=0",
-		"-X github.com/trefas/asledger/internal/version.Version={{ .Version }}",
+		"-X github.com/trefas/asledger/internal/version.Version={{ .Tag }}",
 		"checksums.txt",
 		"sha256",
 		"templates/charts",

@@ -19,7 +19,7 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/trefas/asledger/internal/version.Version={{ .Version }}
+      - -X github.com/trefas/asledger/internal/version.Version={{ .Tag }}
       - -X github.com/trefas/asledger/internal/version.Commit={{ .ShortCommit }}
       - -X github.com/trefas/asledger/internal/version.Date={{ .CommitDate }}
     goos:
@@ -41,7 +41,7 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/trefas/asledger/internal/version.Version={{ .Version }}
+      - -X github.com/trefas/asledger/internal/version.Version={{ .Tag }}
       - -X github.com/trefas/asledger/internal/version.Commit={{ .ShortCommit }}
       - -X github.com/trefas/asledger/internal/version.Date={{ .CommitDate }}
     goos:
