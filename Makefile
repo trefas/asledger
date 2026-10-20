@@ -13,7 +13,7 @@ LDFLAGS := -X github.com/trefas/asledger/internal/version.Version=$(VERSION) \
            -X github.com/trefas/asledger/internal/version.Commit=$(COMMIT) \
            -X github.com/trefas/asledger/internal/version.Date=$(DATE)
 
-.PHONY: all build test test-race cover fmt fmt-check vet lint lint-money lint-go lint-trace check run assets clean help
+.PHONY: all build test test-race cover fmt fmt-check vet lint lint-money lint-go lint-trace lint-release check run assets clean help
 
 all: check build
 
@@ -66,8 +66,16 @@ lint-go:
 		echo "golangci-lint не установлен, шаг пропущен"; \
 	fi
 
+## lint-release: проверка конфигурации GoReleaser (локально может отсутствовать)
+lint-release:
+	@if command -v goreleaser >/dev/null 2>&1; then \
+		goreleaser check; \
+	else \
+		echo "goreleaser не установлен, шаг пропущен"; \
+	fi
+
 ## lint: все статические проверки
-lint: fmt-check vet lint-money lint-trace lint-go
+lint: fmt-check vet lint-money lint-trace lint-release lint-go
 
 ## check: полная проверка перед коммитом
 check: lint test

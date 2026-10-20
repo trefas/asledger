@@ -35,15 +35,16 @@ lint-trace`, входит в `make check`): каждое имя должно с�
 | K-15 | accounts/suggest возвращает листовые счета по частичному вводу в кириллице | TestASL_10_Suggest, TestASL_11_SuggestAndMatrix |
 | K-16 | Проводка ниже min_balance отклоняется в лимитном режиме, в свободном — принимается с подсветкой | TestASL_6_EngineMinBalance, TestASL_11_ReportsPage |
 | K-17 | Лого в README и хедере; favicon отдаётся корректно | TestASL_11_BrandAssetsSet, TestASL_11_WebJournalAndBrand |
-| K-18 | Всё на кириллице, валюта «₽»; web :8777, API :8778 (порты по умолчанию — internal/config) | TestASL_8_Rubles, TestASL_10_HealthAndRouting, TestASL_11_WebJournalAndBrand |
-| K-19 | Тег порождает релиз с артефактами Linux/Windows, SHA-256, шаблонами и версией | план: #84, #88 |
+| K-18 | Всё на кириллице, валюта «₽»; web :8777, API :8778; демон работает как systemd-служба | TestASL_8_Rubles, TestASL_10_HealthAndRouting, TestASL_11_WebJournalAndBrand, TestASL_13_SystemdUnit |
+| K-19 | Тег порождает релиз с артефактами Linux/Windows, SHA-256, шаблонами и версией | TestASL_13_ReleaseConfig, TestASL_13_InstallDocs, TestASL_13_VersionDefaults |
 
 ## Отложенные критерии
 
-- **K-19** — релизный пайплайн и публикация по тегу (веха S8, задачи #84, #88):
-  критерий закрывается вместе с релизом; тогда в колонку тестов K-19 встанет
-  автотест сборки артефактов.
+Нет: все критерии K-01…K-19 покрыты автотестами (K-19 — статической проверкой
+конфигурации GoReleaser, workflow публикации и документации релиза; сам факт
+сборки артефактов проверяется в CI на теге).
 
-Критерий K-18 частично покрыт (кириллица, «₽», маршруты и порты web/API):
-systemd-юнит описывается отдельной задачей #86 вехи S8, потому что проверка
-службы требует отдельного стенда.
+Критерий K-18 покрыт юнит-тестом `TestASL_13_SystemdUnit` (юнит, порты,
+ограничения безопасности) и тестами web/API; запуск службы после перезагрузки
+проверяется вручную по инструкции `docs/install-linux.md`.
+

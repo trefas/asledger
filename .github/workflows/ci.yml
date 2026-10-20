@@ -25,6 +25,11 @@ jobs:
 
       # Проверки переиспользуют цели Makefile, чтобы локальный результат
       # совпадал с результатом CI.
+      - name: Линтер
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.15.0
+
       - name: Проверки (make check)
         run: make check
 
@@ -33,6 +38,13 @@ jobs:
 
       - name: Сборка команд
         run: make build
+
+      - name: Проверка конфигурации релиза
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
 
   test-windows:
     name: Сборка и тесты (Windows)

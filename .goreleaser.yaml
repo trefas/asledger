@@ -1,0 +1,113 @@
+# Сборка релиза asledger через GoReleaser (раздел 13.2–13.3 эпика).
+#
+# По тегу v* собираются статические бинарники asledgerd и asledgerctl для
+# linux/amd64, linux/arm64 и windows/amd64, архивы tar.gz/zip, контрольные
+# суммы SHA-256 и release notes. В архивы попадают шаблоны планов счетов,
+# бренд-ассеты, документация и systemd-юнит.
+
+version: 2
+
+project_name: asledger
+
+builds:
+  - id: asledgerd
+    main: ./cmd/asledgerd
+    binary: asledgerd
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/trefas/asledger/internal/version.Version={{ .Version }}
+      - -X github.com/trefas/asledger/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/trefas/asledger/internal/version.Date={{ .CommitDate }}
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+  - id: asledgerctl
+    main: ./cmd/asledgerctl
+    binary: asledgerctl
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/trefas/asledger/internal/version.Version={{ .Version }}
+      - -X github.com/trefas/asledger/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/trefas/asledger/internal/version.Date={{ .CommitDate }}
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: asledger
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+      - CONTRIBUTING.md
+      - src: "docs/*"
+        dst: docs
+      - src: "packaging/systemd/*"
+        dst: systemd
+      - src: "templates/charts/*"
+        dst: templates/charts
+      - src: "assets/logo/*"
+        dst: assets/logo
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: git
+  sort: asc
+  abbrev: 7
+  filters:
+    exclude:
+      - "^Merge"
+  groups:
+    - title: "Новые возможности"
+      regexp: '^feat'
+      order: 0
+    - title: "Исправления"
+      regexp: '^fix'
+      order: 1
+    - title: "Производительность"
+      regexp: '^perf'
+      order: 2
+    - title: "Документация"
+      regexp: '^(docs|doc)'
+      order: 3
+    - title: "Прочие изменения"
+      order: 999
+
+release:
+  github:
+    owner: trefas
+    name: asledger
+  draft: false
+  prerelease: auto
+  mode: replace

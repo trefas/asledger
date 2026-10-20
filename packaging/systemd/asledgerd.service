@@ -1,0 +1,32 @@
+[Unit]
+Description=asledger — домашняя бухгалтерия (web :8777, API :8778)
+Documentation=https://github.com/trefas/asledger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=asledger
+Group=asledger
+WorkingDirectory=/var/lib/asledger
+EnvironmentFile=-/etc/asledger/asledger.env
+ExecStart=/usr/local/bin/asledgerd -db /var/lib/asledger/asledger.db -assets /usr/local/share/asledger/assets/logo -charts-dir /usr/local/share/asledger/templates/charts -web-addr :8777 -api-addr :8778
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+# Ограничения безопасности: службе нужна только запись в каталог книги.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/asledger
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+RestrictNamespaces=yes
+
+[Install]
+WantedBy=multi-user.target

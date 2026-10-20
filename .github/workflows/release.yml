@@ -1,0 +1,59 @@
+name: Release
+
+# Релиз публикуется только по тегу v* и только после зелёных проверок.
+# Артефакты собирает GoReleaser: linux/amd64, linux/arm64, windows/amd64.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Проверки перед релизом
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Статические проверки
+        run: make check
+
+      - name: Тесты с детектором гонок
+        run: make test-race
+
+      - name: Версия совпадает с тегом
+        run: |
+          make build VERSION="${GITHUB_REF_NAME}"
+          ./bin/asledgerctl version | grep -F "${GITHUB_REF_NAME}"
+          ./bin/asledgerd --version | grep -F "${GITHUB_REF_NAME}"
+
+  release:
+    name: Публикация релиза
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
