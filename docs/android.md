@@ -142,7 +142,8 @@ ui/ (Compose) ── ViewModel ── domain/ (модели, use case)
 
 ## Сборка и проверки
 
-Требуются JDK 21 и Android SDK с платформой API 34+.
+Требуются JDK 21 и Android SDK с платформой `android-36` и build-tools
+`36.0.0` (`minSdk 34`, `compileSdk`/`targetSdk` 36).
 
 ```bash
 cd android
@@ -152,8 +153,10 @@ cd android
 ./gradlew :app:assembleRelease      # подписанный APK (нужен keystore)
 ```
 
-Debug APK собирается в CI на каждый push. Релизный APK подписывается ключом из
-секретов GitHub Actions и прикладывается к GitHub Release вместе с SHA-256.
+Из корня репозитория: `make android-check` (сборка, unit-тесты и lint) или
+`make android-debug` (только debug APK). Debug APK собирается в CI на каждый
+push. Релизный APK подписывается ключом из секретов GitHub Actions и
+прикладывается к GitHub Release вместе с SHA-256.
 
 ## Вехи
 

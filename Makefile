@@ -13,7 +13,7 @@ LDFLAGS := -X github.com/trefas/asledger/internal/version.Version=$(VERSION) \
            -X github.com/trefas/asledger/internal/version.Commit=$(COMMIT) \
            -X github.com/trefas/asledger/internal/version.Date=$(DATE)
 
-.PHONY: all build test test-race cover cover-check fmt fmt-check vet lint lint-money lint-go lint-trace lint-release check run assets clean help
+.PHONY: all build test test-race cover cover-check fmt fmt-check vet lint lint-money lint-go lint-trace lint-release check run assets android-check android-debug clean help
 
 all: check build
 
@@ -92,9 +92,18 @@ run:
 assets:
 	./scripts/gen-assets.sh
 
+## android-check: debug APK, unit-тесты и lint Android (нужны JDK 21 и Android SDK 36)
+android-check:
+	cd android && ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug
+
+## android-debug: собрать debug APK
+android-debug:
+	cd android && ./gradlew --no-daemon assembleDebug
+
 ## clean: удалить артефакты сборки
 clean:
 	rm -rf $(BIN_DIR) coverage.out coverage.html
+	rm -rf android/app/build android/.gradle android/.kotlin
 
 ## help: показать список целей
 help:
