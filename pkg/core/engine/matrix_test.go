@@ -112,3 +112,42 @@ func TestASL_6_UnknownOperation(t *testing.T) {
 		t.Fatal("для неизвестной операции нашлась строка матрицы")
 	}
 }
+
+// TestRolesFor проверяет клиентское описание ролей для всех операций.
+func TestRolesFor(t *testing.T) {
+	for _, op := range model.OpTypes() {
+		roles, ok := RolesFor(op)
+		if !ok {
+			t.Fatalf("нет ролей для %q", op)
+		}
+		if len(roles) == 0 {
+			t.Fatalf("пустой список ролей для %q", op)
+		}
+		for _, role := range roles {
+			if role.Role == "" || len(role.AccountTypes) == 0 {
+				t.Fatalf("%s: неполная роль %+v", op, role)
+			}
+			if role.DirectionRequired && role.Side != "" {
+				t.Fatalf("%s/%s: сторона задана при обязательном направлении", op, role.Role)
+			}
+			if !role.DirectionRequired && !role.Side.Valid() {
+				t.Fatalf("%s/%s: недопустимая сторона %q", op, role.Role, role.Side)
+			}
+		}
+	}
+
+	// Переоценка и корректировка выполняются по направлению.
+	for _, op := range []model.OpType{model.OpRevaluation, model.OpAdjustment} {
+		roles, ok := RolesFor(op)
+		if !ok || len(roles) != 1 {
+			t.Fatalf("%s: роли %+v, ok=%v", op, roles, ok)
+		}
+		if !roles[0].DirectionRequired || roles[0].Side != "" || roles[0].Role != RoleAdjust {
+			t.Fatalf("%s: роль %+v, ожидалась корректируемая без стороны", op, roles[0])
+		}
+	}
+
+	if _, ok := RolesFor(model.OpType("вымысел")); ok {
+		t.Fatal("для неизвестной операции нашлись роли")
+	}
+}
