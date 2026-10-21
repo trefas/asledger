@@ -1,27 +1,35 @@
 package com.trefas.asledger.data
 
 import android.content.Context
+import com.trefas.asledger.data.db.AsledgerDatabase
 import com.trefas.asledger.data.network.AsledgerApi
 import com.trefas.asledger.data.network.createHttpClient
+import com.trefas.asledger.data.repository.AccountRepository
+import com.trefas.asledger.data.repository.BalanceRepository
+import com.trefas.asledger.data.repository.TransactionRepository
 import com.trefas.asledger.data.security.KeystoreTokenStore
 import com.trefas.asledger.data.security.TokenStore
 import com.trefas.asledger.data.settings.DataStoreServerConfigStore
 import com.trefas.asledger.data.settings.ServerConfigStore
+import com.trefas.asledger.data.sync.LibraryLoader
+import com.trefas.asledger.data.sync.SnapshotImporter
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
  * Ручной контейнер зависимостей.
  *
- * В нём настройки сервера, зашифрованный токен, HTTP-клиент и API; по мере
- * реализации S11–S12 сюда добавятся база Room и очередь синхронизации.
+ * В нём настройки сервера, зашифрованный токен, HTTP-клиент, API и локальная
+ * реплика Room. Очередь отправки появится в S12.
  */
 class AppContainer(context: Context) {
     /** Контекст приложения: не держим Activity. */
@@ -46,6 +54,36 @@ class AppContainer(context: Context) {
     val api: AsledgerApi = AsledgerApi(httpClient) {
         appScope.launch { expireSession() }
     }
+
+    /** Локальная реплика книги. */
+    val database: AsledgerDatabase by lazy { AsledgerDatabase.create(appContext) }
+
+    val accounts: AccountRepository by lazy {
+        AccountRepository(database.accountDao())
+    }
+
+    val transactions: TransactionRepository by lazy {
+        TransactionRepository(database.transactionDao())
+    }
+
+    val balances: BalanceRepository by lazy {
+        BalanceRepository(database.accountDao(), database.transactionDao())
+    }
+
+    /** Импорт полного снапшота одной транзакцией. */
+    val snapshotImporter: SnapshotImporter by lazy {
+        SnapshotImporter(database)
+    }
+
+    /** Первичная загрузка книги после привязки. */
+    val libraryLoader: LibraryLoader by lazy {
+        LibraryLoader(api, tokenStore, snapshotImporter, serverConfig)
+    }
+
+    /** true, когда первичный снапшот уже импортирован. */
+    val libraryLoaded: Flow<Boolean> = database.syncMetaDao()
+        .observe()
+        .map { it?.initialLoaded == true }
 
     /** Забывает пользователя и токен, сохраняя адрес сервера. */
     suspend fun forgetSession() {

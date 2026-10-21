@@ -1,3 +1,7 @@
+import org.gradle.api.tasks.testing.Test
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
+import org.gradle.testing.jacoco.tasks.JacocoReport
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // Модуль приложения: один модуль :app, без DI-фреймворка.
@@ -7,6 +11,9 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
+    jacoco
 }
 
 android {
@@ -37,6 +44,8 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isMinifyEnabled = false
+            // Нужно для локальной проверки покрытия слоя данных в CI.
+            enableUnitTestCoverage = true
         }
         release {
             isMinifyEnabled = true
@@ -79,6 +88,11 @@ android {
     }
 }
 
+// Схема Room экспортируется в репозиторий для проверки миграций.
+room {
+    schemaDirectory("$projectDir/schemas")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
@@ -107,6 +121,10 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    ksp(libs.androidx.room.compiler)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
 
@@ -122,6 +140,7 @@ dependencies {
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.compose.ui.test.manifest)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -130,4 +149,74 @@ dependencies {
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// Покрытие слоя данных. Keystore и сборочный контейнер не входят в расчёт:
+// AndroidKeyStore недоступен в Robolectric, а AppContainer — только проводка
+// зависимостей. Остальные пакеты data/ проверяются unit-тестами.
+jacoco {
+    toolVersion = "0.8.13"
+}
+
+val dataCoverageClasses = fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")) {
+    include("com/trefas/asledger/data/**")
+    exclude(
+        "com/trefas/asledger/data/AppContainer*",
+        "com/trefas/asledger/data/security/**",
+        "**/*_Impl*",
+        "**/*_Factory*",
+        "**/*Database_Impl*"
+    )
+}
+
+val dataCoverageSources = fileTree("src/main/java") {
+    include("com/trefas/asledger/data/**")
+    exclude(
+        "com/trefas/asledger/data/AppContainer*",
+        "com/trefas/asledger/data/security/**"
+    )
+}
+
+val dataCoverageExec = layout.buildDirectory.file(
+    "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"
+)
+
+// Robolectric загружает классы приложения через AndroidSandbox. У них нет
+// code source, поэтому JaCoCo по умолчанию их пропускает.
+tasks.withType<Test>().configureEach {
+    extensions.configure<JacocoTaskExtension> {
+        isEnabled = true
+        destinationFile = dataCoverageExec.get().asFile
+        setIncludeNoLocationClasses(true)
+        // Без этого агент пытается инструментировать сгенерированные JDK
+        // классы без code source и падает. Нам нужен только слой data/.
+        includes = listOf("com.trefas.asledger.data.*")
+    }
+}
+
+tasks.register<JacocoReport>("jacocoDataReport") {
+    dependsOn("testDebugUnitTest")
+    executionData.setFrom(dataCoverageExec)
+    classDirectories.setFrom(dataCoverageClasses)
+    sourceDirectories.setFrom(dataCoverageSources)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+tasks.register<JacocoCoverageVerification>("verifyDataCoverage") {
+    dependsOn("testDebugUnitTest")
+    executionData.setFrom(dataCoverageExec)
+    classDirectories.setFrom(dataCoverageClasses)
+    sourceDirectories.setFrom(dataCoverageSources)
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.70".toBigDecimal()
+            }
+        }
+    }
 }

@@ -140,6 +140,34 @@ class AsledgerApiTest {
     }
 
     @Test
+    fun `снапшот разбирается и передаёт токен`() = runTest {
+        val fixture = checkNotNull(javaClass.getResource("/snapshot.json")).readText()
+        val engine = MockEngine { request ->
+            assertEquals("Bearer secret", request.headers[HttpHeaders.Authorization])
+            respondJson(fixture)
+        }
+
+        val result = api(engine).snapshot(config, token = "secret")
+
+        val snapshot = (result as ApiResult.Ok).value
+        assertEquals(1, snapshot.formatVersion)
+        assertEquals(4, snapshot.transactions.size)
+        assertEquals(10, snapshot.accounts.size)
+        assertEquals("Анна", snapshot.users.single().name)
+    }
+
+    @Test
+    fun `повреждённый снапшот не считается книгой`() = runTest {
+        val engine = MockEngine {
+            respondJson("""{"format_version":1,"transactions":"не список"}""")
+        }
+
+        val result = api(engine).snapshot(config, token = "secret")
+
+        assertTrue((result as ApiResult.Failure).error is ConnectionError.InvalidResponse)
+    }
+
+    @Test
     fun `снапшот с чужим форматом не принимается`() = runTest {
         val engine = MockEngine {
             respondJson("""{"format_version":2,"head_seq":1,"chain_hash":"abc"}""")

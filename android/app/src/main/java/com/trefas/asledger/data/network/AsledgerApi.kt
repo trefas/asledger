@@ -124,6 +124,33 @@ class AsledgerApi(
         EnrollResult.Failure(classifyNetworkError(error))
     }
 
+    /** Загружает полный снапшот книги. */
+    suspend fun snapshot(config: ServerConfig, token: String): ApiResult<SnapshotDto> = request {
+        val response = client.get("${config.baseUrl}/api/v1/sync/snapshot") {
+            bearerAuth(token)
+        }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            onUnauthorized()
+            return@request ApiResult.Failure(ConnectionError.Unauthorized)
+        }
+        if (!response.status.isSuccess()) {
+            return@request ApiResult.Failure(errorFrom(response))
+        }
+        val snapshot = runCatching { response.body<SnapshotDto>() }.getOrNull()
+            ?: return@request ApiResult.Failure(
+                ConnectionError.InvalidResponse("не удалось разобрать снапшот книги")
+            )
+        if (snapshot.formatVersion != SUPPORTED_FORMAT_VERSION) {
+            return@request ApiResult.Failure(
+                ConnectionError.IncompatibleFormat(
+                    serverFormat = snapshot.formatVersion,
+                    supportedFormat = SUPPORTED_FORMAT_VERSION
+                )
+            )
+        }
+        ApiResult.Ok(snapshot)
+    }
+
     /** Читает заголовок снапшота и проверяет совместимость формата. */
     suspend fun snapshotHeader(config: ServerConfig, token: String): ApiResult<SnapshotHeader> = request {
         val response = client.get("${config.baseUrl}/api/v1/sync/snapshot") {

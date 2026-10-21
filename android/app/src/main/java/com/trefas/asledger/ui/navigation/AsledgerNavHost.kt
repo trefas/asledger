@@ -18,6 +18,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -33,6 +37,9 @@ import com.trefas.asledger.ui.screens.DiagnosticsScreen
 import com.trefas.asledger.ui.screens.EnrollScreen
 import com.trefas.asledger.ui.screens.EntryScreen
 import com.trefas.asledger.ui.screens.JournalScreen
+import com.trefas.asledger.ui.screens.LoadingScreen
+import com.trefas.asledger.ui.screens.LoadingState
+import com.trefas.asledger.ui.screens.LoadingViewModel
 import com.trefas.asledger.ui.screens.SettingsScreen
 import com.trefas.asledger.ui.screens.SetupScreen
 import com.trefas.asledger.util.Log
@@ -44,6 +51,7 @@ import kotlinx.coroutines.launch
 object Routes {
     const val SETUP = "setup"
     const val ENROLL = "enroll"
+    const val LOADING = "loading"
     const val JOURNAL = "journal"
     const val ENTRY = "entry"
     const val ACCOUNTS = "accounts"
@@ -82,15 +90,29 @@ fun AsledgerNavHost(
             }
         }
     }
+    val libraryLoaded by produceState<Boolean?>(
+        initialValue = null,
+        key1 = container
+    ) {
+        container.libraryLoaded.collect { value = it }
+    }
 
-    when (val current = state) {
-        ConfigState.Loading -> LoadingScreen(modifier)
-        else -> MainNavigation(container = container, state = current, modifier = modifier)
+    when {
+        state is ConfigState.Loading -> SplashScreen(modifier)
+        // Базу читаем параллельно с DataStore. Пустой ответ до первого
+        // импорта — это не «нет данных», а ещё не завершённая загрузка.
+        state is ConfigState.Ready && libraryLoaded == null -> SplashScreen(modifier)
+        else -> MainNavigation(
+            container = container,
+            state = state,
+            libraryLoaded = libraryLoaded == true,
+            modifier = modifier
+        )
     }
 }
 
 @Composable
-private fun LoadingScreen(modifier: Modifier = Modifier) {
+private fun SplashScreen(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             BrandMark(size = 96.dp)
@@ -104,6 +126,7 @@ private fun LoadingScreen(modifier: Modifier = Modifier) {
 private fun MainNavigation(
     container: AppContainer,
     state: ConfigState,
+    libraryLoaded: Boolean,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -121,7 +144,7 @@ private fun MainNavigation(
     // привязки NavHost не пересоздаётся, переход выполняет экран.
     val startDestination = remember {
         when (state) {
-            is ConfigState.Ready -> Routes.JOURNAL
+            is ConfigState.Ready -> if (libraryLoaded) Routes.JOURNAL else Routes.LOADING
             is ConfigState.EnrollRequired -> Routes.ENROLL
             else -> Routes.SETUP
         }
@@ -153,7 +176,8 @@ private fun MainNavigation(
         bottomBar = {
             if (currentRoute != null &&
                 currentRoute != Routes.SETUP &&
-                currentRoute != Routes.ENROLL
+                currentRoute != Routes.ENROLL &&
+                currentRoute != Routes.LOADING
             ) {
                 AsledgerBottomBar(
                     currentRoute = selectedRoute,
@@ -224,7 +248,7 @@ private fun MainNavigation(
                             }
                         },
                         onDone = {
-                            navController.navigate(Routes.JOURNAL) {
+                            navController.navigate(Routes.LOADING) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     inclusive = true
                                 }
@@ -247,9 +271,72 @@ private fun MainNavigation(
                     }
                 }
             }
+            composable(Routes.LOADING) {
+                val loadingConfig = config
+                if (loadingConfig != null) {
+                    val loadingViewModel: LoadingViewModel = viewModel(
+                        key = "loading-${loadingConfig.clientId}",
+                        factory = viewModelFactory {
+                            initializer {
+                                LoadingViewModel { onProgress ->
+                                    container.libraryLoader.load(loadingConfig, onProgress)
+                                }
+                            }
+                        }
+                    )
+                    val loadingState by loadingViewModel.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(loadingViewModel) { loadingViewModel.start() }
+                    LaunchedEffect(loadingState) {
+                        if (loadingState is LoadingState.Success) {
+                            navController.navigate(Routes.JOURNAL) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                    LoadingScreen(
+                        config = loadingConfig,
+                        state = loadingState,
+                        onRetry = loadingViewModel::retry,
+                        onCancel = loadingViewModel::cancel,
+                        onReenroll = {
+                            scope.launch {
+                                container.forgetSession()
+                                navController.navigate(Routes.ENROLL) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        inclusive = true
+                                    }
+                                    launchSingleTop = true
+                                }
+                            }
+                        },
+                        onChangeServer = {
+                            scope.launch {
+                                container.forgetSession()
+                                navController.navigate(Routes.SETUP) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        inclusive = true
+                                    }
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    )
+                } else {
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Routes.SETUP) {
+                            popUpTo(Routes.LOADING) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            }
             composable(Routes.JOURNAL) {
                 JournalScreen(
                     onNewEntry = { navController.navigate(Routes.ENTRY) },
+                    transactions = container.transactions,
                     userName = config?.userName.orEmpty()
                 )
             }
@@ -257,7 +344,10 @@ private fun MainNavigation(
                 EntryScreen(userName = config?.userName.orEmpty())
             }
             composable(Routes.ACCOUNTS) {
-                AccountsScreen()
+                AccountsScreen(
+                    accounts = container.accounts,
+                    balances = container.balances
+                )
             }
             composable(Routes.SETTINGS) {
                 SettingsScreen(

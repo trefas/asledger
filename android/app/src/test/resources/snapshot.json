@@ -1,0 +1,255 @@
+{
+  "format_version": 1,
+  "head_seq": 4,
+  "chain_hash": "hash-4",
+  "accounts": [
+    {
+      "ID": 1,
+      "Name": "Капитал",
+      "FullPath": "Капитал",
+      "Type": "капитал",
+      "ParentID": null,
+      "IsLeaf": false,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": true,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 2,
+      "Name": "Начальные",
+      "FullPath": "Капитал:Начальные",
+      "Type": "капитал",
+      "ParentID": 1,
+      "IsLeaf": true,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": true,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 3,
+      "Name": "Активы",
+      "FullPath": "Активы",
+      "Type": "актив",
+      "ParentID": null,
+      "IsLeaf": false,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": true,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 4,
+      "Name": "Наличные",
+      "FullPath": "Активы:Наличные",
+      "Type": "актив",
+      "ParentID": 3,
+      "IsLeaf": true,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": false,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 5,
+      "Name": "Обязательства",
+      "FullPath": "Обязательства",
+      "Type": "пассив",
+      "ParentID": null,
+      "IsLeaf": false,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": true,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 6,
+      "Name": "Займы",
+      "FullPath": "Обязательства:Займы",
+      "Type": "пассив",
+      "ParentID": 5,
+      "IsLeaf": true,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": false,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 7,
+      "Name": "Расходы",
+      "FullPath": "Расходы",
+      "Type": "расход",
+      "ParentID": null,
+      "IsLeaf": false,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": true,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 8,
+      "Name": "Продукты",
+      "FullPath": "Расходы:Продукты",
+      "Type": "расход",
+      "ParentID": 7,
+      "IsLeaf": true,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": false,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 9,
+      "Name": "Доходы",
+      "FullPath": "Доходы",
+      "Type": "доход",
+      "ParentID": null,
+      "IsLeaf": false,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": true,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "ID": 10,
+      "Name": "Зарплата",
+      "FullPath": "Доходы:Зарплата",
+      "Type": "доход",
+      "ParentID": 9,
+      "IsLeaf": true,
+      "MinBalance": 0,
+      "IsArchived": false,
+      "IsSystem": false,
+      "CreatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "name": "Анна"
+    }
+  ],
+  "settings": {
+    "валюта": "RUB",
+    "привязка_устройств": "allow"
+  },
+  "transactions": [
+    {
+      "ID": 100,
+      "UUID": "uuid-1",
+      "OpType": "начальный",
+      "Date": "2026-01-01T00:00:00Z",
+      "Description": "Начальный остаток",
+      "ActorID": 1,
+      "ReversesID": null,
+      "Source": "web",
+      "SourceHash": "",
+      "CreatedAt": "2026-01-01T00:00:00Z",
+      "CommitID": 1,
+      "Lines": [
+        {
+          "ID": 1001,
+          "TransactionID": 100,
+          "AccountID": 4,
+          "Amount": 100000,
+          "Side": "DEBIT"
+        },
+        {
+          "ID": 1002,
+          "TransactionID": 100,
+          "AccountID": 2,
+          "Amount": 100000,
+          "Side": "CREDIT"
+        }
+      ]
+    },
+    {
+      "ID": 101,
+      "UUID": "uuid-2",
+      "OpType": "расход",
+      "Date": "2026-01-10T12:00:00+03:00",
+      "Description": "Продукты в магазине",
+      "ActorID": 1,
+      "ReversesID": null,
+      "Source": "android",
+      "SourceHash": "",
+      "CreatedAt": "2026-01-10T09:00:00Z",
+      "CommitID": 2,
+      "Lines": [
+        {
+          "ID": 1003,
+          "TransactionID": 101,
+          "AccountID": 8,
+          "Amount": 20000,
+          "Side": "DEBIT"
+        },
+        {
+          "ID": 1004,
+          "TransactionID": 101,
+          "AccountID": 4,
+          "Amount": 20000,
+          "Side": "CREDIT"
+        }
+      ]
+    },
+    {
+      "ID": 102,
+      "UUID": "uuid-3",
+      "OpType": "доход",
+      "Date": "2026-01-15T00:00:00Z",
+      "Description": "Зарплата за декабрь",
+      "ActorID": 1,
+      "ReversesID": null,
+      "Source": "web",
+      "SourceHash": "",
+      "CreatedAt": "2026-01-15T00:00:00Z",
+      "CommitID": 3,
+      "Lines": [
+        {
+          "ID": 1005,
+          "TransactionID": 102,
+          "AccountID": 4,
+          "Amount": 50000,
+          "Side": "DEBIT"
+        },
+        {
+          "ID": 1006,
+          "TransactionID": 102,
+          "AccountID": 10,
+          "Amount": 50000,
+          "Side": "CREDIT"
+        }
+      ]
+    },
+    {
+      "ID": 103,
+      "UUID": "uuid-4",
+      "OpType": "перевод",
+      "Date": "2026-01-20T00:00:00Z",
+      "Description": "Получили займ",
+      "ActorID": 1,
+      "ReversesID": null,
+      "Source": "web",
+      "SourceHash": "",
+      "CreatedAt": "2026-01-20T00:00:00Z",
+      "CommitID": 4,
+      "Lines": [
+        {
+          "ID": 1007,
+          "TransactionID": 103,
+          "AccountID": 4,
+          "Amount": 50000,
+          "Side": "DEBIT"
+        },
+        {
+          "ID": 1008,
+          "TransactionID": 103,
+          "AccountID": 6,
+          "Amount": 50000,
+          "Side": "CREDIT"
+        }
+      ]
+    }
+  ]
+}

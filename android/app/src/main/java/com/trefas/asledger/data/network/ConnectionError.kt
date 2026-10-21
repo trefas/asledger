@@ -38,6 +38,9 @@ sealed interface ConnectionError {
     /** По адресу отвечает не asledger (например, web-порт 8777). */
     data object NotAsledger : ConnectionError
 
+    /** Ответ пришёл, но его структура не совпала с контрактом. */
+    data class InvalidResponse(val detail: String = "") : ConnectionError
+
     /** Формат снапшота несовместим с приложением. */
     data class IncompatibleFormat(
         val serverFormat: Int,
@@ -109,6 +112,13 @@ fun ConnectionError.toProblem(): ConnectionProblem = when (this) {
     ConnectionError.NotAsledger -> ConnectionProblem(
         title = "Это не asledger",
         hint = "По адресу отвечает другой сервис. Укажите порт API 8778, а не web-порт 8777."
+    )
+
+    is ConnectionError.InvalidResponse -> ConnectionProblem(
+        title = "Повреждённый ответ",
+        hint = detail.ifBlank {
+            "Сервер вернул данные неизвестного формата. Попробуйте ещё раз."
+        }
     )
 
     is ConnectionError.IncompatibleFormat -> ConnectionProblem(
