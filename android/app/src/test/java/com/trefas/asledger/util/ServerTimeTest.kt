@@ -4,13 +4,28 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.util.TimeZone
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Before
 import org.junit.Test
 
 /** Даты: серверный RFC 3339, русский формат и «сегодня»/«вчера». */
 class ServerTimeTest {
     private val zone = ZoneId.of("Europe/Moscow")
+    private lateinit var previousZone: TimeZone
+
+    @Before
+    fun useMoscow() {
+        previousZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone(zone))
+    }
+
+    @After
+    fun restoreZone() {
+        TimeZone.setDefault(previousZone)
+    }
 
     private fun millis(date: LocalDate, hour: Int = 12): Long =
         ZonedDateTime.of(date.atTime(hour, 0), zone).toInstant().toEpochMilli()

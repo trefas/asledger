@@ -78,7 +78,9 @@ jobs:
       - name: Версия из тега
         run: |
           version="${GITHUB_REF_NAME#v}"
-          code="$(echo "$version" | awk -F. '{ printf "%d", $1 * 10000 + $2 * 100 + $3 }')"
+          # Для prerelease-тега v1.2.3-rc1 код считается по 1.2.3.
+          code_version="${version%%-*}"
+          code="$(echo "$code_version" | awk -F. '{ printf "%d", $1 * 10000 + $2 * 100 + $3 }')"
           echo "ANDROID_VERSION_NAME=$version" >> "$GITHUB_ENV"
           echo "ANDROID_VERSION_CODE=$code" >> "$GITHUB_ENV"
           echo "APK_NAME=asledger-$version.apk" >> "$GITHUB_ENV"
