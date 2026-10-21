@@ -26,6 +26,8 @@ fun createHttpClient(engine: HttpClientEngine): HttpClient = HttpClient(engine) 
                 ignoreUnknownKeys = true
                 explicitNulls = false
                 encodeDefaults = true
+                // Go отдаёт пустые срезы как null; для DTO это пустой список.
+                coerceInputValues = true
             }
         )
     }

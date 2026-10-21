@@ -49,7 +49,7 @@ import com.trefas.asledger.data.sync.SyncManager
 import com.trefas.asledger.data.sync.SyncPhase
 import com.trefas.asledger.ui.components.BrandMark
 import com.trefas.asledger.ui.components.ScreenScaffold
-import com.trefas.asledger.util.formatDate
+import com.trefas.asledger.util.formatFriendlyDate
 import com.trefas.asledger.util.formatKop
 import java.time.LocalDate
 import java.time.ZoneId
@@ -393,7 +393,7 @@ private fun JournalRow(
             ) {
                 Text(
                     text = buildString {
-                        append(formatDate(transaction.date))
+                        append(formatFriendlyDate(transaction.date))
                         if (transaction.actorName.isNotBlank()) {
                             append(" · ")
                             append(transaction.actorName)

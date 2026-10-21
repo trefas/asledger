@@ -157,6 +157,33 @@ class AsledgerApiTest {
     }
 
     @Test
+    fun `пустые срезы Go читаются как пустые списки`() = runTest {
+        val engine = MockEngine {
+            respondJson(
+                """
+                {
+                  "format_version": 1,
+                  "head_seq": 0,
+                  "chain_hash": "",
+                  "accounts": null,
+                  "users": null,
+                  "settings": null,
+                  "transactions": null
+                }
+                """.trimIndent()
+            )
+        }
+
+        val result = api(engine).snapshot(config, token = "secret")
+
+        val snapshot = (result as ApiResult.Ok).value
+        assertTrue(snapshot.accounts.isEmpty())
+        assertTrue(snapshot.users.isEmpty())
+        assertTrue(snapshot.settings.isEmpty())
+        assertTrue(snapshot.transactions.isEmpty())
+    }
+
+    @Test
     fun `повреждённый снапшот не считается книгой`() = runTest {
         val engine = MockEngine {
             respondJson("""{"format_version":1,"transactions":"не список"}""")

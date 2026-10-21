@@ -41,6 +41,7 @@ Makefile передаёт значения в линкер:
 | linux/amd64 | `asledger_<версия>_linux_amd64.tar.gz` | `asledgerd`, `asledgerctl` |
 | linux/arm64 | `asledger_<версия>_linux_arm64.tar.gz` | `asledgerd`, `asledgerctl` |
 | windows/amd64 | `asledger_<версия>_windows_amd64.zip` | `asledgerd.exe`, `asledgerctl.exe` |
+| Android 14+ | `asledger-<версия>.apk` | приложение asledger |
 
 В именах архивов версия печатается без префикса `v` (`asledger_1.0.0_…`), а в
 самих бинарниках — как в теге (`asledgerd v1.0.0`): GoReleaser подставляет в
@@ -55,10 +56,11 @@ Makefile передаёт значения в линкер:
 - `assets/logo/` — лого и favicon.
 
 Рядом с архивами публикуется `checksums.txt` — **SHA-256** всех артефактов.
-Проверка:
+Для APK дополнительно публикуется `asledger-<версия>.apk.sha256`. Проверка:
 
 ```bash
 sha256sum -c checksums.txt
+sha256sum -c asledger-1.0.0.apk.sha256
 ```
 
 ## Публикация по тегу
@@ -73,8 +75,18 @@ git push origin v1.0.0
 1. **Проверки** — `make check`, `make test-race`, `make build`; отдельный шаг
    проверяет, что собранная версия совпадает с тегом (`grep` по выводу
    `asledgerctl version` и `asledgerd --version`).
-2. **Публикация** — job с `needs: test`, поэтому релиз не создаётся при
-   падающих тестах. GoReleaser собирает артефакты и публикует GitHub Release.
+2. **Android** — job собирает `asledgerd` для JVM-интеграционных тестов, гоняет
+   тесты, покрытие, lint и ktlint, собирает release APK с R8 и подписывает его
+   ключом из секретов. `versionName` берётся из тега, `versionCode` считается
+   как `major*10000 + minor*100 + patch`. Workflow проверяет подпись,
+   `versionName`, `versionCode` и `minSdk` через `apksigner`/`aapt`.
+3. **Публикация** — job с `needs: [test, android]`, поэтому релиз не создаётся
+   при падающих тестах или неподписанном APK. GoReleaser собирает артефакты и
+   публикует GitHub Release, после чего в него загружаются APK и `.sha256`.
+
+Секреты Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Ключ хранится вне репозитория;
+без него release job падает с явной ошибкой, а не публикует debug-подпись.
 
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,

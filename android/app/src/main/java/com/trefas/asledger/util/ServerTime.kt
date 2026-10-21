@@ -35,6 +35,27 @@ fun parseServerTime(value: String): Long {
 fun formatDate(epochMillis: Long): String =
     if (epochMillis <= 0) "" else DateFormatter.format(Instant.ofEpochMilli(epochMillis))
 
+/**
+ * Дата для списка: «сегодня», «вчера» или `дд.мм.гггг`.
+ *
+ * [nowMillis] и [zone] передаются в тестах; в приложении — текущее время и
+ * часовой пояс устройства.
+ */
+fun formatFriendlyDate(
+    epochMillis: Long,
+    nowMillis: Long = System.currentTimeMillis(),
+    zone: ZoneId = ZoneId.systemDefault()
+): String {
+    if (epochMillis <= 0) return ""
+    val date = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate()
+    val today = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
+    return when (date) {
+        today -> "сегодня"
+        today.minusDays(1) -> "вчера"
+        else -> DateFormatter.withZone(zone).format(Instant.ofEpochMilli(epochMillis))
+    }
+}
+
 /** Дата и время для деталей. */
 fun formatDateTime(epochMillis: Long): String =
     if (epochMillis <= 0) "" else DateTimeFormatterFull.format(Instant.ofEpochMilli(epochMillis))

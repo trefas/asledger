@@ -27,3 +27,8 @@ asledger.local.json
 .vscode/
 .DS_Store
 *.exe
+
+# Ключ подписи Android и локальные пароли
+android/keystore.properties
+android/*.jks
+android/*.keystore

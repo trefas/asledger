@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.gradle.api.tasks.testing.Test
 import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
@@ -16,6 +17,29 @@ plugins {
     jacoco
 }
 
+// Релизный ключ читается из окружения CI или локального keystore.properties.
+// Сам ключ и пароли в репозиторий не попадают.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.isFile) {
+        file.inputStream().use { load(it) }
+    }
+}
+
+fun signingValue(environment: String, property: String): String? =
+    System.getenv(environment)?.takeIf { it.isNotBlank() }
+        ?: keystoreProperties.getProperty(property)?.takeIf { it.isNotBlank() }
+
+val releaseStorePath = signingValue("ANDROID_KEYSTORE_PATH", "storeFile")
+val releaseStorePassword = signingValue("ANDROID_KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("ANDROID_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("ANDROID_KEY_PASSWORD", "keyPassword")
+val hasReleaseSigning = releaseStorePath != null &&
+    releaseStorePassword != null &&
+    releaseKeyAlias != null &&
+    releaseKeyPassword != null &&
+    rootProject.file(releaseStorePath).isFile
+
 android {
     namespace = "com.trefas.asledger"
     compileSdk = 36
@@ -25,8 +49,11 @@ android {
         // Android 14 (API 34) и новее — требование эпика.
         minSdk = 34
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // Тег v1.2.3 даёт versionName 1.2.3 и versionCode 10203.
+        versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_000
+        versionName = System.getenv("ANDROID_VERSION_NAME")
+            ?.takeIf { it.isNotBlank() }
+            ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -37,6 +64,17 @@ android {
         // подсказывать ошибки быстрее.
         buildConfigField("long", "API_TIMEOUT_SECONDS", "20L")
         buildConfigField("long", "API_CONNECT_TIMEOUT_SECONDS", "10L")
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(requireNotNull(releaseStorePath))
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -50,10 +88,22 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // Локальная проверка release-сборки без ключа. Такой APK
+                // нельзя публиковать: обновление поверх него не встанет.
+                signingConfig = signingConfigs.getByName("debug")
+                logger.warn(
+                    "Release APK подписан debug-ключом: задайте ANDROID_KEYSTORE_PATH " +
+                        "и пароли или android/keystore.properties."
+                )
+            }
         }
     }
 

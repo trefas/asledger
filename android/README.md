@@ -1,121 +1,179 @@
-# Android-приложение asledger
+# Android-клиент asledger
 
-Мобильный клиент книги asledger. Совместимость — **Android 14 (API 34) и новее**.
-Исходники сервера и документация — в корне репозитория.
-
-## Что уже есть
-
-- каркас Gradle + Kotlin + Jetpack Compose (Material 3), один модуль `:app`;
-- фирменная тема, логотип, adaptive icon, splash;
-- навигация: подключение, привязка, журнал, ввод, план счетов, настройки;
-- подключение по адресу и порту (по умолчанию `8778`) с проверкой
-  `/api/v1/health`, версии и `format_version`;
-- привязка без пароля через `POST /api/v1/auth/enroll`: один пользователь —
-  автоматически, несколько — выбор из списка имён;
-- токен устройства в Android Keystore (AES/GCM), в DataStore только
-  шифротекст; при `401` — повторная привязка;
-- понятные ошибки: DNS, отказ соединения, таймаут, HTTP 4xx/5xx, чужой сервис;
-- экран «Диагностика»: адрес, версия сервера, формат, пользователь, время
-  последней синхронизации; токен не показывается;
-- DataStore для адреса, `client_id`, пользователя и метаданных; HTTP-клиент
-  Ktor с таймаутами и ограниченными повторами;
-- unit-тесты API на MockEngine, разбора ошибок и DataStore, Compose-тесты
-  подключения, выбора пользователя и нижней навигации (Robolectric).
-
-Экраны журнала, ввода и плана счетов показывают пустые состояния: данные
-появятся в вехах S11–S13. Серверные роли движка
-(`GET /api/v1/engine/roles`) уже реализованы.
+Мобильный клиент для Android 14 (API 34) и новее. Один модуль `:app` на Kotlin,
+Jetpack Compose (Material 3), Room, Ktor и WorkManager. Сервер — `asledgerd` из
+корня репозитория; протокол и границы версии описаны в
+[../docs/android.md](../docs/android.md), REST API — в
+[../docs/api.md](../docs/api.md).
 
 ## Требования
 
-- JDK 21;
-- Android SDK: платформа `android-36`, build-tools `36.0.0`;
-- переменная `ANDROID_HOME` или файл `local.properties` с `sdk.dir=…`
-  (файл не коммитится).
+| Компонент | Версия |
+| --- | --- |
+| JDK | 21 |
+| Android SDK | platform 36, build-tools 36.0.0 |
+| Gradle | через wrapper (`./gradlew`) |
+| Kotlin | 2.1.20 |
+| minSdk / targetSdk | 34 / 36 |
 
-`minSdk 34`, `compileSdk`/`targetSdk` 36.
-
-## Сборка
+Переменные окружения:
 
 ```bash
+export JAVA_HOME=/path/to/jdk-21
+export ANDROID_HOME=/path/to/android-sdk
+```
+
+`local.properties` с `sdk.dir` создаётся Android Studio или вручную; он не
+коммитится.
+
+## Быстрый старт
+
+```bash
+# из корня репозитория
+make build                 # bin/asledgerd и bin/asledgerctl
+./bin/asledgerd -db /tmp/asledger-dev.db
+
+# в другом терминале
 cd android
-./gradlew :app:assembleDebug        # debug APK
-./gradlew :app:testDebugUnitTest    # unit-тесты и Compose-тест навигации
-./gradlew :app:lintDebug            # Android Lint
-./gradlew :app:ktlintCheck          # стиль Kotlin
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Из корня репозитория:
+При первом запуске сервера откройте `http://localhost:8777`, создайте
+пользователя и импортируйте план счетов. Телефон и компьютер должны быть в
+одной локальной сети; в приложении укажите IP компьютера и порт API `8778`.
 
-```bash
-make android-check                  # сборка + тесты + lint + ktlint
-make android-debug                  # только debug APK
-```
-
-Debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`.
-Пакет debug-сборки — `com.trefas.asledger.debug`, release — `com.trefas.asledger`,
-поэтому обе версии можно держать на устройстве одновременно.
+Для эмулятора адрес компьютера — `10.0.2.2`, порт `8778`.
 
 ## Структура
 
 ```
 app/src/main/java/com/trefas/asledger/
-  AsledgerApp.kt          Application и контейнер
-  MainActivity.kt         единственная Activity
-  data/
-    AppContainer.kt       ручной DI: DataStore, Keystore, Ktor, API
-    network/              клиент API, модели, разбор ошибок подключения
-    security/             токен в Android Keystore (AES/GCM)
-    settings/             адрес, пользователь и метаданные в DataStore
-  ui/
-    components/           логотип, каркас экрана, пустые состояния
-    navigation/           маршруты и нижняя навигация
-    screens/              подключение, привязка, диагностика, журнал, ввод,
-                          счета, настройки
-    theme/                палитра, типографика, форма
-  util/                   логирование в debug, имя устройства, даты
+├── AsledgerApp.kt        Application, создаёт AppContainer
+├── MainActivity.kt       единственная Activity, Compose
+├── data/
+│   ├── db/               Room: сущности, DAO, миграции
+│   ├── model/            доменные модели и статусы
+│   ├── network/          Ktor-клиент, DTO, ошибки соединения
+│   ├── repository/       Flow-запросы, черновики, роли, остатки
+│   ├── security/         Android Keystore для токена
+│   ├── settings/         DataStore: адрес, сессия, онбординг
+│   └── sync/             SnapshotImporter, SyncApplier, SyncManager, Worker
+├── ui/
+│   ├── components/       общие Composable: каркас, бренд
+│   ├── navigation/       NavHost и нижняя навигация
+│   ├── screens/          экраны и ViewModel
+│   └── theme/            цвета, типографика, темы
+└── util/                 деньги, даты, строковые списки
 ```
 
-## Маршруты
+Соглашения:
 
-| Маршрут | Экран | Когда открывается |
-| --- | --- | --- |
-| `setup` | подключение | нет сохранённого адреса или «Изменить адрес» |
-| `enroll` | привязка устройства | адрес сохранён, пользователь ещё не выбран |
-| `journal` | журнал | стартовый после привязки |
-| `entry` | новая проводка | кнопка «+» в журнале и нижняя навигация |
-| `accounts` | план счетов | нижняя навигация |
-| `settings` | настройки | нижняя навигация |
-| `diagnostics` | диагностика | из настроек |
+- зависимости создаются в `AppContainer` и передаются через ViewModel-фабрики;
+  глобальных mutable-синглтонов нет;
+- ViewModel хранит `StateFlow<...UiState>`, Composable не ходит в сеть и Room;
+- пользовательские тексты и сообщения — на русском;
+- деньги — только `Long` в копейках, без `Float`/`Double`; форматирование — в
+  `util/MoneyFormat.kt`;
+- даты — `Long` epoch millis, форматирование — в `util/ServerTime.kt`;
+- сетевые и бизнес-ошибки не выбрасываются в UI, а возвращаются
+  `ApiResult`/`ConnectionError` с понятной подсказкой.
 
-Стартовый маршрут выбирается по DataStore: нет адреса — `setup`, нет
-пользователя — `enroll`, иначе `journal`. Нижняя навигация скрыта на
-`setup`/`enroll` и использует `saveState`/`restoreState`, поэтому системная
-кнопка «Назад» возвращает к предыдущему разделу, а не закрывает приложение
-сразу. После `401` приложение открывает `enroll` повторно; адрес и черновики
-сохраняются.
-
-## Бренд
-
-Логотип и иконки берутся из общего каталога `assets/logo/`. После обновления
-логотипа:
+## Тесты и проверки
 
 ```bash
-android/scripts/gen-icons.sh
+cd android
+./gradlew :app:testDebugUnitTest
+./gradlew :app:verifyDataCoverage    # порог 70 % строк data/**
+./gradlew :app:lintDebug
+./gradlew :app:ktlintCheck
+./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease
 ```
 
-Скрипт пересобирает `mipmap-*` из `assets/logo/icon-512.png` (нужен
-ImageMagick). Готовые PNG хранятся в репозитории, чтобы CI не зависел от
-ImageMagick.
+Из корня: `make android-check` запускает debug APK, unit-тесты, lint и ktlint.
 
-## Проверки
+JVM-тесты на Robolectric работают без эмулятора. Для UI-тестов Compose
+используется `createComposeRule`; Room в тестах создаётся с прямыми
+query/transaction executors, чтобы suspend-запросы были детерминированы.
 
-CI-джоба `Android (debug APK)` на каждый push запускает
-`assembleDebug testDebugUnitTest lintDebug ktlintCheck` и прикладывает APK как
-артефакт. Релизный APK будет подписан и добавлен в GitHub Release в вехе S15.
+### Интеграционные тесты с сервером
 
-## Границы первой версии
+`com.trefas.asledger.integration.AndroidServerIntegrationTest` запускает
+настоящий `asledgerd` на случайных портах, настраивает книгу через web-форму и
+проходит сценарии двух клиентов, rebase, rejected и resync. Внешняя сеть не
+используется.
 
-Нет iOS, Google Play, редактирования плана счетов с телефона, отчётов и
-сверки, мультивалютности, push-уведомлений, биометрии и нескольких книг.
-Транспорт — HTTP в доверенной локальной сети; HTTPS/VPN остаются за рамками.
+```bash
+make build
+cd android
+ASLEDGERD_BIN=../bin/asledgerd ./gradlew :app:testDebugUnitTest \
+  --tests 'com.trefas.asledger.integration.*'
+```
+
+Без `ASLEDGERD_BIN` тест пропускается. В CI сервер собирается перед Gradle.
+
+## Сборка release APK
+
+Ключ и пароли не коммитятся. Локально создайте
+`android/keystore.properties`:
+
+```properties
+storeFile=/absolute/path/asledger-release.jks
+storePassword=…
+keyAlias=asledger
+keyPassword=…
+```
+
+или задайте `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Затем:
+
+```bash
+./gradlew :app:assembleRelease
+```
+
+Без ключа release-сборка подписывается debug-ключом и печатает
+предупреждение — такой APK нельзя публиковать.
+
+`versionName` по умолчанию `1.0.0`, `versionCode` — `10000`. В CI они
+переопределяются из тега: `ANDROID_VERSION_NAME`, `ANDROID_VERSION_CODE`.
+Release workflow проверяет подпись и версию через `apksigner`/`aapt`, публикует
+APK и `.sha256`.
+
+## Локальный сервер и сброс данных
+
+```bash
+# сервер с отдельной книгой и портами
+./bin/asledgerd -db /tmp/asledger-dev.db \
+  -api-addr 127.0.0.1:8778 -web-addr 127.0.0.1:8777
+
+# сброс данных приложения (эмулятор/устройство)
+adb shell pm clear com.trefas.asledger
+adb shell pm clear com.trefas.asledger.debug
+```
+
+Очистка данных приложения удаляет DataStore, Room и ключ токена. Книга на
+сервере не меняется; после сброса устройство нужно привязать заново.
+
+## Диагностика
+
+| Симптом | Что проверить |
+| --- | --- |
+| «Сервер не отвечает» | запущен ли `asledgerd`, порт `8778`, брандмауэр |
+| «Адрес не найден» | IP/имя компьютера, одна ли сеть у телефона и ПК |
+| «Обновите asledgerd» | `format_version` сервера должен быть `1` |
+| 401 после синхронизации | устройство отозвано; привяжите заново, черновики сохранятся |
+| Проводка отклонена | откройте «Синхронизация» → «Исправить», проверьте счёт и роль |
+| Release APK не ставится поверх | он подписан другим ключом; используйте ключ из секретов CI |
+
+Логи: `adb logcat | grep -i asledger`. Токен в журналы не пишется.
+
+## Известные ограничения
+
+- Поддерживается только `format_version = 1`.
+- План счетов на телефоне только для чтения.
+- Нет отчётов, сверки, импорта hledger, мультивалютности и push-уведомлений.
+- Интерфейс только на русском; не все строки вынесены в `res/values`.
+- HTTPS/VPN не настроены: предполагается доверенная домашняя сеть.
+
+Вклад в проект и обязательные проверки — в [../CONTRIBUTING.md](../CONTRIBUTING.md).

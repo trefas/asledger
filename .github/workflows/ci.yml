@@ -99,6 +99,15 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Собрать asledgerd для интеграционных тестов
+        working-directory: .
+        run: make build
+
       # android-actions/setup-android@v3 вызывает устаревший пакет `tools`,
       # которого нет в cmdline-tools 16. Устанавливаем нужные пакеты напрямую.
       - name: Установить Android SDK 36
@@ -111,8 +120,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Сборка, unit-тесты, lint и ktlint
-        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug ktlintCheck
+      - name: Сборка, unit-тесты, покрытие, lint и ktlint
+        env:
+          ASLEDGERD_BIN: ${{ github.workspace }}/bin/asledgerd
+        run: >-
+          ./gradlew --no-daemon assembleDebug testDebugUnitTest
+          verifyDataCoverage lintDebug ktlintCheck
 
       - name: Приложить debug APK
         uses: actions/upload-artifact@v4
