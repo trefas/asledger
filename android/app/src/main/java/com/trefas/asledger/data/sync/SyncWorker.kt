@@ -1,6 +1,7 @@
 package com.trefas.asledger.data.sync
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -11,7 +12,6 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.trefas.asledger.AsledgerApp
-import com.trefas.asledger.data.network.ConnectionError
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.first
 
@@ -32,13 +32,10 @@ class SyncWorker(
         return when (val outcome = container.syncManager.sync(config)) {
             is SyncOutcome.Success, SyncOutcome.NothingToDo -> Result.success()
             is SyncOutcome.Rejected -> Result.success()
-            is SyncOutcome.Failure -> when (outcome.error) {
-                ConnectionError.Unauthorized -> Result.success()
-                ConnectionError.NetworkUnavailable,
-                ConnectionError.HostNotFound,
-                ConnectionError.ConnectionRefused,
-                ConnectionError.Timeout -> Result.retry()
-                else -> Result.success()
+            is SyncOutcome.Failure -> if (SyncRetry.shouldRetry(outcome.error, runAttemptCount)) {
+                Result.retry()
+            } else {
+                Result.success()
             }
         }
     }
@@ -57,6 +54,11 @@ object SyncScheduler {
     fun ensurePeriodic(context: Context) {
         val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(connected)
+            .setBackoffCriteria(
+                BackoffPolicy.EXPONENTIAL,
+                SyncRetry.INITIAL_BACKOFF_SECONDS,
+                TimeUnit.SECONDS
+            )
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             PERIODIC_NAME,
@@ -69,6 +71,11 @@ object SyncScheduler {
     fun requestNow(context: Context) {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(connected)
+            .setBackoffCriteria(
+                BackoffPolicy.EXPONENTIAL,
+                SyncRetry.INITIAL_BACKOFF_SECONDS,
+                TimeUnit.SECONDS
+            )
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             IMMEDIATE_NAME,

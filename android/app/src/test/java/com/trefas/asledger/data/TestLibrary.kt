@@ -4,6 +4,7 @@ import androidx.room.Room
 import com.trefas.asledger.data.db.AsledgerDatabase
 import com.trefas.asledger.data.network.SnapshotDto
 import com.trefas.asledger.data.sync.SnapshotImporter
+import java.util.concurrent.Executor
 import kotlinx.serialization.json.Json
 import org.robolectric.RuntimeEnvironment
 
@@ -24,6 +25,10 @@ internal object TestLibrary {
             AsledgerDatabase::class.java
         )
             .allowMainThreadQueries()
+            // Прямые исполнители делают suspend-запросы Room детерминированными
+            // в тестах ViewModel: продолжение не зависит от фонового потока.
+            .setQueryExecutor(Executor { it.run() })
+            .setTransactionExecutor(Executor { it.run() })
             .build()
 
     suspend fun imported(database: AsledgerDatabase): SnapshotDto {

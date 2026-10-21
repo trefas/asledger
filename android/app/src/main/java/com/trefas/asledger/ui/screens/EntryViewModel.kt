@@ -126,10 +126,11 @@ class EntryViewModel(
             _state.update {
                 it.copy(
                     opType = details.opType,
-                    date = details.date,
+                    // Повтор — новая проводка сегодняшним днём, а не копия даты.
+                    date = if (copySource) System.currentTimeMillis() else details.date,
                     description = details.description,
                     editingUuid = if (editing) details.uuid else null,
-                    syncedSource = details.syncStatus == SyncStatus.SYNCED
+                    syncedSource = !copySource && details.syncStatus == SyncStatus.SYNCED
                 )
             }
         }

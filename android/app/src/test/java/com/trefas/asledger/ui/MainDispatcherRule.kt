@@ -12,7 +12,7 @@ import org.junit.runner.Description
 /** Подменяет главный диспетчер для тестов ViewModel. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule(
-    private val dispatcher: TestDispatcher = UnconfinedTestDispatcher()
+    val dispatcher: TestDispatcher = UnconfinedTestDispatcher()
 ) : TestWatcher() {
     override fun starting(description: Description) {
         Dispatchers.setMain(dispatcher)
