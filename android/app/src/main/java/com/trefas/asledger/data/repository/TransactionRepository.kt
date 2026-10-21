@@ -1,17 +1,23 @@
 package com.trefas.asledger.data.repository
 
+import com.trefas.asledger.data.db.OutboxDao
 import com.trefas.asledger.data.db.TransactionDao
 import com.trefas.asledger.data.model.JournalFilter
+import com.trefas.asledger.data.model.SyncStatus
 import com.trefas.asledger.data.model.TransactionDetails
 import com.trefas.asledger.data.model.TransactionLine
 import com.trefas.asledger.data.model.TransactionSummary
+import com.trefas.asledger.util.decodeStringList
 import com.trefas.asledger.util.normalizeSearch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 /** Репозиторий журнала: страницы, фильтры и детали проводки. */
-class TransactionRepository(private val dao: TransactionDao) {
+class TransactionRepository(
+    private val dao: TransactionDao,
+    private val outboxDao: OutboxDao
+) {
     /**
      * Одна страница журнала.
      *
@@ -32,6 +38,7 @@ class TransactionRepository(private val dao: TransactionDao) {
             opType = filter.opType,
             query = filter.query.normalizedOrNull(),
             pendingOnly = if (filter.pendingOnly) 1 else 0,
+            syncStatus = filter.syncStatus?.serverValue,
             limit = limit,
             offset = offset
         ).map { rows ->
@@ -44,7 +51,8 @@ class TransactionRepository(private val dao: TransactionDao) {
                     description = row.transaction.description,
                     actorName = row.actorName.orEmpty(),
                     amountKop = row.amountKop,
-                    pending = row.pendingCount > 0
+                    pending = row.pendingCount > 0,
+                    syncStatus = SyncStatus.fromServer(row.syncStatus)
                 )
             }
         }
@@ -58,16 +66,30 @@ class TransactionRepository(private val dao: TransactionDao) {
             accountId = filter.accountId,
             opType = filter.opType,
             query = filter.query.normalizedOrNull(),
-            pendingOnly = if (filter.pendingOnly) 1 else 0
+            pendingOnly = if (filter.pendingOnly) 1 else 0,
+            syncStatus = filter.syncStatus?.serverValue
         )
 
-    /** Детали проводки с признаком локальной очереди. */
+    /** Частые счета за последние 90 дней для быстрого ввода. */
+    fun observeFrequentAccountIds(since: Long): Flow<List<Long>> =
+        dao.observeFrequentAccounts(since, limit = 6)
+            .map { rows -> rows.map { it.accountId } }
+
+    /** Детали проводки со статусом очереди и диагностикой отклонения. */
     fun observeDetails(uuid: String): Flow<TransactionDetails?> =
         combine(
             dao.observeDetails(uuid),
-            dao.observePending(uuid)
-        ) { withLines, pending ->
+            outboxDao.observeByTransaction(uuid)
+        ) { withLines, outbox ->
             withLines?.let { details ->
+                val status = when {
+                    outbox == null -> SyncStatus.SYNCED
+                    outbox.status == "rejected" -> SyncStatus.REJECTED
+                    outbox.status == "sending" -> SyncStatus.SENDING
+                    outbox.status == "pending" -> SyncStatus.PENDING
+                    outbox.status == "draft" -> SyncStatus.DRAFT
+                    else -> SyncStatus.SYNCED
+                }
                 TransactionDetails(
                     uuid = details.transaction.uuid,
                     opType = details.transaction.opType,
@@ -83,7 +105,12 @@ class TransactionRepository(private val dao: TransactionDao) {
                                 side = line.side
                             )
                         },
-                    pending = pending
+                    pending = status == SyncStatus.PENDING || status == SyncStatus.SENDING,
+                    syncStatus = status,
+                    errorCode = outbox?.errorCode,
+                    lastError = outbox?.lastError,
+                    warnings = decodeStringList(outbox?.warningsJson),
+                    duplicateUuids = decodeStringList(outbox?.duplicateUuidsJson)
                 )
             }
         }

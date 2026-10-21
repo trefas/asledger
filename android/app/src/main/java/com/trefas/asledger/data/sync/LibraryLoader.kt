@@ -3,6 +3,8 @@ package com.trefas.asledger.data.sync
 import com.trefas.asledger.data.network.ApiResult
 import com.trefas.asledger.data.network.AsledgerApi
 import com.trefas.asledger.data.network.ConnectionError
+import com.trefas.asledger.data.repository.MOBILE_OP_TYPES
+import com.trefas.asledger.data.repository.RoleRepository
 import com.trefas.asledger.data.security.TokenStore
 import com.trefas.asledger.data.settings.ServerConfig
 import com.trefas.asledger.data.settings.ServerConfigStore
@@ -31,6 +33,7 @@ class LibraryLoader(
     private val tokenStore: TokenStore,
     private val importer: SnapshotImporter,
     private val configStore: ServerConfigStore,
+    private val roles: RoleRepository? = null,
     private val now: () -> Long = System::currentTimeMillis
 ) {
     suspend fun load(
@@ -51,6 +54,7 @@ class LibraryLoader(
                     // Время синхронизации уже сохранено в meta; DataStore нужен
                     // для экрана диагностики до открытия базы.
                     runCatching { configStore.saveLastSync(now()) }
+                    runCatching { roles?.prefetch(config, token, MOBILE_OP_TYPES) }
                     onProgress(LibraryProgress("Готово", 100))
                     LibraryLoadResult.Success
                 } catch (cancelled: CancellationException) {

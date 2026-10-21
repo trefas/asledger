@@ -2,6 +2,7 @@ package com.trefas.asledger
 
 import android.app.Application
 import com.trefas.asledger.data.AppContainer
+import com.trefas.asledger.data.sync.SyncScheduler
 
 /**
  * Приложение asledger.
@@ -16,5 +17,8 @@ class AsledgerApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // В Robolectric WorkManager может быть не инициализирован; в реальном
+        // приложении планировщик доступен сразу после старта процесса.
+        runCatching { SyncScheduler.ensurePeriodic(this) }
     }
 }

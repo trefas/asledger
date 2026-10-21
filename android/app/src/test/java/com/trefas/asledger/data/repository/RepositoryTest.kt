@@ -51,7 +51,7 @@ class RepositoryTest {
     @Test
     fun `журнал сортирует, фильтрует и листает`() = runTest {
         TestLibrary.imported(database)
-        val repository = TransactionRepository(database.transactionDao())
+        val repository = TransactionRepository(database.transactionDao(), database.outboxDao())
 
         val firstPage = repository.observePage(limit = 2, offset = 0).first()
         assertEquals(listOf("uuid-4", "uuid-3"), firstPage.map { it.uuid })
@@ -136,7 +136,7 @@ class RepositoryTest {
             )
         )
 
-        val repository = TransactionRepository(database.transactionDao())
+        val repository = TransactionRepository(database.transactionDao(), database.outboxDao())
         val pending = repository.observePage(
             filter = JournalFilter(pendingOnly = true)
         ).first()

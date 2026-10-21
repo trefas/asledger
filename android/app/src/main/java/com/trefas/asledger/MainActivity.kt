@@ -9,10 +9,19 @@ import com.trefas.asledger.ui.theme.AsledgerTheme
 
 /** Единственная Activity: весь интерфейс на Compose. */
 class MainActivity : ComponentActivity() {
+    private lateinit var container: com.trefas.asledger.data.AppContainer
+
+    override fun onResume() {
+        super.onResume()
+        if (::container.isInitialized) {
+            container.requestSync()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val container = (application as AsledgerApp).container
+        container = (application as AsledgerApp).container
         setContent {
             AsledgerTheme {
                 AsledgerNavHost(container = container)

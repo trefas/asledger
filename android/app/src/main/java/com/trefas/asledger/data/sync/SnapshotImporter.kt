@@ -50,6 +50,7 @@ class SnapshotImporter(
         }
         val prepared = prepare(snapshot)
         database.withTransaction {
+            val localCounter = database.syncMetaDao().get()?.localCounter ?: 0
             onProgress(ImportStage.ACCOUNTS)
             currentCoroutineContext().ensureActive()
             database.accountDao().clear()
@@ -62,8 +63,14 @@ class SnapshotImporter(
 
             onProgress(ImportStage.SETTINGS)
             currentCoroutineContext().ensureActive()
+            // Настройки сервера заменяются, но локальный кэш ролей и другие
+            // android.* ключи переживают полный ресинк.
+            val localSettings = database.settingDao().all()
+                .filter { it.key.startsWith("android.") }
             database.settingDao().clear()
-            database.settingDao().upsertAll(prepared.settings)
+            database.settingDao().upsertAll(
+                (prepared.settings + localSettings).distinctBy { it.key }
+            )
 
             onProgress(ImportStage.TRANSACTIONS)
             currentCoroutineContext().ensureActive()
@@ -91,7 +98,8 @@ class SnapshotImporter(
                     chainHash = snapshot.chainHash,
                     formatVersion = snapshot.formatVersion,
                     initialLoaded = true,
-                    lastSyncAt = now()
+                    lastSyncAt = now(),
+                    localCounter = localCounter
                 )
             )
         }

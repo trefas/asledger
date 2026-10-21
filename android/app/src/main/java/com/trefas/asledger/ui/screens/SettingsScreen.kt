@@ -31,6 +31,7 @@ import com.trefas.asledger.ui.components.ScreenScaffold
 fun SettingsScreen(
     config: ServerConfig?,
     onDiagnostics: () -> Unit,
+    onHelp: () -> Unit,
     onChangeUser: () -> Unit,
     onChangeServer: () -> Unit,
     onForgetServer: () -> Unit,
@@ -118,6 +119,27 @@ fun SettingsScreen(
                     Button(onClick = onDiagnostics) {
                         Text("Открыть диагностику")
                     }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Помощь", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Подсказки о статусах, дублях, офлайн-работе и " +
+                            "привязке устройства.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(onClick = onHelp) { Text("Открыть справку") }
                 }
             }
 

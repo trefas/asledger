@@ -85,8 +85,10 @@ data class LineEntity(
     val transactionUuid: String,
     val accountId: Long,
     val amountKop: Long,
-    /** DEBIT или CREDIT. */
-    val side: String
+    /** DEBIT или CREDIT; для локальной строки выводится из роли. */
+    val side: String,
+    /** Роль строки из матрицы сервера; у импортированных строк пустая. */
+    val role: String = ""
 )
 
 /** Пользователь книги без хеша токена. */
@@ -117,20 +119,40 @@ data class SyncMetaEntity(
     val chainHash: String,
     val formatVersion: Int,
     val initialLoaded: Boolean,
-    val lastSyncAt: Long
+    val lastSyncAt: Long,
+    /** Последний выданный локальный номер коммита. */
+    val localCounter: Long = 0
 ) {
     companion object {
         const val SINGLETON_ID = 1
     }
 }
 
-/** Очередь отправки локальных проводок; наполняется в S12. */
+/** Статусы очереди отправки. */
+object OutboxStatus {
+    const val DRAFT = "draft"
+    const val PENDING = "pending"
+    const val SENDING = "sending"
+    const val SYNCED = "synced"
+    const val REJECTED = "rejected"
+
+    /** Статусы, которые ещё нужно отправить. */
+    val ACTIVE = listOf(PENDING, SENDING)
+}
+
+/**
+ * Очередь отправки локальных проводок.
+ *
+ * `commitId` одинаков у всех операций одного пакета: это делает повторную
+ * отправку идемпотентной. Индекс неуникальный, потому что пакет объединяет
+ * несколько операций под одним коммитом.
+ */
 @Entity(
     tableName = "outbox",
     indices = [
         Index(value = ["status"]),
         Index(value = ["transactionUuid"], unique = true),
-        Index(value = ["commitId"], unique = true)
+        Index(value = ["commitId"])
     ]
 )
 data class OutboxEntity(
@@ -139,11 +161,18 @@ data class OutboxEntity(
     val transactionUuid: String,
     val clientId: String,
     val baseSeq: Long,
+    /** JSON одной операции без обёртки пакета. */
     val opsJson: String,
-    /** pending, sending, accepted, rejected. */
+    /** draft, pending, sending, synced или rejected. */
     val status: String,
     val attempts: Int = 0,
     val lastError: String? = null,
+    /** Код отклонения сервера, например ERR_MATRIX_CELL. */
+    val errorCode: String? = null,
+    /** Предупреждения последней отправки в JSON-массиве строк. */
+    val warningsJson: String = "[]",
+    /** UUID возможных дублей в JSON-массиве строк. */
+    val duplicateUuidsJson: String = "[]",
     val createdAt: Long,
     val updatedAt: Long
 )

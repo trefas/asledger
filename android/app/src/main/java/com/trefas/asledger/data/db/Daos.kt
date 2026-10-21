@@ -36,12 +36,20 @@ interface AccountDao {
     suspend fun count(): Int
 }
 
+/** Счёт и число использований в проводках за период. */
+data class FrequentAccountRow(
+    val accountId: Long,
+    val uses: Int
+)
+
 /** Краткая строка журнала: заголовок, сумма по дебету и признак очереди. */
 data class TransactionSummaryRow(
     @Embedded val transaction: TransactionEntity,
     val actorName: String?,
     val amountKop: Long,
-    val pendingCount: Int
+    val pendingCount: Int,
+    /** synced, pending, sending или rejected. */
+    val syncStatus: String
 )
 
 /** Обороты счёта: остаток до периода и движения внутри периода. */
@@ -74,7 +82,12 @@ interface TransactionDao {
                (
                    SELECT COUNT(*) FROM outbox o
                    WHERE o.transactionUuid = t.uuid AND o.status IN ('pending', 'sending')
-               ) AS pendingCount
+               ) AS pendingCount,
+               COALESCE((
+                   SELECT o.status FROM outbox o
+                   WHERE o.transactionUuid = t.uuid
+                   ORDER BY o.id DESC LIMIT 1
+               ), 'synced') AS syncStatus
           FROM transactions t
           LEFT JOIN users u ON u.id = t.actorId
          WHERE (:fromDate IS NULL OR t.date >= :fromDate)
@@ -89,6 +102,11 @@ interface TransactionDao {
                    SELECT 1 FROM outbox o2
                    WHERE o2.transactionUuid = t.uuid AND o2.status IN ('pending', 'sending')
                ))
+           AND (:syncStatus IS NULL OR COALESCE((
+                   SELECT o3.status FROM outbox o3
+                   WHERE o3.transactionUuid = t.uuid
+                   ORDER BY o3.id DESC LIMIT 1
+               ), 'synced') = :syncStatus)
          ORDER BY t.date DESC, t.createdAt DESC, t.uuid DESC
          LIMIT :limit OFFSET :offset
         """
@@ -100,6 +118,7 @@ interface TransactionDao {
         opType: String?,
         query: String?,
         pendingOnly: Int,
+        syncStatus: String?,
         limit: Int,
         offset: Int
     ): Flow<List<TransactionSummaryRow>>
@@ -120,6 +139,11 @@ interface TransactionDao {
                    SELECT 1 FROM outbox o2
                    WHERE o2.transactionUuid = t.uuid AND o2.status IN ('pending', 'sending')
                ))
+           AND (:syncStatus IS NULL OR COALESCE((
+                   SELECT o3.status FROM outbox o3
+                   WHERE o3.transactionUuid = t.uuid
+                   ORDER BY o3.id DESC LIMIT 1
+               ), 'synced') = :syncStatus)
         """
     )
     fun observeCount(
@@ -128,7 +152,8 @@ interface TransactionDao {
         accountId: Long?,
         opType: String?,
         query: String?,
-        pendingOnly: Int
+        pendingOnly: Int,
+        syncStatus: String?
     ): Flow<Int>
 
     @Transaction
@@ -144,6 +169,18 @@ interface TransactionDao {
         """
     )
     fun observePending(uuid: String): Flow<Boolean>
+
+    @Query(
+        """
+        SELECT status FROM outbox
+         WHERE transactionUuid = :uuid
+         ORDER BY id DESC LIMIT 1
+        """
+    )
+    fun observeSyncStatus(uuid: String): Flow<String?>
+
+    @Query("DELETE FROM transactions WHERE uuid = :uuid")
+    suspend fun delete(uuid: String)
 
     /**
      * Обороты по счетам за период.
@@ -194,6 +231,20 @@ interface TransactionDao {
         pendingFlag: Int
     ): Flow<List<AccountMovement>>
 
+    /** Частые счета за период: подсказки для быстрого ввода. */
+    @Query(
+        """
+        SELECT l.accountId AS accountId, COUNT(*) AS uses
+          FROM lines l
+          JOIN transactions t ON t.uuid = l.transactionUuid
+         WHERE t.date >= :since
+         GROUP BY l.accountId
+         ORDER BY uses DESC, l.accountId
+         LIMIT :limit
+        """
+    )
+    fun observeFrequentAccounts(since: Long, limit: Int): Flow<List<FrequentAccountRow>>
+
     @Query("SELECT * FROM transactions WHERE uuid = :uuid")
     suspend fun get(uuid: String): TransactionEntity?
 
@@ -212,7 +263,8 @@ interface TransactionDao {
     @Query(
         """
         DELETE FROM lines WHERE transactionUuid NOT IN (
-            SELECT transactionUuid FROM outbox WHERE status IN ('pending', 'sending')
+            SELECT transactionUuid FROM outbox
+             WHERE status IN ('pending', 'sending', 'rejected')
         )
         """
     )
@@ -221,7 +273,8 @@ interface TransactionDao {
     @Query(
         """
         DELETE FROM transactions WHERE uuid NOT IN (
-            SELECT transactionUuid FROM outbox WHERE status IN ('pending', 'sending')
+            SELECT transactionUuid FROM outbox
+             WHERE status IN ('pending', 'sending', 'rejected')
         )
         """
     )
@@ -261,6 +314,9 @@ interface SettingDao {
     @Query("SELECT * FROM settings ORDER BY key")
     fun observeAll(): Flow<List<SettingEntity>>
 
+    @Query("SELECT * FROM settings ORDER BY key")
+    suspend fun all(): List<SettingEntity>
+
     @Query("SELECT value FROM settings WHERE key = :key")
     suspend fun value(key: String): String?
 
@@ -287,11 +343,57 @@ interface SyncMetaDao {
     suspend fun clear()
 }
 
+/** Запись очереди вместе с данными проводки для экрана синхронизации. */
+data class OutboxRow(
+    @Embedded val outbox: OutboxEntity,
+    val description: String?,
+    val amountKop: Long?,
+    val date: Long?
+)
+
 /** Очередь отправки. */
 @Dao
 interface OutboxDao {
     @Query("SELECT COUNT(*) FROM outbox WHERE status IN ('pending', 'sending')")
     fun observePendingCount(): Flow<Int>
+
+    @Query("SELECT * FROM outbox WHERE status IN ('pending', 'sending') ORDER BY createdAt")
+    fun observeActive(): Flow<List<OutboxEntity>>
+
+    @Query("SELECT * FROM outbox WHERE status IN ('pending', 'sending') ORDER BY createdAt")
+    suspend fun active(): List<OutboxEntity>
+
+    @Query("SELECT * FROM outbox WHERE status = 'synced' ORDER BY updatedAt DESC")
+    fun observeSynced(): Flow<List<OutboxEntity>>
+
+    @Query("SELECT * FROM outbox WHERE status = 'rejected' ORDER BY updatedAt DESC")
+    fun observeRejected(): Flow<List<OutboxEntity>>
+
+    @Query("SELECT * FROM outbox ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<OutboxEntity>>
+
+    @Query(
+        """
+        SELECT o.*, t.description AS description,
+               COALESCE((SELECT SUM(l.amountKop) FROM lines l
+                         WHERE l.transactionUuid = o.transactionUuid AND l.side = 'DEBIT'), 0)
+                   AS amountKop,
+               t.date AS date
+          FROM outbox o
+          LEFT JOIN transactions t ON t.uuid = o.transactionUuid
+         ORDER BY o.updatedAt DESC
+        """
+    )
+    fun observeRows(): Flow<List<OutboxRow>>
+
+    @Query("SELECT * FROM outbox WHERE transactionUuid = :uuid")
+    suspend fun byTransaction(uuid: String): OutboxEntity?
+
+    @Query("SELECT * FROM outbox WHERE transactionUuid = :uuid")
+    fun observeByTransaction(uuid: String): Flow<OutboxEntity?>
+
+    @Query("SELECT COUNT(*) FROM outbox WHERE status IN ('pending', 'sending')")
+    suspend fun pendingCount(): Int
 
     @Query("SELECT transactionUuid FROM outbox WHERE status IN ('pending', 'sending')")
     suspend fun pendingUuids(): List<String>
@@ -301,6 +403,9 @@ interface OutboxDao {
 
     @Upsert
     suspend fun upsert(entry: OutboxEntity)
+
+    @Query("DELETE FROM outbox WHERE transactionUuid = :uuid")
+    suspend fun deleteByTransaction(uuid: String)
 
     @Query("DELETE FROM outbox")
     suspend fun clear()

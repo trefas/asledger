@@ -6,6 +6,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -174,6 +175,127 @@ class AsledgerApi(
             )
         }
         ApiResult.Ok(header)
+    }
+
+    /**
+     * Отправляет пакет операций.
+     *
+     * `rejected` — это бизнес-ответ, а не сетевая ошибка: сервер вернул 422 с
+     * кодом валидации и не изменил книгу. Поэтому он тоже приходит как Ok.
+     */
+    suspend fun push(
+        config: ServerConfig,
+        token: String,
+        request: PushRequestDto
+    ): ApiResult<PushResponseDto> = request {
+        val response = client.post("${config.baseUrl}/api/v1/sync/push") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            onUnauthorized()
+            return@request ApiResult.Failure(ConnectionError.Unauthorized)
+        }
+        if (response.status != HttpStatusCode.OK &&
+            response.status != HttpStatusCode.UnprocessableEntity
+        ) {
+            return@request ApiResult.Failure(errorFrom(response))
+        }
+        val body = runCatching { response.body<PushResponseDto>() }.getOrNull()
+            ?: return@request ApiResult.Failure(
+                ConnectionError.InvalidResponse("не удалось разобрать ответ синхронизации")
+            )
+        if (body.status != "accepted" &&
+            body.status != "accepted-with-warnings" &&
+            body.status != "rejected"
+        ) {
+            return@request ApiResult.Failure(
+                ConnectionError.InvalidResponse("неизвестный статус отправки: ${body.status}")
+            )
+        }
+        ApiResult.Ok(body)
+    }
+
+    /** Загружает дельту изменений и данные хэш-цепочки. */
+    suspend fun pull(
+        config: ServerConfig,
+        token: String,
+        since: Long,
+        hash: String
+    ): ApiResult<PullDto> = request {
+        val response = client.get("${config.baseUrl}/api/v1/sync/pull") {
+            bearerAuth(token)
+            parameter("since", since)
+            if (hash.isNotBlank()) {
+                parameter("hash", hash)
+            }
+        }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            onUnauthorized()
+            return@request ApiResult.Failure(ConnectionError.Unauthorized)
+        }
+        if (!response.status.isSuccess()) {
+            return@request ApiResult.Failure(errorFrom(response))
+        }
+        val body = runCatching { response.body<PullDto>() }.getOrNull()
+            ?: return@request ApiResult.Failure(
+                ConnectionError.InvalidResponse("не удалось разобрать изменения книги")
+            )
+        if (body.formatVersion != SUPPORTED_FORMAT_VERSION) {
+            return@request ApiResult.Failure(
+                ConnectionError.IncompatibleFormat(
+                    serverFormat = body.formatVersion,
+                    supportedFormat = SUPPORTED_FORMAT_VERSION
+                )
+            )
+        }
+        ApiResult.Ok(body)
+    }
+
+    /** Возвращает роли и стороны матрицы для типа операции. */
+    suspend fun roles(
+        config: ServerConfig,
+        token: String,
+        opType: String
+    ): ApiResult<EngineRolesDto> = request {
+        val response = client.get("${config.baseUrl}/api/v1/engine/roles") {
+            bearerAuth(token)
+            parameter("op_type", opType)
+        }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            onUnauthorized()
+            return@request ApiResult.Failure(ConnectionError.Unauthorized)
+        }
+        if (!response.status.isSuccess()) {
+            return@request ApiResult.Failure(errorFrom(response))
+        }
+        val body = runCatching { response.body<EngineRolesDto>() }.getOrNull()
+            ?: return@request ApiResult.Failure(
+                ConnectionError.InvalidResponse("не удалось разобрать роли операции")
+            )
+        ApiResult.Ok(body)
+    }
+
+    /** Создаёт сторно подтверждённой проводки. */
+    suspend fun reverse(
+        config: ServerConfig,
+        token: String,
+        uuid: String
+    ): ApiResult<Unit> = request {
+        val response = client.post(
+            "${config.baseUrl}/api/v1/transactions/$uuid/reverse"
+        ) {
+            bearerAuth(token)
+        }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            onUnauthorized()
+            return@request ApiResult.Failure(ConnectionError.Unauthorized)
+        }
+        if (!response.status.isSuccess()) {
+            return@request ApiResult.Failure(errorFrom(response))
+        }
+        ApiResult.Ok(Unit)
     }
 
     /** Отзывает текущий токен на сервере. */

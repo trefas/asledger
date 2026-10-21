@@ -23,10 +23,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.trefas.asledger.data.AppContainer
 import com.trefas.asledger.data.network.ApiResult
 import com.trefas.asledger.data.network.ConnectionError
@@ -36,12 +38,18 @@ import com.trefas.asledger.ui.screens.AccountsScreen
 import com.trefas.asledger.ui.screens.DiagnosticsScreen
 import com.trefas.asledger.ui.screens.EnrollScreen
 import com.trefas.asledger.ui.screens.EntryScreen
+import com.trefas.asledger.ui.screens.EntryViewModel
+import com.trefas.asledger.ui.screens.HelpScreen
 import com.trefas.asledger.ui.screens.JournalScreen
 import com.trefas.asledger.ui.screens.LoadingScreen
 import com.trefas.asledger.ui.screens.LoadingState
 import com.trefas.asledger.ui.screens.LoadingViewModel
+import com.trefas.asledger.ui.screens.OnboardingScreen
 import com.trefas.asledger.ui.screens.SettingsScreen
 import com.trefas.asledger.ui.screens.SetupScreen
+import com.trefas.asledger.ui.screens.SyncScreen
+import com.trefas.asledger.ui.screens.SyncViewModel
+import com.trefas.asledger.ui.screens.TransactionDetailScreen
 import com.trefas.asledger.util.Log
 import com.trefas.asledger.util.deviceName
 import kotlinx.coroutines.flow.collect
@@ -52,11 +60,25 @@ object Routes {
     const val SETUP = "setup"
     const val ENROLL = "enroll"
     const val LOADING = "loading"
+    const val ONBOARDING = "onboarding"
     const val JOURNAL = "journal"
     const val ENTRY = "entry"
+    const val ENTRY_PATTERN = "entry?edit={edit}&copy={copy}&account={account}"
+    const val TRANSACTION = "transaction/{uuid}"
+    const val SYNC = "sync"
     const val ACCOUNTS = "accounts"
     const val SETTINGS = "settings"
     const val DIAGNOSTICS = "diagnostics"
+    const val HELP = "help"
+
+    /** Маршрут формы: новый черновик, правка или повтор с копированием. */
+    fun entry(edit: String? = null, copy: Boolean = false, account: Long? = null): String {
+        val editValue = edit ?: "new"
+        return "entry?edit=$editValue&copy=$copy&account=${account ?: "none"}"
+    }
+
+    /** Маршрут деталей проводки. */
+    fun transaction(uuid: String): String = "transaction/$uuid"
 }
 
 /** Состояние загрузки адреса сервера и привязки. */
@@ -133,10 +155,10 @@ private fun MainNavigation(
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     // Диагностика — вложенный экран настроек, поэтому подсвечиваем «Настройки».
-    val selectedRoute = if (currentRoute == Routes.DIAGNOSTICS) {
-        Routes.SETTINGS
-    } else {
-        currentRoute
+    val selectedRoute = when (currentRoute) {
+        Routes.DIAGNOSTICS, Routes.HELP -> Routes.SETTINGS
+        Routes.ENTRY_PATTERN -> Routes.ENTRY
+        else -> currentRoute
     }
     val scope = rememberCoroutineScope()
 
@@ -144,7 +166,11 @@ private fun MainNavigation(
     // привязки NavHost не пересоздаётся, переход выполняет экран.
     val startDestination = remember {
         when (state) {
-            is ConfigState.Ready -> if (libraryLoaded) Routes.JOURNAL else Routes.LOADING
+            is ConfigState.Ready -> when {
+                !libraryLoaded -> Routes.LOADING
+                state.config.onboarded -> Routes.JOURNAL
+                else -> Routes.ONBOARDING
+            }
             is ConfigState.EnrollRequired -> Routes.ENROLL
             else -> Routes.SETUP
         }
@@ -177,7 +203,10 @@ private fun MainNavigation(
             if (currentRoute != null &&
                 currentRoute != Routes.SETUP &&
                 currentRoute != Routes.ENROLL &&
-                currentRoute != Routes.LOADING
+                currentRoute != Routes.LOADING &&
+                currentRoute != Routes.ONBOARDING &&
+                currentRoute != Routes.TRANSACTION &&
+                currentRoute != Routes.SYNC
             ) {
                 AsledgerBottomBar(
                     currentRoute = selectedRoute,
@@ -288,7 +317,12 @@ private fun MainNavigation(
                     LaunchedEffect(loadingViewModel) { loadingViewModel.start() }
                     LaunchedEffect(loadingState) {
                         if (loadingState is LoadingState.Success) {
-                            navController.navigate(Routes.JOURNAL) {
+                            val destination = if (loadingConfig.onboarded) {
+                                Routes.JOURNAL
+                            } else {
+                                Routes.ONBOARDING
+                            }
+                            navController.navigate(destination) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     inclusive = true
                                 }
@@ -333,26 +367,159 @@ private fun MainNavigation(
                     }
                 }
             }
+            composable(Routes.ONBOARDING) {
+                OnboardingScreen(
+                    onDone = {
+                        scope.launch {
+                            container.serverConfig.setOnboarded()
+                        }
+                        navController.navigate(Routes.JOURNAL) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable(Routes.JOURNAL) {
                 JournalScreen(
-                    onNewEntry = { navController.navigate(Routes.ENTRY) },
+                    onNewEntry = { navController.navigate(Routes.entry()) },
+                    onOpenTransaction = { uuid ->
+                        navController.navigate(Routes.transaction(uuid))
+                    },
+                    onOpenSync = { navController.navigate(Routes.SYNC) },
                     transactions = container.transactions,
+                    accountsRepository = container.accounts,
+                    localEntries = container.localEntries,
+                    syncManager = container.syncManager,
                     userName = config?.userName.orEmpty()
                 )
             }
-            composable(Routes.ENTRY) {
-                EntryScreen(userName = config?.userName.orEmpty())
+            composable(
+                route = Routes.ENTRY_PATTERN,
+                arguments = listOf(
+                    navArgument("edit") { defaultValue = "new" },
+                    navArgument("copy") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    },
+                    navArgument("account") { defaultValue = "none" }
+                )
+            ) { entry ->
+                val editUuid = entry.arguments?.getString("edit")
+                    ?.takeIf { it != "new" }
+                val copySource = entry.arguments?.getBoolean("copy") ?: false
+                val accountId = entry.arguments?.getString("account")
+                    ?.takeIf { it != "none" }
+                    ?.toLongOrNull()
+                val entryViewModel: EntryViewModel = viewModel(
+                    key = "entry-${editUuid ?: "new"}-$copySource-${accountId ?: 0}",
+                    factory = EntryViewModel.Factory(
+                        editUuid = editUuid,
+                        copySource = copySource,
+                        preselectedAccountId = accountId,
+                        configFlow = container.serverConfig.config,
+                        tokenStore = container.tokenStore,
+                        rolesRepository = container.roles,
+                        accountsRepository = container.accounts,
+                        transactionsRepository = container.transactions,
+                        localEntries = container.localEntries,
+                        onSaved = { container.requestSync() }
+                    )
+                )
+                val entryState by entryViewModel.state.collectAsStateWithLifecycle()
+                EntryScreen(
+                    state = entryState,
+                    onOpType = entryViewModel::selectOpType,
+                    onDescription = entryViewModel::setDescription,
+                    onDate = entryViewModel::setDate,
+                    onAddLine = entryViewModel::addLine,
+                    onRemoveLine = entryViewModel::removeLine,
+                    onAccount = entryViewModel::setAccount,
+                    onAmount = entryViewModel::setAmount,
+                    onQuickAmount = entryViewModel::addAmount,
+                    onRole = entryViewModel::setRole,
+                    onSave = entryViewModel::save,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = Routes.TRANSACTION,
+                arguments = listOf(navArgument("uuid") { type = NavType.StringType })
+            ) { detail ->
+                val uuid = detail.arguments?.getString("uuid").orEmpty()
+                TransactionDetailScreen(
+                    uuid = uuid,
+                    transactions = container.transactions,
+                    accountsRepository = container.accounts,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { navController.navigate(Routes.entry(edit = uuid)) },
+                    onRepeat = {
+                        navController.navigate(Routes.entry(edit = uuid, copy = true))
+                    },
+                    onDelete = {
+                        scope.launch {
+                            runCatching { container.localEntries.delete(uuid) }
+                            navController.popBackStack()
+                        }
+                    },
+                    onReverse = {
+                        scope.launch {
+                            if (config != null) {
+                                container.syncManager.reverse(config, uuid)
+                            }
+                        }
+                    },
+                    onSync = {
+                        scope.launch {
+                            if (config != null) container.syncManager.sync(config)
+                        }
+                    }
+                )
+            }
+            composable(Routes.SYNC) {
+                val syncViewModel: SyncViewModel = viewModel(
+                    key = "sync-${config?.clientId ?: "none"}",
+                    factory = viewModelFactory {
+                        initializer {
+                            SyncViewModel(
+                                config = config,
+                                manager = container.syncManager,
+                                localEntries = container.localEntries
+                            )
+                        }
+                    }
+                )
+                val syncState by syncViewModel.screen.collectAsStateWithLifecycle()
+                SyncScreen(
+                    state = syncState,
+                    onSync = syncViewModel::syncNow,
+                    onOpen = { uuid ->
+                        navController.navigate(Routes.transaction(uuid))
+                    },
+                    onEdit = { uuid ->
+                        navController.navigate(Routes.entry(edit = uuid))
+                    },
+                    onDelete = syncViewModel::deleteDraft,
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable(Routes.ACCOUNTS) {
                 AccountsScreen(
                     accounts = container.accounts,
-                    balances = container.balances
+                    balances = container.balances,
+                    onSelectAccount = { accountId ->
+                        navController.navigate(Routes.entry(account = accountId))
+                    }
                 )
             }
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     config = config,
                     onDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
+                    onHelp = { navController.navigate(Routes.HELP) },
                     onChangeUser = {
                         scope.launch {
                             val token = runCatching { container.tokenStore.load() }.getOrNull()
@@ -396,6 +563,12 @@ private fun MainNavigation(
                             }
                         }
                     }
+                )
+            }
+            composable(Routes.HELP) {
+                HelpScreen(
+                    onReplayTour = { navController.navigate(Routes.ONBOARDING) },
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(Routes.DIAGNOSTICS) {

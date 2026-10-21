@@ -6,6 +6,8 @@ import com.trefas.asledger.data.network.AsledgerApi
 import com.trefas.asledger.data.network.createHttpClient
 import com.trefas.asledger.data.repository.AccountRepository
 import com.trefas.asledger.data.repository.BalanceRepository
+import com.trefas.asledger.data.repository.LocalEntryRepository
+import com.trefas.asledger.data.repository.RoleRepository
 import com.trefas.asledger.data.repository.TransactionRepository
 import com.trefas.asledger.data.security.KeystoreTokenStore
 import com.trefas.asledger.data.security.TokenStore
@@ -13,6 +15,9 @@ import com.trefas.asledger.data.settings.DataStoreServerConfigStore
 import com.trefas.asledger.data.settings.ServerConfigStore
 import com.trefas.asledger.data.sync.LibraryLoader
 import com.trefas.asledger.data.sync.SnapshotImporter
+import com.trefas.asledger.data.sync.SyncApplier
+import com.trefas.asledger.data.sync.SyncManager
+import com.trefas.asledger.data.sync.SyncScheduler
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.CoroutineScope
@@ -63,11 +68,21 @@ class AppContainer(context: Context) {
     }
 
     val transactions: TransactionRepository by lazy {
-        TransactionRepository(database.transactionDao())
+        TransactionRepository(database.transactionDao(), database.outboxDao())
     }
 
     val balances: BalanceRepository by lazy {
         BalanceRepository(database.accountDao(), database.transactionDao())
+    }
+
+    /** Черновики и очередь отправки. */
+    val localEntries: LocalEntryRepository by lazy {
+        LocalEntryRepository(database)
+    }
+
+    /** Кэш ролей ASL-2.2 для офлайн-ввода. */
+    val roles: RoleRepository by lazy {
+        RoleRepository(database.settingDao(), api)
     }
 
     /** Импорт полного снапшота одной транзакцией. */
@@ -75,15 +90,37 @@ class AppContainer(context: Context) {
         SnapshotImporter(database)
     }
 
+    /** Применение дельты pull. */
+    val syncApplier: SyncApplier by lazy {
+        SyncApplier(database)
+    }
+
+    /** Отправка очереди и pull. */
+    val syncManager: SyncManager by lazy {
+        SyncManager(
+            database = database,
+            api = api,
+            tokenStore = tokenStore,
+            importer = snapshotImporter,
+            applier = syncApplier,
+            configStore = serverConfig
+        )
+    }
+
     /** Первичная загрузка книги после привязки. */
     val libraryLoader: LibraryLoader by lazy {
-        LibraryLoader(api, tokenStore, snapshotImporter, serverConfig)
+        LibraryLoader(api, tokenStore, snapshotImporter, serverConfig, roles)
     }
 
     /** true, когда первичный снапшот уже импортирован. */
     val libraryLoaded: Flow<Boolean> = database.syncMetaDao()
         .observe()
         .map { it?.initialLoaded == true }
+
+    /** Ставит немедленную синхронизацию в очередь WorkManager. */
+    fun requestSync() {
+        runCatching { SyncScheduler.requestNow(appContext) }
+    }
 
     /** Забывает пользователя и токен, сохраняя адрес сервера. */
     suspend fun forgetSession() {

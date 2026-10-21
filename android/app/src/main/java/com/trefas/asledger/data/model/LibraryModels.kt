@@ -55,6 +55,20 @@ data class SyncMeta(
     val lastSyncAt: Long
 )
 
+/** Статус проводки в локальной очереди. */
+enum class SyncStatus(val serverValue: String, val title: String) {
+    SYNCED("synced", "Синхронизировано"),
+    PENDING("pending", "К отправке"),
+    SENDING("sending", "Отправляется"),
+    REJECTED("rejected", "Отклонено"),
+    DRAFT("draft", "Черновик");
+
+    companion object {
+        fun fromServer(value: String?): SyncStatus =
+            entries.firstOrNull { it.serverValue == value } ?: SYNCED
+    }
+}
+
 /** Краткая запись журнала. */
 data class TransactionSummary(
     val uuid: String,
@@ -64,7 +78,8 @@ data class TransactionSummary(
     val description: String,
     val actorName: String,
     val amountKop: Long,
-    val pending: Boolean
+    val pending: Boolean,
+    val syncStatus: SyncStatus = SyncStatus.SYNCED
 )
 
 /** Строка проводки в деталях. */
@@ -82,7 +97,12 @@ data class TransactionDetails(
     val description: String,
     val actorId: Long,
     val lines: List<TransactionLine>,
-    val pending: Boolean
+    val pending: Boolean,
+    val syncStatus: SyncStatus = SyncStatus.SYNCED,
+    val errorCode: String? = null,
+    val lastError: String? = null,
+    val warnings: List<String> = emptyList(),
+    val duplicateUuids: List<String> = emptyList()
 )
 
 /** Фильтр журнала. */
@@ -92,7 +112,71 @@ data class JournalFilter(
     val toDate: Long? = null,
     val accountId: Long? = null,
     val opType: String? = null,
-    val pendingOnly: Boolean = false
+    val pendingOnly: Boolean = false,
+    val syncStatus: SyncStatus? = null
+)
+
+/** Строка новой проводки: роль и сумма; сторону назначает матрица сервера. */
+data class DraftLine(
+    val accountId: Long,
+    val amountKop: Long,
+    val role: String,
+    val side: String
+)
+
+/** Локальный черновик проводки. */
+data class EntryDraft(
+    val uuid: String? = null,
+    val opType: String,
+    val date: Long,
+    val description: String = "",
+    val lines: List<DraftLine>
+)
+
+/** Запись очереди для экрана синхронизации. */
+data class OutboxItem(
+    val transactionUuid: String,
+    val commitId: String,
+    val status: SyncStatus,
+    val attempts: Int,
+    val lastError: String?,
+    val errorCode: String?,
+    val warnings: List<String>,
+    val duplicateUuids: List<String>,
+    val description: String,
+    val amountKop: Long,
+    val date: Long
+)
+
+/** Коммит синхронизации для проверки цепочки и диагностики. */
+data class SyncCommit(
+    val id: Long,
+    val clientId: String,
+    val actorId: Long,
+    val baseSeq: Long,
+    val opsJson: String,
+    val resultSeq: Long,
+    val hash: String,
+    val warnings: List<String>,
+    val createdAt: Long
+)
+
+/** Роль матрицы ASL-2.2 в доменном виде. */
+data class RoleRule(
+    val role: String,
+    val side: String,
+    val accountTypes: List<AccountType>,
+    val directionRequired: Boolean,
+    val reserved: Boolean
+)
+
+/** Матрица ролей для типа операции. */
+data class OperationRoles(
+    val opType: String,
+    val title: String,
+    val roles: List<RoleRule>,
+    val minDebit: Int,
+    val minCredit: Int
 )
 
 /** Строка отчёта об остатках. */

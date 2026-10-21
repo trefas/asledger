@@ -15,6 +15,31 @@ fun formatKop(kopecks: Long): String {
     return sign + groupDigits(rubles) + "," + String.format(Locale.ROOT, "%02d", kop) + " ₽"
 }
 
+/**
+ * Разбирает сумму в рублях в копейки без чисел с плавающей точкой.
+ *
+ * Принимает запятую или точку, одну или две цифры после разделителя.
+ * Возвращает null для пустой или некорректной суммы.
+ */
+fun parseRubles(raw: String): Long? {
+    val normalized = raw.trim()
+        .replace(" ", "")
+        .replace("\u00A0", "")
+        .replace('\u2212', '-')
+    if (normalized.isEmpty() || normalized.startsWith('-')) return null
+    val parts = normalized.split(',', '.')
+    if (parts.size > 2) return null
+    val rubles = parts[0].ifEmpty { "0" }
+    if (!rubles.all { it.isDigit() }) return null
+    val kop = parts.getOrNull(1).orEmpty()
+    if (kop.isNotEmpty() && (kop.length > 2 || !kop.all { it.isDigit() })) return null
+    val rubleValue = rubles.toLongOrNull() ?: return null
+    val kopValue = kop.padEnd(2, '0').toLongOrNull() ?: 0
+    return runCatching {
+        Math.addExact(Math.multiplyExact(rubleValue, 100), kopValue)
+    }.getOrNull()
+}
+
 private fun groupDigits(value: Long): String {
     val text = value.toString()
     if (text.length <= 3) {
