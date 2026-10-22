@@ -116,15 +116,29 @@ jobs:
           export PATH="$JAVA_HOME/bin:$PATH"
           apk=app/build/outputs/apk/release/app-release.apk
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | head -n1)"
+          zipalign="$(find "$ANDROID_HOME/build-tools" -name zipalign -type f | head -n1)"
           aapt="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | head -n1)"
+          # V1 (JAR)-подпись обязательна: установщики EMUI/HMS при разборе
+          # пакета читают META-INF/MANIFEST.MF и без него выдают «При анализе
+          # пакета произошла ошибка», хотя adb install проходит.
+          unzip -l "$apk" | grep -F "META-INF/MANIFEST.MF"
+          unzip -l "$apk" | grep -E "META-INF/.*\.RSA|META-INF/.*\.DSA"
           "$apksigner" verify --print-certs "$apk"
+          "$apksigner" verify --verbose "$apk" \
+            | grep -F "Verified using v1 scheme (JAR signing): true"
           "$apksigner" verify --verbose --min-sdk-version 24 "$apk" \
             | grep -F "Verified using v2 scheme (APK Signature Scheme v2): true"
           "$apksigner" verify --verbose --min-sdk-version 24 "$apk" \
             | grep -F "Verified using v3 scheme (APK Signature Scheme v3): true"
+          # Выравнивание проверяем до публикации: повторный zipalign или
+          # любая правка архива после apksigner разрушают блоки v2/v3.
+          "$zipalign" -c -p 4 "$apk"
           "$aapt" dump badging "$apk" | grep -F "versionName='${ANDROID_VERSION_NAME}'"
           "$aapt" dump badging "$apk" | grep -F "versionCode='${ANDROID_VERSION_CODE}'"
           "$aapt" dump badging "$apk" | grep -F "sdkVersion:'34'"
+          # Точка входа лаунчера обязана присутствовать в готовом APK, иначе
+          # приложение ставится через adb, но не появляется в системе.
+          "$aapt" dump badging "$apk" | grep -F "launchable-activity:"
 
       - name: Подготовить APK и SHA-256
         run: |

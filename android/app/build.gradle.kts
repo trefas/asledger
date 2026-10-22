@@ -55,10 +55,14 @@ android {
         // новую целевую платформу, даже если устройство уже на API 34.
         targetSdk = 34
         // Тег v1.2.3 даёт versionName 1.2.3 и versionCode 10203.
-        versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_000
+        // minSdk 34 сам по себе не требует JAR-подписи (v1), но установщики
+        // EMUI/HMS при разборе пакета опираются на META-INF/MANIFEST.MF:
+        // без v1 они отклоняют APK с «При анализе пакета произошла ошибка».
+        // Поэтому v1 включена принудительно в signingConfig ниже.
+        versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_101
         versionName = System.getenv("ANDROID_VERSION_NAME")
             ?.takeIf { it.isNotBlank() }
-            ?: "1.1.0"
+            ?: "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -78,10 +82,14 @@ android {
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
-                // minSdk 34: JAR-подпись v1 не нужна. Оставляем v2 для
-                // совместимости и добавляем v3, чтобы APK принимали
-                // установщики, которым недостаточно только v2.
-                enableV1Signing = false
+                // V1 (JAR)-подпись обязательна для установщиков EMUI/HMS:
+                // без META-INF/MANIFEST.MF пакет отклоняется с «При анализе
+                // пакета произошла ошибка», хотя adb install проходит.
+                // AGP по умолчанию включает v1 только при minSdk < 24, здесь
+                // она включена принудительно. V2/V3 сохраняются: порядок
+                // zipalign -> apksigner соблюдает AGP, блоки подписи не
+                // нарушаются.
+                enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true
                 enableV4Signing = false

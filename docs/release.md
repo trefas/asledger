@@ -143,6 +143,14 @@ APK `asledger-1.1.0.apk` имеет размер `4 690 568` байт и SHA-256
 данных. `aapt` подтверждает `versionName=1.1.0`, `versionCode=10100`,
 `minSdk=34`, `targetSdk=34`, `compileSdk=35` и `launchable-activity`.
 
+Релиз `v1.1.1` закрывает [#135](https://github.com/trefas/asledger/issues/135):
+release APK подписан схемами v1+v2+v3 (`enableV1Signing = true`). Сборки до
+`1.1.0` включительно содержали только блоки v2/v3 без JAR-манифеста, и
+установщик EMUI/HMS отклонял их с «При анализе пакета произошла ошибка», хотя
+`adb install` проходил. Workflow дополнительно проверяет v1-подпись, наличие
+`META-INF/MANIFEST.MF`, `launchable-activity` и выравнивание готового APK перед
+публикацией.
+
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,
 «Документация» по conventional-префиксам `feat:`, `fix:`, `perf:`, `docs:`;
