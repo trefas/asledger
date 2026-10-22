@@ -88,6 +88,13 @@ git push origin v1.0.0
 `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Ключ хранится вне репозитория;
 без него release job падает с явной ошибкой, а не публикует debug-подпись.
 
+Релиз `v1.0.2` прошёл этим workflow: run
+[39777402938](https://github.com/trefas/asledger/actions/runs/39777402938),
+все три job зелёные. APK `asledger-1.0.2.apk` скачан из релиза, SHA-256
+`014fa958c4dbe2bef0e2e4561a22d46c89f7af99b5684f3d11742ed1e6bba9c6`
+совпал с `.sha256`, подпись проверена `apksigner`, установка поверх `1.0.1`
+сохранила данные приложения.
+
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,
 «Документация» по conventional-префиксам `feat:`, `fix:`, `perf:`, `docs:`;
