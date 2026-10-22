@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.trefas.asledger.data.model.Account
@@ -197,7 +198,9 @@ private fun AccountRow(
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
                             MaterialTheme.colorScheme.onSurface
-                        }
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = buildString {
@@ -210,10 +213,14 @@ private fun AccountRow(
                     )
                 }
             }
-            Column(horizontalAlignment = Alignment.End) {
+            Column(
+                modifier = Modifier.padding(start = 12.dp),
+                horizontalAlignment = Alignment.End
+            ) {
                 Text(
                     text = formatKop(balance?.totalKop ?: 0),
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1
                 )
                 val pending = balance?.pendingTotalKop ?: 0
                 if (pending != 0L) {

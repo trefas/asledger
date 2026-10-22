@@ -1,8 +1,12 @@
 package com.trefas.asledger.ui.navigation
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
 import com.trefas.asledger.ui.theme.AsledgerTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -32,5 +36,22 @@ class AsledgerBottomBarTest {
 
         compose.onNodeWithText("Настройки").performClick()
         assertEquals(Routes.SETTINGS, selected)
+    }
+
+    @Test
+    fun `при крупном шрифте подписи скрыты, но доступны TalkBack`() {
+        compose.setContent {
+            val base = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(base.density, fontScale = 2f)
+            ) {
+                AsledgerTheme {
+                    AsledgerBottomBar(currentRoute = Routes.JOURNAL, onNavigate = {})
+                }
+            }
+        }
+
+        compose.onNodeWithText("Настройки").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Настройки").assertExists()
     }
 }

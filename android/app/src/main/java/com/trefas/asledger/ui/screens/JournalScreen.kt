@@ -3,6 +3,8 @@ package com.trefas.asledger.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -19,6 +20,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,11 +68,13 @@ private enum class JournalPeriod(val title: String) {
 }
 
 /** Журнал проводок с поиском, фильтрами и статусом синхронизации. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun JournalScreen(
     onNewEntry: () -> Unit,
     onOpenTransaction: (String) -> Unit,
     onOpenSync: () -> Unit,
+    onRefresh: () -> Unit,
     transactions: TransactionRepository,
     accountsRepository: AccountRepository,
     localEntries: LocalEntryRepository,
@@ -118,55 +123,54 @@ fun JournalScreen(
             }
         }
     ) {
-        Column(Modifier.fillMaxSize()) {
-            if (pendingCount > 0 ||
-                rejectedCount > 0 ||
-                syncState.phase == SyncPhase.OFFLINE
-            ) {
-                SyncBanner(
-                    pending = pendingCount,
-                    rejected = rejectedCount,
-                    offline = syncState.phase == SyncPhase.OFFLINE,
-                    onClick = onOpenSync
+        PullToRefreshBox(
+            isRefreshing = syncState.phase == SyncPhase.SYNCING,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                if (pendingCount > 0 ||
+                    rejectedCount > 0 ||
+                    syncState.phase == SyncPhase.OFFLINE
+                ) {
+                    SyncBanner(
+                        pending = pendingCount,
+                        rejected = rejectedCount,
+                        offline = syncState.phase == SyncPhase.OFFLINE,
+                        onClick = onOpenSync
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Поиск по описанию") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("journal-search")
                 )
-                Spacer(Modifier.height(8.dp))
-            }
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("Поиск по описанию") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("journal-search")
-            )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
-                item {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
                     FilterChip(
                         selected = status == null,
                         onClick = { status = null },
                         label = { Text("Все") }
                     )
-                }
-                item {
                     FilterChip(
                         selected = status == SyncStatus.PENDING,
                         onClick = { status = SyncStatus.PENDING },
                         label = { Text("К отправке") }
                     )
-                }
-                item {
                     FilterChip(
                         selected = status == SyncStatus.REJECTED,
                         onClick = { status = SyncStatus.REJECTED },
                         label = { Text("Отклонено") }
                     )
-                }
-                JournalPeriod.entries.forEach { candidate ->
-                    item {
+                    JournalPeriod.entries.forEach { candidate ->
                         FilterChip(
                             selected = period == candidate,
                             onClick = { period = candidate },
@@ -174,59 +178,59 @@ fun JournalScreen(
                         )
                     }
                 }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterMenuText(
-                    label = opType ?: "Тип",
-                    options = listOf(null to "Все типы") +
-                        MOBILE_OP_TYPES.map { it to it.replaceFirstChar { c -> c.uppercase() } },
-                    onSelect = { opType = it }
-                )
-                FilterMenuLong(
-                    label = accounts.firstOrNull { it.id == accountId }?.name ?: "Счёт",
-                    options = listOf(null to "Все счета") +
-                        accounts.map { it.id to it.name },
-                    onSelect = { accountId = it }
-                )
-                if (query.isNotBlank() ||
-                    status != null ||
-                    opType != null ||
-                    accountId != null ||
-                    period != JournalPeriod.ALL
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            query = ""
-                            status = null
-                            opType = null
-                            accountId = null
-                            period = JournalPeriod.ALL
-                        }
-                    ) { Text("Сбросить") }
-                }
-            }
-
-            if (items.isEmpty()) {
-                EmptyJournal(userName, query.isNotBlank())
-            } else {
-                LazyColumn(
+                Row(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("journal-list"),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(items, key = { it.uuid }) { transaction ->
-                        JournalRow(
-                            transaction = transaction,
-                            onClick = { onOpenTransaction(transaction.uuid) }
-                        )
+                    FilterMenuText(
+                        label = opType ?: "Тип",
+                        options = listOf(null to "Все типы") +
+                            MOBILE_OP_TYPES.map { it to it.replaceFirstChar { c -> c.uppercase() } },
+                        onSelect = { opType = it }
+                    )
+                    FilterMenuLong(
+                        label = accounts.firstOrNull { it.id == accountId }?.name ?: "Счёт",
+                        options = listOf(null to "Все счета") +
+                            accounts.map { it.id to it.name },
+                        onSelect = { accountId = it }
+                    )
+                    if (query.isNotBlank() ||
+                        status != null ||
+                        opType != null ||
+                        accountId != null ||
+                        period != JournalPeriod.ALL
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                query = ""
+                                status = null
+                                opType = null
+                                accountId = null
+                                period = JournalPeriod.ALL
+                            }
+                        ) { Text("Сбросить") }
                     }
-                    item { Spacer(Modifier.height(16.dp)) }
+                }
+
+                if (items.isEmpty()) {
+                    EmptyJournal(userName, query.isNotBlank())
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("journal-list"),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(items, key = { it.uuid }) { transaction ->
+                            JournalRow(
+                                transaction = transaction,
+                                onClick = { onOpenTransaction(transaction.uuid) }
+                            )
+                        }
+                        item { Spacer(Modifier.height(16.dp)) }
+                    }
                 }
             }
         }

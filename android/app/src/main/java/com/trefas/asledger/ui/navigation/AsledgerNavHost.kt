@@ -389,6 +389,11 @@ private fun MainNavigation(
                         navController.navigate(Routes.transaction(uuid))
                     },
                     onOpenSync = { navController.navigate(Routes.SYNC) },
+                    onRefresh = {
+                        scope.launch {
+                            if (config != null) container.syncManager.sync(config)
+                        }
+                    },
                     transactions = container.transactions,
                     accountsRepository = container.accounts,
                     localEntries = container.localEntries,
@@ -476,6 +481,9 @@ private fun MainNavigation(
                         scope.launch {
                             if (config != null) container.syncManager.sync(config)
                         }
+                    },
+                    onOpenTransaction = { duplicate ->
+                        navController.navigate(Routes.transaction(duplicate))
                     }
                 )
             }

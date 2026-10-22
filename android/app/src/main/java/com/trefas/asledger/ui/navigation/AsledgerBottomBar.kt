@@ -11,6 +11,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 
 /** Пункт нижней навигации. */
 internal data class TopLevelDestination(
@@ -37,13 +38,26 @@ fun AsledgerBottomBar(
     currentRoute: String?,
     onNavigate: (String) -> Unit
 ) {
+    // При крупном системном шрифте подписи не помещаются в четыре колонки.
+    // Оставляем только иконки, а название раздела переносим в описание для
+    // TalkBack: интерфейс не ломается, доступность не страдает.
+    val labelsVisible = LocalDensity.current.fontScale < 1.5f
     NavigationBar {
         topLevelDestinations.forEach { item ->
             NavigationBarItem(
                 selected = currentRoute == item.route,
                 onClick = { onNavigate(item.route) },
-                icon = { Icon(item.icon, contentDescription = null) },
-                label = { Text(item.label) }
+                icon = {
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = if (labelsVisible) null else item.label
+                    )
+                },
+                label = if (labelsVisible) {
+                    { Text(item.label, maxLines = 1) }
+                } else {
+                    null
+                }
             )
         }
     }

@@ -172,6 +172,23 @@ class EntryScreenTest {
     }
 
     @Test
+    fun `выбор счёта скрывает счета других типов`() {
+        val source = state()
+        content(
+            source.copy(
+                lines = source.lines.map { line ->
+                    if (line.key == 1L) line.copy(accountId = null) else line
+                }
+            )
+        )
+
+        compose.onNodeWithTag("entry-account-1").performClick()
+
+        compose.onNodeWithText("Расходы:Продукты").assertIsDisplayed()
+        compose.onNodeWithText("Активы:Наличные").assertDoesNotExist()
+    }
+
+    @Test
     fun `добавление строки вызывает обработчик стороны`() {
         var side: String? = null
         content(state(), onAddLine = { side = it })

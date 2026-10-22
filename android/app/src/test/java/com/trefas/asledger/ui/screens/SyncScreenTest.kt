@@ -42,6 +42,7 @@ class SyncScreenTest {
     @Test
     fun `отклонённая проводка показывает код и кнопку исправления`() {
         var edited: String? = null
+        var opened: String? = null
         compose.setContent {
             AsledgerTheme {
                 SyncScreen(
@@ -50,7 +51,7 @@ class SyncScreenTest {
                         sync = SyncState(phase = SyncPhase.REJECTED)
                     ),
                     onSync = {},
-                    onOpen = {},
+                    onOpen = { opened = it },
                     onEdit = { edited = it },
                     onDelete = {},
                     onBack = {}
@@ -60,9 +61,13 @@ class SyncScreenTest {
 
         compose.onNodeWithText("ERR_MATRIX_CELL: роль не подходит к счёту")
             .assertIsDisplayed()
-        compose.onNodeWithText("Возможные дубли: uuid-old").assertIsDisplayed()
+        compose.onNodeWithText("Возможные дубли").assertIsDisplayed()
         compose.onNodeWithText("Пакет применён поверх актуальной книги").assertIsDisplayed()
         compose.onNodeWithTag("outbox-uuid-1").assertIsDisplayed()
+        compose.onNodeWithText("Открыть существующую проводку")
+            .performScrollTo()
+            .performClick()
+        assertEquals("uuid-old", opened)
         compose.onNodeWithText("Исправить").performScrollTo().performClick()
 
         assertEquals("uuid-1", edited)

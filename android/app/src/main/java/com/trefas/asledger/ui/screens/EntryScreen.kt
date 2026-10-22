@@ -3,6 +3,8 @@ package com.trefas.asledger.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,7 +57,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 
 /** Форма проводки: роли, строки дебета и кредита, офлайн-сохранение. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EntryScreen(
     state: EntryUiState,
@@ -103,11 +105,12 @@ fun EntryScreen(
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                Row(
+                FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     state.opTypes.forEach { opType ->
                         FilterChip(
@@ -362,6 +365,14 @@ private fun EntryLineCard(
     var accountMenu by remember { mutableStateOf(false) }
     var roleMenu by remember { mutableStateOf(false) }
     val account = accounts.firstOrNull { it.id == line.accountId }
+    // В списке счетов показываем только типы, допустимые текущей ролью.
+    // Иначе пользователь может выбрать счёт, который сервер отклонит.
+    val allowedTypes = roles.firstOrNull { it.role == line.role }?.accountTypes.orEmpty()
+    val allowedAccounts = if (allowedTypes.isEmpty()) {
+        accounts
+    } else {
+        accounts.filter { it.type in allowedTypes }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -386,7 +397,7 @@ private fun EntryLineCard(
                         expanded = accountMenu,
                         onDismissRequest = { accountMenu = false }
                     ) {
-                        accounts.forEach { candidate ->
+                        allowedAccounts.forEach { candidate ->
                             DropdownMenuItem(
                                 text = { Text(candidate.fullPath) },
                                 onClick = {
@@ -449,14 +460,15 @@ private fun EntryLineCard(
                     .fillMaxWidth()
                     .testTag("entry-amount-${line.key}")
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(100L, 500L, 1_000L).forEach { rubles ->
                     TextButton(onClick = { onQuickAmount(rubles * 100) }) {
-                        Text("+$rubles")
+                        Text("+$rubles", maxLines = 1)
                     }
                 }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = { onAmount("") }) { Text("Очистить") }
+                TextButton(onClick = { onAmount("") }) {
+                    Text("Очистить", maxLines = 1)
+                }
             }
         }
     }

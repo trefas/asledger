@@ -93,7 +93,7 @@ fun SyncScreen(
             items(state.items, key = { it.transactionUuid }) { item ->
                 OutboxCard(
                     item = item,
-                    onOpen = { onOpen(item.transactionUuid) },
+                    onOpen = onOpen,
                     onEdit = { onEdit(item.transactionUuid) },
                     onDelete = { onDelete(item.transactionUuid) }
                 )
@@ -154,7 +154,7 @@ private fun SyncSummary(state: SyncScreenState, onSync: () -> Unit) {
 @Composable
 private fun OutboxCard(
     item: OutboxItem,
-    onOpen: () -> Unit,
+    onOpen: (String) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -209,11 +209,16 @@ private fun OutboxCard(
             }
             if (item.duplicateUuids.isNotEmpty()) {
                 Text(
-                    text = "Возможные дубли: ${item.duplicateUuids.joinToString()}",
+                    text = "Возможные дубли",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.padding(top = 6.dp)
                 )
+                item.duplicateUuids.forEach { duplicate ->
+                    TextButton(onClick = { onOpen(duplicate) }) {
+                        Text("Открыть существующую проводку")
+                    }
+                }
             }
             Row(
                 modifier = Modifier
@@ -225,7 +230,7 @@ private fun OutboxCard(
                     TextButton(onClick = onEdit) { Text("Исправить") }
                     TextButton(onClick = onDelete) { Text("Удалить") }
                 } else {
-                    TextButton(onClick = onOpen) { Text("Открыть") }
+                    TextButton(onClick = { onOpen(item.transactionUuid) }) { Text("Открыть") }
                 }
             }
         }

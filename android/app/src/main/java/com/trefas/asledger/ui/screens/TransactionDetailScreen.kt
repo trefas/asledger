@@ -49,6 +49,7 @@ fun TransactionDetailScreen(
     onDelete: () -> Unit,
     onReverse: () -> Unit,
     onSync: () -> Unit,
+    onOpenTransaction: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val details by transactions.observeDetails(uuid)
@@ -97,10 +98,18 @@ fun TransactionDetailScreen(
             }
             if (transaction.duplicateUuids.isNotEmpty()) {
                 Text(
-                    text = "Возможные дубли: ${transaction.duplicateUuids.joinToString()}",
+                    text = "Возможные дубли",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.tertiary
                 )
+                transaction.duplicateUuids.forEach { duplicate ->
+                    TextButton(
+                        onClick = { onOpenTransaction(duplicate) },
+                        modifier = Modifier.testTag("duplicate-$duplicate")
+                    ) {
+                        Text("Открыть существующую проводку")
+                    }
+                }
             }
 
             LinesBlock(
