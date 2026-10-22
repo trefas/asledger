@@ -124,7 +124,10 @@ jobs:
           unzip -l "$apk" | grep -F "META-INF/MANIFEST.MF"
           unzip -l "$apk" | grep -E "META-INF/.*\.RSA|META-INF/.*\.DSA"
           "$apksigner" verify --print-certs "$apk"
-          "$apksigner" verify --verbose "$apk" \
+          # v1 актуальна только до API 23, а apksigner по умолчанию берёт
+          # minSdk из APK (34) и вообще не проверяет v1/v2. Поэтому для
+          # проверки JAR-подписи явно задаём минимальный API.
+          "$apksigner" verify --verbose --min-sdk-version 21 "$apk" \
             | grep -F "Verified using v1 scheme (JAR signing): true"
           "$apksigner" verify --verbose --min-sdk-version 24 "$apk" \
             | grep -F "Verified using v2 scheme (APK Signature Scheme v2): true"

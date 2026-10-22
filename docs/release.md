@@ -143,13 +143,14 @@ APK `asledger-1.1.0.apk` имеет размер `4 690 568` байт и SHA-256
 данных. `aapt` подтверждает `versionName=1.1.0`, `versionCode=10100`,
 `minSdk=34`, `targetSdk=34`, `compileSdk=35` и `launchable-activity`.
 
-Релиз `v1.1.1` закрывает [#135](https://github.com/trefas/asledger/issues/135):
-release APK подписан схемами v1+v2+v3 (`enableV1Signing = true`). Сборки до
-`1.1.0` включительно содержали только блоки v2/v3 без JAR-манифеста, и
-установщик EMUI/HMS отклонял их с «При анализе пакета произошла ошибка», хотя
-`adb install` проходил. Workflow дополнительно проверяет v1-подпись, наличие
-`META-INF/MANIFEST.MF`, `launchable-activity` и выравнивание готового APK перед
-публикацией.
+Релиз `v1.1.1` добавляет в release-подпись схему v1 (JAR) в дополнение к v2
+и v3 (`enableV1Signing = true`) для проверки гипотезы о нестандартном
+установщике EMUI/HMS. Сборки до `1.1.0` включительно содержали только блоки
+v2/v3 без JAR-манифеста. На Android 14 штатная проверка использует v2/v3,
+поэтому [#135](https://github.com/trefas/asledger/issues/135) остаётся открытым
+до успешной установки APK из файлового менеджера Huawei и проверки запуска.
+Workflow дополнительно проверяет v1-подпись, наличие `META-INF/MANIFEST.MF`,
+`launchable-activity` и выравнивание готового APK перед публикацией.
 
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,
