@@ -60,7 +60,7 @@ Makefile передаёт значения в линкер:
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.0.4.apk.sha256
+sha256sum -c asledger-1.0.5.apk.sha256
 ```
 
 ## Публикация по тегу
@@ -108,6 +108,13 @@ APK `asledger-1.0.4.apk` имеет размер `4 561 412` байт и SHA-256
 `756cf995583e64cb9aa6925dcce3d253a54a8c03449cc9538b96ccc2d61fd809`;
 скачанный файл прошёл `sha256sum -c`, `apksigner`, `zipalign` (4 КБ и 16 КБ)
 и установлен через `adb` на Android 14 (API 34) поверх `1.0.3`.
+
+Релиз `v1.0.5` уточняет точку входа лаунчера: run
+[39803143482](https://github.com/trefas/asledger/actions/runs/39803143482).
+APK `asledger-1.0.5.apk` имеет размер `4 561 412` байт и SHA-256
+`0dd8e4159e937facc7acafc7e27620c55c76b2f24510f9c2d583383c4d38f1c9`;
+`aapt` подтверждает `launchable-activity`, `apksigner` — v2 и v3,
+`zipalign` — 4 КБ и 16 КБ. Установка на API 34 прошла успешно.
 
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,
