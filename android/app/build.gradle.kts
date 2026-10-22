@@ -73,6 +73,13 @@ android {
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
+                // minSdk 34: JAR-подпись v1 не нужна. Оставляем v2 для
+                // совместимости и добавляем v3, чтобы APK принимали
+                // установщики, которым недостаточно только v2.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = false
             }
         }
     }

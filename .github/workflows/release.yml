@@ -116,6 +116,10 @@ jobs:
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | head -n1)"
           aapt="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | head -n1)"
           "$apksigner" verify --print-certs "$apk"
+          "$apksigner" verify --verbose --min-sdk-version 24 "$apk" \
+            | grep -F "Verified using v2 scheme (APK Signature Scheme v2): true"
+          "$apksigner" verify --verbose --min-sdk-version 24 "$apk" \
+            | grep -F "Verified using v3 scheme (APK Signature Scheme v3): true"
           "$aapt" dump badging "$apk" | grep -F "versionName='${ANDROID_VERSION_NAME}'"
           "$aapt" dump badging "$apk" | grep -F "versionCode='${ANDROID_VERSION_CODE}'"
           "$aapt" dump badging "$apk" | grep -F "sdkVersion:'34'"

@@ -60,7 +60,7 @@ Makefile передаёт значения в линкер:
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.0.3.apk.sha256
+sha256sum -c asledger-1.0.4.apk.sha256
 ```
 
 ## Публикация по тегу
@@ -78,8 +78,9 @@ git push origin v1.0.0
 2. **Android** — job собирает `asledgerd` для JVM-интеграционных тестов, гоняет
    тесты, покрытие, lint и ktlint, собирает release APK с R8 и подписывает его
    ключом из секретов. `versionName` берётся из тега, `versionCode` считается
-   как `major*10000 + minor*100 + patch`. Workflow проверяет подпись,
-   `versionName`, `versionCode` и `minSdk` через `apksigner`/`aapt`.
+   как `major*10000 + minor*100 + patch`. Workflow проверяет наличие v2- и
+   v3-подписей, а также `versionName`, `versionCode` и `minSdk` через
+   `apksigner`/`aapt`.
 3. **Публикация** — job с `needs: [test, android]`, поэтому релиз не создаётся
    при падающих тестах или неподписанном APK. GoReleaser собирает артефакты и
    публикует GitHub Release, после чего в него загружаются APK и `.sha256`.
