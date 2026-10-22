@@ -1,6 +1,8 @@
 package com.trefas.asledger.ui.screens
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -93,6 +95,28 @@ class SetupScreenTest {
         compose.onNodeWithText("Проверить ещё раз")
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun `адрес и порт переживают восстановление состояния`() {
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            AsledgerTheme {
+                SetupScreen(
+                    onSubmit = { throw AssertionError("запрос не должен уйти") },
+                    onSuccess = { _, _ -> }
+                )
+            }
+        }
+
+        compose.onNodeWithTag("setup-host").performTextInput("192.168.1.10")
+        compose.onNodeWithTag("setup-port").performTextClearance()
+        compose.onNodeWithTag("setup-port").performTextInput("9000")
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithTag("setup-host").assertTextContains("192.168.1.10")
+        compose.onNodeWithTag("setup-port").assertTextContains("9000")
     }
 
     @Test

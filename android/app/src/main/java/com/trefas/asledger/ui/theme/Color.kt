@@ -10,8 +10,11 @@ val Green100 = Color(0xFFE7F1E5)
 val Lime = Color(0xFFA8D94A)
 val LimeDark = Color(0xFF8FBF33)
 
+// Затемнённый лайм для текста на светлом фоне: сам LimeDark не проходит WCAG AA.
+val Olive = Color(0xFF55751B)
+
 val Ink = Color(0xFF1C211C)
-val Muted = Color(0xFF6B7268)
+val Muted = Color(0xFF62685F)
 val Line = Color(0xFFD8DED4)
 val Background = Color(0xFFF7F8F5)
 val Card = Color(0xFFFFFFFF)

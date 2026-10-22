@@ -9,7 +9,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 
-private val LightColors = lightColorScheme(
+internal val LightColors = lightColorScheme(
     primary = Green700,
     onPrimary = Card,
     primaryContainer = Green100,
@@ -18,8 +18,10 @@ private val LightColors = lightColorScheme(
     onSecondary = Card,
     secondaryContainer = Green100,
     onSecondaryContainer = Green900,
-    tertiary = LimeDark,
-    onTertiary = Ink,
+    tertiary = Olive,
+    onTertiary = Card,
+    tertiaryContainer = Green100,
+    onTertiaryContainer = Green900,
     background = Background,
     onBackground = Ink,
     surface = Card,
@@ -34,7 +36,7 @@ private val LightColors = lightColorScheme(
     onErrorContainer = Danger
 )
 
-private val DarkColors = darkColorScheme(
+internal val DarkColors = darkColorScheme(
     primary = Lime,
     onPrimary = Green900,
     primaryContainer = Green700,
@@ -45,6 +47,8 @@ private val DarkColors = darkColorScheme(
     onSecondaryContainer = DarkOnSurface,
     tertiary = LimeDark,
     onTertiary = Green900,
+    tertiaryContainer = Green700,
+    onTertiaryContainer = Green100,
     background = DarkBackground,
     onBackground = DarkOnSurface,
     surface = DarkSurface,
