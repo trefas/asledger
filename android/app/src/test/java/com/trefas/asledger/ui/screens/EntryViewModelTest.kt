@@ -1,5 +1,6 @@
 package com.trefas.asledger.ui.screens
 
+import com.trefas.asledger.R
 import com.trefas.asledger.data.TestLibrary
 import com.trefas.asledger.data.db.AsledgerDatabase
 import com.trefas.asledger.data.db.OutboxStatus
@@ -130,7 +131,7 @@ class EntryViewModelTest {
         assertEquals("источник", state.lines.first { it.side == "CREDIT" }.role)
         assertEquals(4L, state.lines.first { it.side == "DEBIT" }.accountId)
         assertTrue(state.loadingRoles.not())
-        assertNull(state.rolesError)
+        assertNull(state.rolesErrorRes)
     }
 
     @Test
@@ -152,8 +153,8 @@ class EntryViewModelTest {
 
         val state = model.state.value
         assertFalse(state.saved)
-        assertTrue(state.message.orEmpty().contains("совпадать"))
-        assertNotNull(state.lines.first { it.key == debit.key }.error)
+        assertEquals(R.string.entry_message_balance, state.messageRes)
+        assertNotNull(state.lines.first { it.key == debit.key }.errorRes)
         assertEquals(0, database.outboxDao().all().size)
     }
 

@@ -60,8 +60,8 @@ class DataStoreServerConfigStore(
         formatVersion: Int
     ) {
         val normalized = ServerConfig.normalizeHost(host)
-        require(normalized.isNotEmpty()) { "адрес сервера не может быть пустым" }
-        require(port in MIN_PORT..MAX_PORT) { "порт вне диапазона" }
+        require(normalized.isNotEmpty()) { "server host must not be blank" }
+        require(port in MIN_PORT..MAX_PORT) { "port out of range" }
         context.serverDataStore.edit { preferences ->
             val clientId = preferences[KEY_CLIENT_ID]
                 ?.takeIf { it.isNotBlank() }
@@ -79,7 +79,7 @@ class DataStoreServerConfigStore(
     }
 
     override suspend fun saveSession(userId: Long, userName: String, lastSyncAt: Long) {
-        require(userId > 0) { "не выбран пользователь" }
+        require(userId > 0) { "user is not selected" }
         context.serverDataStore.edit { preferences ->
             val clientId = preferences[KEY_CLIENT_ID]
                 ?.takeIf { it.isNotBlank() }

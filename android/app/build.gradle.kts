@@ -58,7 +58,7 @@ android {
         versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_000
         versionName = System.getenv("ANDROID_VERSION_NAME")
             ?.takeIf { it.isNotBlank() }
-            ?: "1.0.0"
+            ?: "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

@@ -2,4 +2,322 @@
 <resources>
     <string name="app_name">asledger</string>
     <string name="app_tagline">Домашняя книга проводок</string>
+
+    <!-- Общие действия и подписи. -->
+    <string name="action_back">Назад</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_continue">Продолжить</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_edit">Исправить</string>
+    <string name="action_next">Далее</string>
+    <string name="action_open">Открыть</string>
+    <string name="action_retry">Повторить</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_saving">Сохраняем…</string>
+    <string name="action_select">Выбрать</string>
+    <string name="action_send">Отправить</string>
+    <string name="action_skip">Пропустить</string>
+    <string name="action_start">Начать</string>
+    <string name="action_sync">Синхронизировать</string>
+    <string name="action_understand">Понятно</string>
+    <string name="action_change_address">Изменить адрес</string>
+    <string name="action_open_existing">Открыть существующую проводку</string>
+    <string name="action_show_tour">Показать тур ещё раз</string>
+    <string name="hint_content_description">Подсказка</string>
+    <string name="date_today">сегодня</string>
+    <string name="date_yesterday">вчера</string>
+
+    <!-- Нижняя навигация. -->
+    <string name="nav_journal">Журнал</string>
+    <string name="nav_entry">Ввод</string>
+    <string name="nav_accounts">Счета</string>
+    <string name="nav_settings">Настройки</string>
+
+    <!-- Подсказки. -->
+    <string name="hint_entry">Слева — дебет, справа — кредит. Суммы должны совпадать. Сторону строки задаёт роль из матрицы сервера, поэтому ошибиться с направлением сложно. Черновик сохраняется на телефоне и отправится, когда появится сеть.</string>
+    <string name="hint_role">Роль — это смысл строки: например, «расход» или «источник». По роли сервер сам понимает, в дебет или кредит поставить сумму, и разрешает только подходящие типы счетов.</string>
+    <string name="hint_balance">Остаток к распределению — разница между дебетом и кредитом. Для сохранения она должна быть нулевой: каждая сумма должна иметь противоположную сторону.</string>
+    <string name="hint_status">«К отправке» — проводка ждёт сеть. «Отправляется» — пакет уже ушёл. «Отклонено» — сервер вернул правило, которое нужно исправить. «Синхронизировано» — проводка есть в книге сервера.</string>
+    <string name="hint_journal">Журнал показывает операции по дате. Фильтры помогают найти запись по описанию, счёту, типу и статусу. Потяните список вниз, чтобы загрузить изменения с сервера.</string>
+    <string name="hint_title_entry">Как заполнить проводку</string>
+    <string name="hint_title_journal">Как читать журнал</string>
+    <string name="hint_title_status">Что означают статусы</string>
+
+    <!-- Онбординг. -->
+    <string name="onboarding_book_title">Книга всегда под рукой</string>
+    <string name="onboarding_book_text">asledger — семейная книга в локальной сети. Сервер хранит общую историю, а телефон работает даже без связи.</string>
+    <string name="onboarding_book_hint">Адрес сервера вы уже указали. Осталось познакомиться с главным.</string>
+    <string name="onboarding_accounts_title">План счетов</string>
+    <string name="onboarding_accounts_text">На экране «Счета» — дерево счетов, остатки и поиск. Нажмите на листовой счёт, чтобы сразу начать с него проводку.</string>
+    <string name="onboarding_accounts_hint">План счетов меняется на сервере, в телефоне он доступен для просмотра.</string>
+    <string name="onboarding_entry_title">Проводки без сети</string>
+    <string name="onboarding_entry_text">Выберите тип, счета и суммы в дебете и кредите. Сторону подскажет матрица ролей сервера, а черновик сохранится на устройстве.</string>
+    <string name="onboarding_entry_hint">Проводка отправится автоматически, когда появится связь.</string>
+    <string name="onboarding_sync_title">Синхронизация и порядок</string>
+    <string name="onboarding_sync_text">В журнале видно, что ждёт отправки, что отклонено и где возможен дубль. Все действия можно повторить, исправить или отменить сторно.</string>
+    <string name="onboarding_sync_hint">Журнал фильтруется по дате, счёту, типу и статусу.</string>
+
+    <!-- Справка. -->
+    <string name="help_title">Справка</string>
+    <string name="help_password_title">Почему не нужен пароль?</string>
+    <string name="help_password_text">Телефон привязывается к пользователю книги один раз, а сервер выдаёт устройству отдельный токен. Токен хранится в защищённом хранилище Android и не показывается в интерфейсе. Пароль книги вводится только в web-интерфейсе сервера.</string>
+    <string name="help_create_entry_title">Как создать проводку?</string>
+    <string name="help_create_entry_text">Нажмите «Ввод», выберите тип операции и счета. Сторону строки задаёт роль из матрицы ASL-2.2: приложению не нужно угадывать дебет и кредит. Суммы должны совпадать; черновик сохранится даже без сети.</string>
+    <string name="help_debit_title">Что такое дебет и кредит?</string>
+    <string name="help_role_title">Что такое роль строки?</string>
+    <string name="help_balance_title">Почему остаток не нулевой?</string>
+    <string name="help_status_title">Что означают статусы?</string>
+    <string name="help_duplicate_title">Почему появился дубль?</string>
+    <string name="help_duplicate_text">Если повторная отправка совпала по смыслу с уже существующей проводкой, сервер помечает возможный дубль, но не удаляет данные. Проверьте предупреждение в очереди и отмените лишнюю проводку сторно.</string>
+    <string name="help_storage_title">Где хранятся данные?</string>
+    <string name="help_storage_text">Основная книга — на вашем сервере asledgerd. Телефон хранит локальную копию для чтения и офлайн-работы. Полная перезагрузка книги сохраняет неотправленные черновики.</string>
+    <string name="help_accessibility_title">Доступность</string>
+    <string name="help_accessibility_text">Все кнопки имеют текстовые подписи, суммы озвучиваются с валютой, а размер шрифта следует системным настройкам Android. Если что-то неудобно, опишите проблему в GitHub-репозитории проекта.</string>
+
+    <!-- Подключение к серверу. -->
+    <string name="setup_title">Подключение к книге</string>
+    <string name="setup_description">Укажите адрес компьютера, на котором запущен asledgerd. Приложение проверит связь и привяжется к книге автоматически.</string>
+    <string name="setup_host_label">IP-адрес или имя</string>
+    <string name="setup_host_placeholder">например, 192.168.1.10</string>
+    <string name="setup_port_label">Порт</string>
+    <string name="setup_port_supporting">По умолчанию 8778</string>
+    <string name="setup_validation_host">Укажите IP-адрес или имя компьютера</string>
+    <string name="setup_validation_port">Порт должен быть числом от 1 до 65535</string>
+    <string name="setup_save_error_title">Не удалось сохранить адрес</string>
+    <string name="setup_try_again">Попробуйте ещё раз.</string>
+    <string name="setup_connect">Подключиться</string>
+    <string name="setup_check_again">Проверить ещё раз</string>
+    <string name="setup_footer">Пароль не нужен. Привязка разрешена только в локальной сети; отозвать устройство можно в web-интерфейсе asledger.</string>
+
+    <!-- Привязка устройства. -->
+    <string name="enroll_title">Привязка устройства</string>
+    <string name="enroll_server_version">Версия сервера: %1$s</string>
+    <string name="enroll_loading">Привязываем устройство…</string>
+    <string name="enroll_choice_title">Кто ведёт учёт на этом устройстве?</string>
+    <string name="enroll_choice_text">Автор проводок попадёт в отчёты. Выбор можно изменить в настройках, но для этого потребуется повторная привязка.</string>
+    <string name="enroll_footer">Пароль не нужен: сервер выдаёт токен только устройствам из локальной сети. Отозвать доступ можно в web-интерфейсе asledger.</string>
+
+    <!-- Загрузка книги. -->
+    <string name="loading_title">Загружаем книгу</string>
+    <string name="loading_cancel">Отменить</string>
+    <string name="loading_success">Книга загружена</string>
+    <string name="loading_reenroll">Привязать заново</string>
+    <string name="loading_cancelled">Загрузка отменена</string>
+    <string name="loading_cancelled_text">Сохранённые адрес и пользователь не изменены.</string>
+    <string name="loading_continue">Продолжить</string>
+    <string name="loading_percent">%1$d %%</string>
+    <string name="progress_preparing">Готовимся</string>
+    <string name="progress_fetch_book">Получаем книгу с сервера</string>
+    <string name="progress_parse_book">Разбираем счета и проводки</string>
+    <string name="progress_done">Готово</string>
+    <string name="progress_accounts">Сохраняем план счетов</string>
+    <string name="progress_users">Сохраняем пользователей</string>
+    <string name="progress_settings">Сохраняем настройки</string>
+    <string name="progress_transactions">Сохраняем проводки</string>
+    <string name="progress_finalizing">Проверяем данные</string>
+
+    <!-- Журнал. -->
+    <string name="journal_title">Журнал</string>
+    <string name="journal_search_label">Поиск по описанию</string>
+    <string name="journal_filter_all">Все</string>
+    <string name="journal_filter_pending">К отправке</string>
+    <string name="journal_filter_rejected">Отклонено</string>
+    <string name="journal_period_all">Все</string>
+    <string name="journal_period_month">Месяц</string>
+    <string name="journal_period_week">7 дней</string>
+    <string name="journal_period_today">Сегодня</string>
+    <string name="journal_filter_type">Тип</string>
+    <string name="journal_filter_all_types">Все типы</string>
+    <string name="journal_filter_account">Счёт</string>
+    <string name="journal_filter_all_accounts">Все счета</string>
+    <string name="journal_reset">Сбросить</string>
+    <string name="journal_new_entry">Новая проводка</string>
+    <string name="journal_empty_filtered_title">Ничего не найдено</string>
+    <string name="journal_empty_title">Проводок пока нет</string>
+    <string name="journal_empty_filtered_text">Измените поиск или сбросьте фильтры.</string>
+    <string name="journal_empty_text">Создайте первую проводку: она сохранится на устройстве и отправится на сервер, когда появится сеть.</string>
+    <string name="journal_empty_text_with_user">%1$s\n\nТекущий пользователь: %2$s</string>
+    <string name="journal_sync_offline">Нет связи с сервером</string>
+    <string name="journal_sync_rejected">Отклонено проводок: %1$d</string>
+    <string name="journal_sync_pending">Ждут отправки: %1$d</string>
+    <string name="journal_sync_open">Откройте очередь синхронизации</string>
+    <string name="journal_date_actor">%1$s · %2$s</string>
+    <string name="op_type_expense">Трата</string>
+    <string name="op_type_income">Доход</string>
+    <string name="op_type_transfer">Перевод</string>
+
+    <!-- Счета. -->
+    <string name="accounts_title">План счетов</string>
+    <string name="accounts_description">План счетов меняется на сервере; в приложении доступен просмотр и выбор счёта для проводки.</string>
+    <string name="accounts_search_label">Поиск по имени или пути</string>
+    <string name="accounts_show_archived">Показать архив</string>
+    <string name="accounts_empty_filtered_title">Ничего не найдено</string>
+    <string name="accounts_empty_title">План счетов</string>
+    <string name="accounts_empty_filtered_text">Попробуйте другое название или часть пути счёта.</string>
+    <string name="accounts_empty_text">После первой синхронизации здесь появится дерево счетов с типами и остатками.</string>
+    <string name="accounts_collapse">Свернуть</string>
+    <string name="accounts_expand">Развернуть</string>
+    <string name="accounts_archived_suffix"> · архив</string>
+    <string name="accounts_leaf_suffix"> · листовой</string>
+    <string name="accounts_pending">ожидает %1$s</string>
+
+    <!-- Настройки. -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_server">Сервер</string>
+    <string name="settings_not_connected">Книга не подключена</string>
+    <string name="settings_version_format">Версия: %1$s, формат %2$d</string>
+    <string name="settings_user">Пользователь: %1$s</string>
+    <string name="settings_port_hint">Порт по умолчанию — 8778. Адрес можно изменить, если компьютер переехал в другую сеть.</string>
+    <string name="settings_change_user">Сменить пользователя</string>
+    <string name="settings_forget_server">Забыть сервер</string>
+    <string name="settings_diagnostics">Диагностика</string>
+    <string name="settings_diagnostics_hint">Проверка связи, версия сервера, время последней синхронизации и состояние токена. Токен не показывается.</string>
+    <string name="settings_open_diagnostics">Открыть диагностику</string>
+    <string name="settings_help">Помощь</string>
+    <string name="settings_help_hint">Подсказки о статусах, дублях, офлайн-работе и привязке устройства.</string>
+    <string name="settings_open_help">Открыть справку</string>
+    <string name="settings_about">О приложении</string>
+    <string name="settings_about_version">asledger %1$s</string>
+    <string name="settings_about_text">Android 14 (API 34) и новее. Данные книги хранятся на вашем сервере; приложение работает с локальной копией и синхронизируется, когда сервер доступен.</string>
+    <string name="settings_forget_title">Забыть сервер?</string>
+    <string name="settings_forget_text">Адрес и токен будут удалены с устройства. Локальные черновики проводок не удаляются. Для продолжения потребуется привязка заново.</string>
+    <string name="settings_forget_confirm">Забыть</string>
+
+    <!-- Диагностика. -->
+    <string name="diagnostics_title">Диагностика</string>
+    <string name="diagnostics_connection">Подключение</string>
+    <string name="diagnostics_address">Адрес</string>
+    <string name="diagnostics_server_version">Версия сервера</string>
+    <string name="diagnostics_format">Формат данных</string>
+    <string name="diagnostics_user">Пользователь</string>
+    <string name="diagnostics_device">Устройство</string>
+    <string name="diagnostics_last_sync">Последняя синхронизация</string>
+    <string name="diagnostics_token">Токен</string>
+    <string name="diagnostics_token_value">хранится в Keystore, не отображается</string>
+    <string name="diagnostics_not_configured">не настроен</string>
+    <string name="diagnostics_unknown">неизвестна</string>
+    <string name="diagnostics_not_selected">не выбран</string>
+    <string name="diagnostics_never">ещё не было</string>
+    <string name="diagnostics_success">Связь есть. Версия %1$s, формат %2$d.</string>
+    <string name="diagnostics_checking">Проверяем…</string>
+    <string name="diagnostics_check">Проверить связь</string>
+
+    <!-- Форма проводки. -->
+    <string name="entry_title_new">Новая проводка</string>
+    <string name="entry_title_edit">Изменить проводку</string>
+    <string name="entry_op_type">Тип операции</string>
+    <string name="entry_description">Описание</string>
+    <string name="entry_description_placeholder">Например, продукты в магазине</string>
+    <string name="entry_date">Дата: %1$s</string>
+    <string name="entry_loading_roles">Загружаем роли операции…</string>
+    <string name="entry_debit">Дебет</string>
+    <string name="entry_credit">Кредит</string>
+    <string name="entry_balance">Остаток к распределению</string>
+    <string name="entry_balance_error">Суммы дебета и кредита должны совпадать.</string>
+    <string name="entry_message_balance">Проверьте строки: дебет и кредит должны совпадать.</string>
+    <string name="entry_save_failed">Не удалось сохранить проводку</string>
+    <string name="entry_hint_edit">Изменения попадут в очередь и отправятся при связи с сервером.</string>
+    <string name="entry_hint_new">Проводка сохранится на устройстве и отправится, когда появится сеть.</string>
+    <string name="entry_save_transaction">Сохранить проводку</string>
+    <string name="entry_add_line">Строка</string>
+    <string name="entry_select_account">Выбрать счёт</string>
+    <string name="entry_delete_line">Удалить строку</string>
+    <string name="entry_select_role">Выбрать роль</string>
+    <string name="entry_amount_label">Сумма, ₽</string>
+    <string name="entry_clear">Очистить</string>
+    <string name="entry_quick_amount">+%1$d</string>
+    <string name="entry_error_account">Выберите счёт</string>
+    <string name="entry_error_amount">Введите сумму больше нуля</string>
+    <string name="entry_error_role">Выберите роль</string>
+    <string name="entry_error_role_type">Роль не подходит к типу счёта</string>
+    <string name="entry_error_debit_credit">Дебет и кредит не совпадают</string>
+    <string name="entry_error_add_debit">Добавьте строку дебета</string>
+    <string name="entry_error_add_credit">Добавьте строку кредита</string>
+    <string name="entry_roles_offline">Матрица ролей недоступна офлайн. Подключитесь к серверу один раз, чтобы заполнить кэш.</string>
+    <string name="entry_roles_not_loaded">Нет подключения к серверу, а матрица ролей ещё не загружена.</string>
+    <string name="entry_account_fallback">Счёт %1$d</string>
+    <string name="entry_role_with_types">%1$s · %2$s</string>
+
+    <!-- Синхронизация. -->
+    <string name="sync_title">Синхронизация</string>
+    <string name="sync_empty">Очередь пуста. Все проводки отправлены.</string>
+    <string name="sync_phase_syncing">Синхронизируем…</string>
+    <string name="sync_phase_success">Книга синхронизирована</string>
+    <string name="sync_phase_offline">Нет связи с сервером</string>
+    <string name="sync_phase_rejected">Есть отклонённые проводки</string>
+    <string name="sync_phase_idle">Готово к синхронизации</string>
+    <string name="sync_pending_count">К отправке: %1$d</string>
+    <string name="sync_rejected_count"> · отклонено: %1$d</string>
+    <string name="sync_last_at"> · последняя: %1$s</string>
+    <string name="sync_send_and_refresh">Отправить и обновить</string>
+    <string name="sync_sending">Отправляем…</string>
+    <string name="sync_item_fallback">Проводка</string>
+    <string name="sync_commit">Коммит %1$s · попыток %2$d</string>
+    <string name="sync_duplicates">Возможные дубли</string>
+    <string name="sync_delete_failed">Не удалось удалить черновик</string>
+    <string name="sync_connection_failed">Не удалось связаться с сервером</string>
+    <string name="sync_rejected_fallback">Сервер отклонил пакет проводок</string>
+
+    <!-- Детали проводки. -->
+    <string name="transaction_title">Проводка</string>
+    <string name="transaction_not_found">Проводка не найдена</string>
+    <string name="transaction_date_type">%1$s · %2$s</string>
+    <string name="transaction_delete_draft">Удалить черновик</string>
+    <string name="transaction_repeat">Повторить проводку</string>
+    <string name="transaction_reverse">Сторно</string>
+    <string name="transaction_reverse_title">Создать сторно?</string>
+    <string name="transaction_reverse_text">Сервер создаст обратную проводку на ту же сумму. Исходная проводка останется в журнале.</string>
+    <string name="transaction_reverse_confirm">Создать сторно</string>
+    <string name="transaction_delete_title">Удалить черновик?</string>
+    <string name="transaction_delete_text">Проводка и её строки будут удалены с устройства.</string>
+
+    <!-- Типы счетов и статусы синхронизации. -->
+    <string name="account_type_asset">Актив</string>
+    <string name="account_type_liability">Пассив</string>
+    <string name="account_type_capital">Капитал</string>
+    <string name="account_type_income">Доход</string>
+    <string name="account_type_expense">Расход</string>
+    <string name="sync_status_synced">Синхронизировано</string>
+    <string name="sync_status_pending">К отправке</string>
+    <string name="sync_status_sending">Отправляется</string>
+    <string name="sync_status_rejected">Отклонено</string>
+    <string name="sync_status_draft">Черновик</string>
+
+    <!-- Ошибки подключения и служебные сообщения. -->
+    <string name="connection_invalid_address_title">Проверьте адрес</string>
+    <string name="connection_invalid_address_default">Проверьте адрес сервера.</string>
+    <string name="connection_network_unavailable_title">Нет связи с сервером</string>
+    <string name="connection_network_unavailable_hint">Проверьте Wi-Fi и убедитесь, что телефон и компьютер в одной сети.</string>
+    <string name="connection_host_not_found_title">Адрес не найден</string>
+    <string name="connection_host_not_found_hint">Проверьте IP или имя компьютера. Имя должно разрешаться в локальной сети.</string>
+    <string name="connection_refused_title">Сервер не отвечает</string>
+    <string name="connection_refused_hint">Запущен ли asledgerd? Проверьте порт API — по умолчанию 8778.</string>
+    <string name="connection_timeout_title">Сервер не ответил вовремя</string>
+    <string name="connection_timeout_hint">Проверьте сеть и брандмауэр компьютера, затем попробуйте ещё раз.</string>
+    <string name="connection_unauthorized_title">Устройство отвязано</string>
+    <string name="connection_unauthorized_hint">Токен отозван или устарел. Привяжите устройство заново.</string>
+    <string name="connection_http_title">Сервер вернул ошибку</string>
+    <string name="connection_http_hint">HTTP %1$d%2$s%3$s</string>
+    <string name="connection_http_404_hint">HTTP %1$d%2$s%3$s Проверьте порт API 8778, а не web-интерфейс 8777.</string>
+    <string name="connection_not_asledger_title">Это не asledger</string>
+    <string name="connection_not_asledger_hint">По адресу отвечает другой сервис. Укажите порт API 8778, а не web-порт 8777.</string>
+    <string name="connection_invalid_response_title">Повреждённый ответ</string>
+    <string name="connection_invalid_response_hint">Сервер вернул данные неизвестного формата. Попробуйте ещё раз.</string>
+    <string name="connection_incompatible_title">Версия сервера несовместима</string>
+    <string name="connection_incompatible_hint">Обновите asledgerd. Приложение поддерживает формат %1$d, сервер сообщил %2$d.</string>
+    <string name="connection_unexpected_title">Не удалось подключиться</string>
+    <string name="connection_unexpected_hint">Неизвестная ошибка. Попробуйте ещё раз.</string>
+    <string name="connection_detail_snapshot_parse">Не удалось разобрать снапшот книги.</string>
+    <string name="connection_detail_sync_parse">Не удалось разобрать ответ синхронизации.</string>
+    <string name="connection_detail_sync_status">Неизвестный статус отправки.</string>
+    <string name="connection_detail_pull_parse">Не удалось разобрать изменения книги.</string>
+    <string name="connection_detail_roles_parse">Не удалось разобрать роли операции.</string>
+    <string name="connection_detail_import_failed">Не удалось импортировать книгу.</string>
+    <string name="connection_detail_broken_outbox">Повреждённая очередь отправки.</string>
+    <string name="connection_detail_apply_failed">Не удалось применить изменения.</string>
+    <string name="connection_detail_reload_failed">Не удалось загрузить книгу заново.</string>
+    <string name="connection_detail_enroll_save">Не удалось сохранить привязку устройства.</string>
+    <string name="connection_detail_token_save">Не удалось сохранить токен.</string>
+    <string name="connection_detail_check_failed">Не удалось проверить связь.</string>
+    <string name="connection_detail_server_not_configured">Сервер не настроен.</string>
 </resources>

@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ConnectionError
 import com.trefas.asledger.data.network.toProblem
 import com.trefas.asledger.data.settings.ServerConfig
@@ -38,7 +39,7 @@ class LoadingScreenTest {
                 LoadingScreen(
                     config = config,
                     state = LoadingState.Running(
-                        LibraryProgress("Сохраняем проводки", 60)
+                        LibraryProgress(R.string.progress_transactions, 60)
                     ),
                     onRetry = {},
                     onCancel = {},

@@ -21,12 +21,12 @@ private val DateTimeFormatterFull = DateTimeFormatter
  */
 fun parseServerTime(value: String): Long {
     if (value.isBlank()) {
-        throw IllegalArgumentException("пустая дата в снапшоте")
+        throw IllegalArgumentException("empty date in snapshot")
     }
     val instant = runCatching { OffsetDateTime.parse(value).toInstant() }
         .getOrElse {
             runCatching { Instant.parse(value) }
-                .getOrElse { throw IllegalArgumentException("некорректная дата: $value") }
+                .getOrElse { throw IllegalArgumentException("invalid date: $value") }
         }
     return instant.toEpochMilli()
 }
@@ -35,24 +35,33 @@ fun parseServerTime(value: String): Long {
 fun formatDate(epochMillis: Long): String =
     if (epochMillis <= 0) "" else DateFormatter.format(Instant.ofEpochMilli(epochMillis))
 
+/** Относительная дата для списка: сегодня, вчера или обычная дата. */
+sealed interface FriendlyDate {
+    data object Today : FriendlyDate
+    data object Yesterday : FriendlyDate
+    data class Absolute(val text: String) : FriendlyDate
+}
+
 /**
  * Дата для списка: «сегодня», «вчера» или `дд.мм.гггг`.
  *
  * [nowMillis] и [zone] передаются в тестах; в приложении — текущее время и
  * часовой пояс устройства.
  */
-fun formatFriendlyDate(
+fun friendlyDate(
     epochMillis: Long,
     nowMillis: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault()
-): String {
-    if (epochMillis <= 0) return ""
+): FriendlyDate {
+    if (epochMillis <= 0) return FriendlyDate.Absolute("")
     val date = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate()
     val today = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
     return when (date) {
-        today -> "сегодня"
-        today.minusDays(1) -> "вчера"
-        else -> DateFormatter.withZone(zone).format(Instant.ofEpochMilli(epochMillis))
+        today -> FriendlyDate.Today
+        today.minusDays(1) -> FriendlyDate.Yesterday
+        else -> FriendlyDate.Absolute(
+            DateFormatter.withZone(zone).format(Instant.ofEpochMilli(epochMillis))
+        )
     }
 }
 

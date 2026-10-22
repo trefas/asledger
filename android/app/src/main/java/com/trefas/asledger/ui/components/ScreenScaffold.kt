@@ -16,8 +16,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.R
 
 /** Каркас экрана с верхней панелью; нижняя навигация — у NavHost. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,7 +45,7 @@ fun ScreenScaffold(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Назад"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 }

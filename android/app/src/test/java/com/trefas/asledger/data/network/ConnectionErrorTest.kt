@@ -1,5 +1,6 @@
 package com.trefas.asledger.data.network
 
+import com.trefas.asledger.R
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -64,7 +65,9 @@ class ConnectionErrorTest {
             message = "не найдено"
         ).toProblem()
 
-        assertTrue(problem.hint.contains("8778"))
+        val hint = problem.hint as ConnectionDetail.Resource
+        assertEquals(R.string.connection_http_404_hint, hint.id)
+        assertEquals(404, hint.args[0])
     }
 
     @Test
@@ -74,8 +77,9 @@ class ConnectionErrorTest {
             supportedFormat = 1
         ).toProblem()
 
-        assertEquals("Версия сервера несовместима", problem.title)
-        assertTrue(problem.hint.contains("2"))
-        assertTrue(problem.hint.contains("1"))
+        assertEquals(R.string.connection_incompatible_title, problem.titleRes)
+        val hint = problem.hint as ConnectionDetail.Resource
+        assertEquals(R.string.connection_incompatible_hint, hint.id)
+        assertEquals(listOf(1, 2), hint.args)
     }
 }

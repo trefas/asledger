@@ -1,5 +1,6 @@
 package com.trefas.asledger.ui.screens
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,48 +16,26 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.trefas.asledger.ui.components.HintTexts
+import com.trefas.asledger.R
 import com.trefas.asledger.ui.components.ScreenScaffold
 
-private data class HelpTopic(val title: String, val text: String)
+private data class HelpTopic(
+    @StringRes val titleRes: Int,
+    @StringRes val textRes: Int
+)
 
 private val topics = listOf(
-    HelpTopic(
-        "Почему не нужен пароль?",
-        "Телефон привязывается к пользователю книги один раз, а сервер выдаёт " +
-            "устройству отдельный токен. Токен хранится в защищённом хранилище " +
-            "Android и не показывается в интерфейсе. Пароль книги вводится только " +
-            "в web-интерфейсе сервера."
-    ),
-    HelpTopic(
-        "Как создать проводку?",
-        "Нажмите «Ввод», выберите тип операции и счета. Сторону строки задаёт " +
-            "роль из матрицы ASL-2.2: приложению не нужно угадывать дебет и кредит. " +
-            "Суммы должны совпадать; черновик сохранится даже без сети."
-    ),
-    HelpTopic("Что такое дебет и кредит?", HintTexts.ENTRY),
-    HelpTopic("Что такое роль строки?", HintTexts.ROLE),
-    HelpTopic("Почему остаток не нулевой?", HintTexts.BALANCE),
-    HelpTopic("Что означают статусы?", HintTexts.STATUS),
-    HelpTopic(
-        "Почему появился дубль?",
-        "Если повторная отправка совпала по смыслу с уже существующей проводкой, " +
-            "сервер помечает возможный дубль, но не удаляет данные. Проверьте " +
-            "предупреждение в очереди и отмените лишнюю проводку сторно."
-    ),
-    HelpTopic(
-        "Где хранятся данные?",
-        "Основная книга — на вашем сервере asledgerd. Телефон хранит локальную " +
-            "копию для чтения и офлайн-работы. Полная перезагрузка книги сохраняет " +
-            "неотправленные черновики."
-    ),
-    HelpTopic(
-        "Доступность",
-        "Все кнопки имеют текстовые подписи, суммы озвучиваются с валютой, " +
-            "а размер шрифта следует системным настройкам Android. Если что-то " +
-            "неудобно, опишите проблему в GitHub-репозитории проекта."
-    )
+    HelpTopic(R.string.help_password_title, R.string.help_password_text),
+    HelpTopic(R.string.help_create_entry_title, R.string.help_create_entry_text),
+    HelpTopic(R.string.help_debit_title, R.string.hint_entry),
+    HelpTopic(R.string.help_role_title, R.string.hint_role),
+    HelpTopic(R.string.help_balance_title, R.string.hint_balance),
+    HelpTopic(R.string.help_status_title, R.string.hint_status),
+    HelpTopic(R.string.help_duplicate_title, R.string.help_duplicate_text),
+    HelpTopic(R.string.help_storage_title, R.string.help_storage_text),
+    HelpTopic(R.string.help_accessibility_title, R.string.help_accessibility_text)
 )
 
 /** Справка и повторный онбординг. */
@@ -66,7 +45,7 @@ fun HelpScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ScreenScaffold(title = "Справка", modifier = modifier, onBack = onBack) {
+    ScreenScaffold(title = stringResource(R.string.help_title), modifier = modifier, onBack = onBack) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -84,9 +63,9 @@ fun HelpScreen(
                     )
                 ) {
                     Column(Modifier.padding(14.dp)) {
-                        Text(topic.title, style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(topic.titleRes), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            topic.text,
+                            stringResource(topic.textRes),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp)
@@ -97,7 +76,7 @@ fun HelpScreen(
             Button(
                 onClick = onReplayTour,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Показать тур ещё раз") }
+            ) { Text(stringResource(R.string.action_show_tour)) }
         }
     }
 }

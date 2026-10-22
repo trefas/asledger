@@ -1,5 +1,7 @@
 package com.trefas.asledger.data.sync
 
+import androidx.annotation.StringRes
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ApiResult
 import com.trefas.asledger.data.network.AsledgerApi
 import com.trefas.asledger.data.network.ConnectionError
@@ -12,7 +14,7 @@ import kotlinx.coroutines.CancellationException
 
 /** Прогресс первичной загрузки для экрана. */
 data class LibraryProgress(
-    val title: String,
+    @StringRes val titleRes: Int,
     val percent: Int
 )
 
@@ -42,11 +44,11 @@ class LibraryLoader(
     ): LibraryLoadResult {
         val token = tokenStore.load()
             ?: return LibraryLoadResult.Failure(ConnectionError.Unauthorized)
-        onProgress(LibraryProgress("Получаем книгу с сервера", 5))
+        onProgress(LibraryProgress(R.string.progress_fetch_book, 5))
         return when (val result = api.snapshot(config, token)) {
             is ApiResult.Failure -> LibraryLoadResult.Failure(result.error)
             is ApiResult.Ok -> {
-                onProgress(LibraryProgress("Разбираем счета и проводки", 20))
+                onProgress(LibraryProgress(R.string.progress_parse_book, 20))
                 try {
                     importer.import(result.value) { stage ->
                         onProgress(stage.toProgress())
@@ -55,15 +57,13 @@ class LibraryLoader(
                     // для экрана диагностики до открытия базы.
                     runCatching { configStore.saveLastSync(now()) }
                     runCatching { roles?.prefetch(config, token, MOBILE_OP_TYPES) }
-                    onProgress(LibraryProgress("Готово", 100))
+                    onProgress(LibraryProgress(R.string.progress_done, 100))
                     LibraryLoadResult.Success
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (failure: Exception) {
+                } catch (_: Exception) {
                     LibraryLoadResult.Failure(
-                        ConnectionError.InvalidResponse(
-                            failure.message ?: "не удалось импортировать книгу"
-                        )
+                        ConnectionError.InvalidResponse(R.string.connection_detail_import_failed)
                     )
                 }
             }
@@ -72,9 +72,9 @@ class LibraryLoader(
 }
 
 private fun ImportStage.toProgress(): LibraryProgress = when (this) {
-    ImportStage.ACCOUNTS -> LibraryProgress("Сохраняем план счетов", 30)
-    ImportStage.USERS -> LibraryProgress("Сохраняем пользователей", 45)
-    ImportStage.SETTINGS -> LibraryProgress("Сохраняем настройки", 50)
-    ImportStage.TRANSACTIONS -> LibraryProgress("Сохраняем проводки", 60)
-    ImportStage.FINALIZING -> LibraryProgress("Проверяем данные", 95)
+    ImportStage.ACCOUNTS -> LibraryProgress(R.string.progress_accounts, 30)
+    ImportStage.USERS -> LibraryProgress(R.string.progress_users, 45)
+    ImportStage.SETTINGS -> LibraryProgress(R.string.progress_settings, 50)
+    ImportStage.TRANSACTIONS -> LibraryProgress(R.string.progress_transactions, 60)
+    ImportStage.FINALIZING -> LibraryProgress(R.string.progress_finalizing, 95)
 }

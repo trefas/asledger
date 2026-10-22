@@ -44,7 +44,7 @@ class LocalEntryRepository(
         clientId: String,
         actorId: Long
     ): String = database.withTransaction {
-        require(draft.lines.isNotEmpty()) { "проводка без строк" }
+        require(draft.lines.isNotEmpty()) { "transaction without lines" }
         val timestamp = now()
         val meta = database.syncMetaDao().get() ?: emptyMeta()
         val number = meta.localCounter + 1
@@ -87,15 +87,15 @@ class LocalEntryRepository(
         actorId: Long
     ) = database.withTransaction {
         val outbox = database.outboxDao().byTransaction(uuid)
-            ?: throw IllegalStateException("проводка не является черновиком")
+            ?: throw IllegalStateException("transaction is not a draft")
         if (outbox.status == OutboxStatus.SYNCED) {
-            throw IllegalStateException("синхронизированную проводку нельзя редактировать")
+            throw IllegalStateException("synced transaction cannot be edited")
         }
         if (outbox.status == OutboxStatus.SENDING) {
-            throw IllegalStateException("проводка уже отправляется")
+            throw IllegalStateException("transaction is already sending")
         }
         val existing = database.transactionDao().get(uuid)
-            ?: throw IllegalStateException("черновик не найден")
+            ?: throw IllegalStateException("draft not found")
         val timestamp = now()
         val meta = database.syncMetaDao().get() ?: emptyMeta()
         val number = meta.localCounter + 1
@@ -130,12 +130,12 @@ class LocalEntryRepository(
     /** Удаляет неотправленный черновик вместе со строками и outbox. */
     suspend fun delete(uuid: String) = database.withTransaction {
         val outbox = database.outboxDao().byTransaction(uuid)
-            ?: throw IllegalStateException("очередь не найдена")
+            ?: throw IllegalStateException("outbox entry not found")
         if (outbox.status == OutboxStatus.SYNCED) {
-            throw IllegalStateException("синхронизированную проводку удалить нельзя")
+            throw IllegalStateException("synced transaction cannot be deleted")
         }
         if (outbox.status == OutboxStatus.SENDING) {
-            throw IllegalStateException("проводка уже отправляется")
+            throw IllegalStateException("transaction is already sending")
         }
         database.transactionDao().deleteLines(uuid)
         database.outboxDao().deleteByTransaction(uuid)
@@ -184,9 +184,9 @@ class LocalEntryRepository(
         actorId: Long,
         createdAt: Long
     ): TransactionEntity {
-        require(opType.isNotBlank()) { "не выбран тип операции" }
+        require(opType.isNotBlank()) { "operation type is empty" }
         require(lines.all { it.accountId > 0 && it.amountKop > 0 }) {
-            "все строки должны содержать счёт и положительную сумму"
+            "all lines must have an account and a positive amount"
         }
         return TransactionEntity(
             uuid = uuid,
@@ -207,7 +207,7 @@ class LocalEntryRepository(
     private fun EntryDraft.toEntities(uuid: String): List<LineEntity> =
         lines.map { line ->
             require(line.side == "DEBIT" || line.side == "CREDIT") {
-                "неизвестная сторона строки"
+                "unknown line side"
             }
             LineEntity(
                 serverId = null,

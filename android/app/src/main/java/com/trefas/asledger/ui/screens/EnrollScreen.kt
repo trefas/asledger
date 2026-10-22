@@ -32,8 +32,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ConnectionError
 import com.trefas.asledger.data.network.ConnectionProblem
 import com.trefas.asledger.data.network.EnrollResult
@@ -41,6 +43,8 @@ import com.trefas.asledger.data.network.EnrollUser
 import com.trefas.asledger.data.network.toProblem
 import com.trefas.asledger.data.settings.ServerConfig
 import com.trefas.asledger.ui.components.BrandMark
+import com.trefas.asledger.ui.components.hintText
+import com.trefas.asledger.ui.components.titleText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -101,7 +105,8 @@ fun EnrollScreen(
             } catch (failure: Exception) {
                 state = EnrollUiState.Error(
                     ConnectionError.Unexpected(
-                        failure.message ?: "не удалось привязать устройство"
+                        detail = failure.message,
+                        detailRes = R.string.connection_detail_enroll_save
                     ).toProblem()
                 )
             } finally {
@@ -125,7 +130,7 @@ fun EnrollScreen(
         BrandMark(size = 80.dp)
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Привязка устройства",
+            text = stringResource(R.string.enroll_title),
             style = MaterialTheme.typography.headlineMedium
         )
         Spacer(Modifier.height(4.dp))
@@ -137,7 +142,7 @@ fun EnrollScreen(
         )
         if (config.serverVersion.isNotBlank()) {
             Text(
-                text = "Версия сервера: ${config.serverVersion}",
+                text = stringResource(R.string.enroll_server_version, config.serverVersion),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -166,7 +171,7 @@ fun EnrollScreen(
                                 strokeWidth = 2.dp
                             )
                             Text(
-                                text = "Привязываем устройство…",
+                                text = stringResource(R.string.enroll_loading),
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.padding(start = 12.dp)
                             )
@@ -175,12 +180,11 @@ fun EnrollScreen(
 
                     is EnrollUiState.Choice -> {
                         Text(
-                            text = "Кто ведёт учёт на этом устройстве?",
+                            text = stringResource(R.string.enroll_choice_title),
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "Автор проводок попадёт в отчёты. Выбор можно изменить " +
-                                "в настройках, но для этого потребуется повторная привязка.",
+                            text = stringResource(R.string.enroll_choice_text),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -207,18 +211,18 @@ fun EnrollScreen(
                             enabled = selectedUserId != null && !busy,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Продолжить")
+                            Text(stringResource(R.string.action_continue))
                         }
                     }
 
                     is EnrollUiState.Error -> {
                         Text(
-                            text = current.problem.title,
+                            text = current.problem.titleText(),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.error
                         )
                         Text(
-                            text = current.problem.hint,
+                            text = current.problem.hintText(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -227,13 +231,13 @@ fun EnrollScreen(
                             enabled = !busy,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Повторить")
+                            Text(stringResource(R.string.action_retry))
                         }
                         OutlinedButton(
                             onClick = onChangeServer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Изменить адрес")
+                            Text(stringResource(R.string.action_change_address))
                         }
                     }
                 }
@@ -242,8 +246,7 @@ fun EnrollScreen(
 
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Пароль не нужен: сервер выдаёт токен только устройствам из " +
-                "локальной сети. Отозвать доступ можно в web-интерфейсе asledger.",
+            text = stringResource(R.string.enroll_footer),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center

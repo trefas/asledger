@@ -29,9 +29,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.trefas.asledger.R
 import com.trefas.asledger.data.model.Account
 import com.trefas.asledger.data.model.AccountBalanceRow
 import com.trefas.asledger.data.model.AccountNode
@@ -61,11 +63,10 @@ fun AccountsScreen(
         .collectAsStateWithLifecycle(initialValue = null)
     val balancesById = report?.rows.orEmpty().associateBy { it.account.id }
 
-    ScreenScaffold(title = "План счетов", modifier = modifier) {
+    ScreenScaffold(title = stringResource(R.string.accounts_title), modifier = modifier) {
         Column(Modifier.fillMaxSize()) {
             Text(
-                text = "План счетов меняется на сервере; в приложении доступен просмотр " +
-                    "и выбор счёта для проводки.",
+                text = stringResource(R.string.accounts_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -73,7 +74,7 @@ fun AccountsScreen(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Поиск по имени или пути") },
+                label = { Text(stringResource(R.string.accounts_search_label)) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -86,7 +87,7 @@ fun AccountsScreen(
                 FilterChip(
                     selected = includeArchived,
                     onClick = { includeArchived = !includeArchived },
-                    label = { Text("Показать архив") }
+                    label = { Text(stringResource(R.string.accounts_show_archived)) }
                 )
             }
 
@@ -98,13 +99,20 @@ fun AccountsScreen(
             }
             if (rows.isEmpty()) {
                 EmptyState(
-                    title = if (searching) "Ничего не найдено" else "План счетов",
-                    text = if (searching) {
-                        "Попробуйте другое название или часть пути счёта."
-                    } else {
-                        "После первой синхронизации здесь появится дерево счетов с типами " +
-                            "и остатками."
-                    }
+                    title = stringResource(
+                        if (searching) {
+                            R.string.accounts_empty_filtered_title
+                        } else {
+                            R.string.accounts_empty_title
+                        }
+                    ),
+                    text = stringResource(
+                        if (searching) {
+                            R.string.accounts_empty_filtered_text
+                        } else {
+                            R.string.accounts_empty_text
+                        }
+                    )
                 )
             } else {
                 LazyColumn(
@@ -183,7 +191,9 @@ private fun AccountRow(
                         } else {
                             Icons.Filled.KeyboardArrowDown
                         },
-                        contentDescription = if (expanded) "Свернуть" else "Развернуть"
+                        contentDescription = stringResource(
+                            if (expanded) R.string.accounts_collapse else R.string.accounts_expand
+                        )
                     )
                 }
                 Column(Modifier.padding(start = if (hasChildren) 6.dp else 0.dp)) {
@@ -202,12 +212,19 @@ private fun AccountRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    val typeTitle = stringResource(account.type.titleRes)
+                    val archivedSuffix = if (account.isArchived) {
+                        stringResource(R.string.accounts_archived_suffix)
+                    } else {
+                        ""
+                    }
+                    val leafSuffix = if (account.isLeaf) {
+                        stringResource(R.string.accounts_leaf_suffix)
+                    } else {
+                        ""
+                    }
                     Text(
-                        text = buildString {
-                            append(account.type.title)
-                            if (account.isArchived) append(" · архив")
-                            if (account.isLeaf) append(" · листовой")
-                        },
+                        text = typeTitle + archivedSuffix + leafSuffix,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -225,7 +242,7 @@ private fun AccountRow(
                 val pending = balance?.pendingTotalKop ?: 0
                 if (pending != 0L) {
                     Text(
-                        text = "ожидает ${formatKop(pending)}",
+                        text = stringResource(R.string.accounts_pending, formatKop(pending)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.tertiary
                     )

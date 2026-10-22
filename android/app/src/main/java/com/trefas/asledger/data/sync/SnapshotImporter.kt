@@ -45,7 +45,7 @@ class SnapshotImporter(
     ) {
         if (snapshot.formatVersion != SUPPORTED_FORMAT_VERSION) {
             throw SnapshotImportException(
-                "формат снапшота ${snapshot.formatVersion} не поддерживается"
+                "unsupported snapshot format ${snapshot.formatVersion}"
             )
         }
         val prepared = prepare(snapshot)
@@ -109,11 +109,11 @@ class SnapshotImporter(
         val seenAccounts = HashSet<Long>()
         val accounts = snapshot.accounts.map { dto ->
             if (!seenAccounts.add(dto.id)) {
-                throw SnapshotImportException("повторяющийся id счёта ${dto.id}")
+                throw SnapshotImportException("duplicate account id ${dto.id}")
             }
             val type = AccountType.fromServer(dto.type)
                 ?: throw SnapshotImportException(
-                    "неизвестный тип счёта ${dto.type} у ${dto.fullPath}"
+                    "unknown account type ${dto.type} at ${dto.fullPath}"
                 )
             AccountEntity(
                 id = dto.id,
@@ -125,7 +125,7 @@ class SnapshotImporter(
                 minBalanceKop = dto.minBalanceKop,
                 isArchived = dto.isArchived,
                 isSystem = dto.isSystem,
-                createdAt = parseTime(dto.createdAt, "счёт ${dto.fullPath}"),
+                createdAt = parseTime(dto.createdAt, "account ${dto.fullPath}"),
                 searchKey = normalizeSearch(dto.name, dto.fullPath)
             )
         }.sortedBy { it.fullPath }
@@ -145,28 +145,28 @@ class SnapshotImporter(
         val seenLineIds = HashSet<Long>()
         val transactions = snapshot.transactions.map { dto ->
             if (dto.uuid.isBlank()) {
-                throw SnapshotImportException("пустой UUID проводки ${dto.id}")
+                throw SnapshotImportException("empty transaction UUID ${dto.id}")
             }
             if (!seenTransactions.add(dto.uuid)) {
-                throw SnapshotImportException("повторяющийся UUID проводки ${dto.uuid}")
+                throw SnapshotImportException("duplicate transaction UUID ${dto.uuid}")
             }
             if (!seenServerIds.add(dto.id)) {
-                throw SnapshotImportException("повторяющийся id проводки ${dto.id}")
+                throw SnapshotImportException("duplicate transaction id ${dto.id}")
             }
             if (dto.lines.isEmpty()) {
-                throw SnapshotImportException("проводка ${dto.uuid} без строк")
+                throw SnapshotImportException("transaction ${dto.uuid} has no lines")
             }
             TransactionEntity(
                 uuid = dto.uuid,
                 serverId = dto.id,
                 opType = dto.opType,
-                date = parseTime(dto.date, "проводка ${dto.uuid}"),
+                date = parseTime(dto.date, "transaction ${dto.uuid}"),
                 description = dto.description,
                 actorId = dto.actorId,
                 reversesId = dto.reversesId,
                 source = dto.source,
                 sourceHash = dto.sourceHash,
-                createdAt = parseTime(dto.createdAt, "проводка ${dto.uuid}"),
+                createdAt = parseTime(dto.createdAt, "transaction ${dto.uuid}"),
                 commitId = dto.commitId,
                 searchKey = normalizeSearch(dto.description, dto.uuid)
             )
@@ -176,11 +176,11 @@ class SnapshotImporter(
             transaction.lines.map { line ->
                 if (line.side != "DEBIT" && line.side != "CREDIT") {
                     throw SnapshotImportException(
-                        "неизвестная сторона ${line.side} в проводке ${transaction.uuid}"
+                        "unknown side ${line.side} in transaction ${transaction.uuid}"
                     )
                 }
                 if (!seenLineIds.add(line.id)) {
-                    throw SnapshotImportException("повторяющийся id строки ${line.id}")
+                    throw SnapshotImportException("duplicate line id ${line.id}")
                 }
                 LineEntity(
                     serverId = line.id,
@@ -204,7 +204,7 @@ class SnapshotImporter(
     private fun parseTime(value: String, what: String): Long = try {
         parseServerTime(value)
     } catch (failure: IllegalArgumentException) {
-        throw SnapshotImportException("некорректная дата у «$what»", failure)
+        throw SnapshotImportException("invalid date for \"$what\"", failure)
     }
 
     private data class PreparedSnapshot(

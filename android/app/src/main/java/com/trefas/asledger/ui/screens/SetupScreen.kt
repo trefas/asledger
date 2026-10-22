@@ -32,16 +32,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ApiResult
+import com.trefas.asledger.data.network.ConnectionDetail
 import com.trefas.asledger.data.network.ConnectionProblem
 import com.trefas.asledger.data.network.HealthInfo
 import com.trefas.asledger.data.network.toProblem
 import com.trefas.asledger.data.settings.ServerConfig
 import com.trefas.asledger.ui.components.BrandHeader
+import com.trefas.asledger.ui.components.hintText
+import com.trefas.asledger.ui.components.titleText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -62,7 +67,7 @@ fun SetupScreen(
 ) {
     var host by rememberSaveable(initialHost) { mutableStateOf(initialHost) }
     var port by rememberSaveable(initialPort) { mutableStateOf(initialPort.toString()) }
-    var validationError by rememberSaveable { mutableStateOf<String?>(null) }
+    var validationErrorRes by rememberSaveable { mutableStateOf<Int?>(null) }
     var problem by remember { mutableStateOf<ConnectionProblem?>(null) }
     var checking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -73,16 +78,16 @@ fun SetupScreen(
         val portValue = port.trim().toIntOrNull()
         when {
             normalized.isEmpty() -> {
-                validationError = "Укажите IP-адрес или имя компьютера"
+                validationErrorRes = R.string.setup_validation_host
                 return
             }
 
             portValue == null || portValue !in 1..65_535 -> {
-                validationError = "Порт должен быть числом от 1 до 65535"
+                validationErrorRes = R.string.setup_validation_port
                 return
             }
         }
-        validationError = null
+        validationErrorRes = null
         problem = null
         checking = true
         val config = ServerConfig(host = normalized, port = portValue)
@@ -96,8 +101,10 @@ fun SetupScreen(
                 throw cancelled
             } catch (failure: Exception) {
                 problem = ConnectionProblem(
-                    title = "Не удалось сохранить адрес",
-                    hint = failure.message ?: "Попробуйте ещё раз."
+                    titleRes = R.string.setup_save_error_title,
+                    hint = failure.message?.takeIf { it.isNotBlank() }?.let {
+                        ConnectionDetail.Text(it)
+                    } ?: ConnectionDetail.Resource(R.string.setup_try_again)
                 )
             } finally {
                 checking = false
@@ -127,12 +134,11 @@ fun SetupScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Подключение к книге",
+                    text = stringResource(R.string.setup_title),
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
-                    text = "Укажите адрес компьютера, на котором запущен asledgerd. " +
-                        "Приложение проверит связь и привяжется к книге автоматически.",
+                    text = stringResource(R.string.setup_description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -141,17 +147,17 @@ fun SetupScreen(
                     value = host,
                     onValueChange = {
                         host = it
-                        validationError = null
+                        validationErrorRes = null
                         problem = null
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("setup-host"),
-                    label = { Text("IP-адрес или имя") },
-                    placeholder = { Text("например, 192.168.1.10") },
+                    label = { Text(stringResource(R.string.setup_host_label)) },
+                    placeholder = { Text(stringResource(R.string.setup_host_placeholder)) },
                     singleLine = true,
                     enabled = !checking,
-                    isError = validationError != null,
+                    isError = validationErrorRes != null,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
                         imeAction = ImeAction.Next
@@ -163,18 +169,18 @@ fun SetupScreen(
                     onValueChange = { value ->
                         if (value.length <= 5 && value.all { it.isDigit() }) {
                             port = value
-                            validationError = null
+                            validationErrorRes = null
                             problem = null
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("setup-port"),
-                    label = { Text("Порт") },
-                    supportingText = { Text("По умолчанию 8778") },
+                    label = { Text(stringResource(R.string.setup_port_label)) },
+                    supportingText = { Text(stringResource(R.string.setup_port_supporting)) },
                     singleLine = true,
                     enabled = !checking,
-                    isError = validationError != null,
+                    isError = validationErrorRes != null,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Done
@@ -182,9 +188,9 @@ fun SetupScreen(
                     keyboardActions = KeyboardActions(onDone = { submit() })
                 )
 
-                if (validationError != null) {
+                validationErrorRes?.let { errorRes ->
                     Text(
-                        text = validationError.orEmpty(),
+                        text = stringResource(errorRes),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -192,12 +198,12 @@ fun SetupScreen(
 
                 if (problem != null) {
                     Text(
-                        text = problem?.title.orEmpty(),
+                        text = problem?.titleText().orEmpty(),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.error
                     )
                     Text(
-                        text = problem?.hint.orEmpty(),
+                        text = problem?.hintText().orEmpty(),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -217,7 +223,15 @@ fun SetupScreen(
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
-                        Text(if (problem != null) "Проверить ещё раз" else "Подключиться")
+                        Text(
+                            stringResource(
+                                if (problem != null) {
+                                    R.string.setup_check_again
+                                } else {
+                                    R.string.setup_connect
+                                }
+                            )
+                        )
                     }
                 }
             }
@@ -225,8 +239,7 @@ fun SetupScreen(
 
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Пароль не нужен. Привязка разрешена только в локальной сети; " +
-                "отозвать устройство можно в web-интерфейсе asledger.",
+            text = stringResource(R.string.setup_footer),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center

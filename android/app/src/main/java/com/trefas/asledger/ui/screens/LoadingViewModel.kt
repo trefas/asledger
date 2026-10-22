@@ -2,6 +2,7 @@ package com.trefas.asledger.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ConnectionError
 import com.trefas.asledger.data.network.ConnectionProblem
 import com.trefas.asledger.data.network.toProblem
@@ -47,7 +48,7 @@ class LoadingViewModel(
             return
         }
         job = viewModelScope.launch {
-            _state.value = LoadingState.Running(LibraryProgress("Готовимся", 0))
+            _state.value = LoadingState.Running(LibraryProgress(R.string.progress_preparing, 0))
             try {
                 val result = load { progress ->
                     _state.value = LoadingState.Running(progress)

@@ -29,6 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.trefas.asledger.R
 import com.trefas.asledger.data.AppContainer
 import com.trefas.asledger.data.network.ApiResult
 import com.trefas.asledger.data.network.ConnectionError
@@ -272,7 +273,8 @@ private fun MainNavigation(
                                 null
                             } catch (failure: Exception) {
                                 ConnectionError.Unexpected(
-                                    failure.message ?: "не удалось сохранить токен"
+                                    detail = failure.message,
+                                    detailRes = R.string.connection_detail_token_save
                                 )
                             }
                         },
@@ -536,7 +538,7 @@ private fun MainNavigation(
                                 if (result is ApiResult.Failure) {
                                     Log.w(
                                         "session",
-                                        "не удалось отозвать токен: ${result.error}"
+                                        "token revoke failed: ${result.error}"
                                     )
                                 }
                             }
@@ -585,7 +587,7 @@ private fun MainNavigation(
                     onCheck = {
                         if (config == null) {
                             ApiResult.Failure(
-                                ConnectionError.InvalidAddress("сервер не настроен")
+                                ConnectionError.InvalidAddress(R.string.connection_detail_server_not_configured)
                             )
                         } else {
                             container.api.health(config)

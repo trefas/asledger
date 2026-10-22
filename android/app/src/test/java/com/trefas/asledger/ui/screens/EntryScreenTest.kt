@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
+import com.trefas.asledger.R
 import com.trefas.asledger.data.model.Account
 import com.trefas.asledger.data.model.AccountType
 import com.trefas.asledger.data.model.OperationRoles
@@ -71,7 +72,7 @@ class EntryScreenTest {
     private fun state(
         debit: String = "1000",
         credit: String = "1000",
-        message: String? = null
+        messageRes: Int? = null
     ) = EntryUiState(
         opType = "трата",
         date = 1_700_000_000_000,
@@ -79,7 +80,7 @@ class EntryScreenTest {
         roles = matrix,
         accounts = listOf(expense, cash),
         loadingRoles = false,
-        message = message,
+        messageRes = messageRes,
         lines = listOf(
             EntryLineUi(
                 key = 1,
@@ -143,7 +144,11 @@ class EntryScreenTest {
     @Test
     fun `ошибка баланса видна и строка помечена`() {
         content(
-            state(debit = "1000", credit = "900", message = "Проверьте строки"),
+            state(
+                debit = "1000",
+                credit = "900",
+                messageRes = R.string.entry_message_balance
+            ),
             onSave = {}
         )
 

@@ -29,8 +29,8 @@ class TransactionRepository(
         limit: Int = DEFAULT_PAGE_SIZE,
         offset: Int = 0
     ): Flow<List<TransactionSummary>> {
-        require(limit > 0) { "limit должен быть положительным" }
-        require(offset >= 0) { "offset не может быть отрицательным" }
+        require(limit > 0) { "limit must be positive" }
+        require(offset >= 0) { "offset must not be negative" }
         return dao.observePage(
             fromDate = filter.fromDate,
             toDate = filter.toDate,

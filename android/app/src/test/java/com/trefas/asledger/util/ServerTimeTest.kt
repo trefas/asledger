@@ -65,16 +65,16 @@ class ServerTimeTest {
     @Test
     fun `сегодня и вчера считаются по часовому поясу`() {
         val now = millis(LocalDate.of(2026, 10, 21))
-        assertEquals("сегодня", formatFriendlyDate(now, now, zone))
+        assertEquals(FriendlyDate.Today, friendlyDate(now, now, zone))
         assertEquals(
-            "вчера",
-            formatFriendlyDate(millis(LocalDate.of(2026, 10, 20)), now, zone)
+            FriendlyDate.Yesterday,
+            friendlyDate(millis(LocalDate.of(2026, 10, 20)), now, zone)
         )
         assertEquals(
-            "19.10.2026",
-            formatFriendlyDate(millis(LocalDate.of(2026, 10, 19)), now, zone)
+            FriendlyDate.Absolute("19.10.2026"),
+            friendlyDate(millis(LocalDate.of(2026, 10, 19)), now, zone)
         )
-        assertEquals("", formatFriendlyDate(0, now, zone))
+        assertEquals(FriendlyDate.Absolute(""), friendlyDate(0, now, zone))
     }
 
     @Test
@@ -83,11 +83,11 @@ class ServerTimeTest {
             .toInstant().toEpochMilli()
         val yesterday = ZonedDateTime.of(2026, 10, 20, 23, 50, 0, 0, zone)
             .toInstant().toEpochMilli()
-        assertEquals("вчера", formatFriendlyDate(yesterday, now, zone))
+        assertEquals(FriendlyDate.Yesterday, friendlyDate(yesterday, now, zone))
         // В UTC это ещё тот же календарный день, что и у «сейчас».
         assertEquals(
-            "сегодня",
-            formatFriendlyDate(yesterday, now, ZoneOffset.UTC)
+            FriendlyDate.Today,
+            friendlyDate(yesterday, now, ZoneOffset.UTC)
         )
     }
 }

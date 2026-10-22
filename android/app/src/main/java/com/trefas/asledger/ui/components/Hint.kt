@@ -23,31 +23,13 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.R
 import com.trefas.asledger.data.settings.HintStore
 
 /** Хранилище отметок о подсказках; null в тестах и превью отключает автопоказ. */
 val LocalHintStore = staticCompositionLocalOf<HintStore?> { null }
-
-/** Тексты подсказок. Вынесены отдельно, чтобы одинаково объяснять поля и статусы. */
-object HintTexts {
-    const val ENTRY = "Слева — дебет, справа — кредит. Суммы должны совпадать. " +
-        "Сторону строки задаёт роль из матрицы сервера, поэтому ошибиться с " +
-        "направлением сложно. Черновик сохраняется на телефоне и отправится, " +
-        "когда появится сеть."
-    const val ROLE = "Роль — это смысл строки: например, «расход» или «источник». " +
-        "По роли сервер сам понимает, в дебет или кредит поставить сумму, и " +
-        "разрешает только подходящие типы счетов."
-    const val BALANCE = "Остаток к распределению — разница между дебетом и кредитом. " +
-        "Для сохранения она должна быть нулевой: каждая сумма должна иметь " +
-        "противоположную сторону."
-    const val STATUS = "«К отправке» — проводка ждёт сеть. «Отправляется» — пакет уже " +
-        "ушёл. «Отклонено» — сервер вернул правило, которое нужно исправить. " +
-        "«Синхронизировано» — проводка есть в книге сервера."
-    const val JOURNAL = "Журнал показывает операции по дате. Фильтры помогают найти " +
-        "запись по описанию, счёту, типу и статусу. Потяните список вниз, чтобы " +
-        "загрузить изменения с сервера."
-}
 
 /**
  * Кнопка с подсказкой. Открывается по нажатию, закрывается кнопкой «Понятно»
@@ -57,9 +39,11 @@ object HintTexts {
 fun HintIcon(
     text: String,
     modifier: Modifier = Modifier,
-    contentDescription: String = "Подсказка"
+    contentDescription: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val hintDescription = contentDescription
+        ?: stringResource(R.string.hint_content_description)
     Box(modifier = modifier) {
         IconButton(
             onClick = { expanded = true },
@@ -69,7 +53,7 @@ fun HintIcon(
         ) {
             Icon(
                 imageVector = Icons.Filled.Info,
-                contentDescription = contentDescription,
+                contentDescription = hintDescription,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -90,7 +74,7 @@ fun HintIcon(
                         .align(Alignment.End)
                         .padding(top = 4.dp)
                 ) {
-                    Text("Понятно")
+                    Text(stringResource(R.string.action_understand))
                 }
             }
         }
@@ -127,7 +111,7 @@ fun FirstOpenHint(
         },
         confirmButton = {
             TextButton(onClick = { dismiss() }) {
-                Text("Понятно")
+                Text(stringResource(R.string.action_understand))
             }
         }
     )

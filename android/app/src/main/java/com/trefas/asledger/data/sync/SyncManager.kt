@@ -1,6 +1,7 @@
 package com.trefas.asledger.data.sync
 
 import androidx.room.withTransaction
+import com.trefas.asledger.R
 import com.trefas.asledger.data.db.AsledgerDatabase
 import com.trefas.asledger.data.db.OutboxEntity
 import com.trefas.asledger.data.db.OutboxStatus
@@ -11,7 +12,6 @@ import com.trefas.asledger.data.network.ConnectionError
 import com.trefas.asledger.data.network.PushOperationDto
 import com.trefas.asledger.data.network.PushRequestDto
 import com.trefas.asledger.data.network.PushResponseDto
-import com.trefas.asledger.data.network.toProblem
 import com.trefas.asledger.data.security.TokenStore
 import com.trefas.asledger.data.settings.ServerConfig
 import com.trefas.asledger.data.settings.ServerConfigStore
@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+
+private const val ERR_CONNECTION = "ERR_CONNECTION"
 
 /** Фаза синхронизации для индикатора в интерфейсе. */
 enum class SyncPhase {
@@ -36,7 +38,6 @@ enum class SyncPhase {
 /** Состояние синхронизации. */
 data class SyncState(
     val phase: SyncPhase = SyncPhase.IDLE,
-    val message: String? = null,
     val lastSyncAt: Long = 0
 )
 
@@ -84,7 +85,7 @@ class SyncManager(
     /** Отправляет pending и затем подтягивает изменения других клиентов. */
     suspend fun sync(config: ServerConfig): SyncOutcome = mutex.withLock {
         if (!config.hasSession) return SyncOutcome.NothingToDo
-        _state.value = _state.value.copy(phase = SyncPhase.SYNCING, message = null)
+        _state.value = _state.value.copy(phase = SyncPhase.SYNCING)
         val token = tokenStore.load()
             ?: return fail(ConnectionError.Unauthorized)
 
@@ -105,7 +106,6 @@ class SyncManager(
         val duplicates = (pushed as? SyncOutcome.Success)?.duplicates.orEmpty()
         _state.value = SyncState(
             phase = SyncPhase.SUCCESS,
-            message = warnings.firstOrNull(),
             lastSyncAt = now()
         )
         return SyncOutcome.Success(warnings, duplicates)
@@ -114,14 +114,13 @@ class SyncManager(
     /** Только отправка очереди (кнопка «Отправить»). */
     suspend fun pushOnly(config: ServerConfig): SyncOutcome = mutex.withLock {
         if (!config.hasSession) return SyncOutcome.NothingToDo
-        _state.value = _state.value.copy(phase = SyncPhase.SYNCING, message = null)
+        _state.value = _state.value.copy(phase = SyncPhase.SYNCING)
         val token = tokenStore.load()
             ?: return fail(ConnectionError.Unauthorized)
         val pushed = pushLocked(config, token)
         if (pushed is SyncOutcome.Success) {
             _state.value = SyncState(
                 phase = SyncPhase.SUCCESS,
-                message = pushed.warnings.firstOrNull(),
                 lastSyncAt = now()
             )
         }
@@ -131,7 +130,7 @@ class SyncManager(
     /** Только pull (потянуть-обновить). */
     suspend fun pullOnly(config: ServerConfig): SyncOutcome = mutex.withLock {
         if (!config.hasSession) return SyncOutcome.NothingToDo
-        _state.value = _state.value.copy(phase = SyncPhase.SYNCING, message = null)
+        _state.value = _state.value.copy(phase = SyncPhase.SYNCING)
         val token = tokenStore.load()
             ?: return fail(ConnectionError.Unauthorized)
         pullLocked(config, token)
@@ -147,7 +146,7 @@ class SyncManager(
      */
     suspend fun reverse(config: ServerConfig, uuid: String): SyncOutcome {
         if (!config.hasSession) return SyncOutcome.NothingToDo
-        _state.value = _state.value.copy(phase = SyncPhase.SYNCING, message = null)
+        _state.value = _state.value.copy(phase = SyncPhase.SYNCING)
         val token = tokenStore.load()
             ?: return fail(ConnectionError.Unauthorized)
         return when (val result = api.reverse(config, token, uuid)) {
@@ -165,7 +164,7 @@ class SyncManager(
             runCatching { json.decodeFromString<PushOperationDto>(row.opsJson) }.getOrNull()
         }
         if (operations.size != prepared.size) {
-            return fail(ConnectionError.InvalidResponse("повреждённая очередь отправки"))
+            return fail(ConnectionError.InvalidResponse(R.string.connection_detail_broken_outbox))
         }
         val batchId = prepared.first().commitId
         val request = PushRequestDto(
@@ -176,7 +175,7 @@ class SyncManager(
 
         return when (val result = api.push(config, token, request)) {
             is ApiResult.Failure -> {
-                markFailed(prepared, result.error, keepSending = false)
+                markFailed(prepared, keepSending = false)
                 fail(result.error)
             }
 
@@ -185,11 +184,9 @@ class SyncManager(
                 if (response.status == "rejected") {
                     markRejected(prepared, response)
                     val code = response.error?.code ?: "ERR_SYNC_REJECTED"
-                    val message = response.error?.message
-                        ?: "Сервер отклонил пакет проводок"
+                    val message = response.error?.message.orEmpty()
                     _state.value = SyncState(
                         phase = SyncPhase.REJECTED,
-                        message = message,
                         lastSyncAt = now()
                     )
                     SyncOutcome.Rejected(code, message)
@@ -292,17 +289,16 @@ class SyncManager(
 
     private suspend fun markFailed(
         rows: List<OutboxEntity>,
-        error: ConnectionError,
         keepSending: Boolean
     ) {
-        val problem = error.toProblem()
         val timestamp = now()
         database.withTransaction {
             rows.forEach { row ->
                 database.outboxDao().upsert(
                     row.copy(
                         status = if (keepSending) row.status else OutboxStatus.PENDING,
-                        lastError = "${problem.title}: ${problem.hint}",
+                        lastError = null,
+                        errorCode = ERR_CONNECTION,
                         updatedAt = timestamp
                     )
                 )
@@ -333,12 +329,10 @@ class SyncManager(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: ChainMismatchException) {
-                    fullResync(config, token, reason = "Реплики разошлись, книга загружена заново")
-                } catch (failure: Exception) {
+                    fullResync(config, token)
+                } catch (_: Exception) {
                     fail(
-                        ConnectionError.InvalidResponse(
-                            failure.message ?: "не удалось применить изменения"
-                        )
+                        ConnectionError.InvalidResponse(R.string.connection_detail_apply_failed)
                     )
                 }
             }
@@ -347,8 +341,7 @@ class SyncManager(
 
     private suspend fun fullResync(
         config: ServerConfig,
-        token: String,
-        reason: String? = null
+        token: String
     ): SyncOutcome = when (val snapshot = api.snapshot(config, token)) {
         is ApiResult.Failure -> fail(snapshot.error)
         is ApiResult.Ok -> try {
@@ -356,31 +349,20 @@ class SyncManager(
             configStore.saveLastSync(now())
             _state.value = SyncState(
                 phase = SyncPhase.SUCCESS,
-                message = reason,
                 lastSyncAt = now()
             )
-            SyncOutcome.Success(warnings = listOfNotNull(reason))
+            SyncOutcome.Success()
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (failure: Exception) {
+        } catch (_: Exception) {
             fail(
-                ConnectionError.InvalidResponse(
-                    failure.message ?: "не удалось загрузить книгу заново"
-                )
+                ConnectionError.InvalidResponse(R.string.connection_detail_reload_failed)
             )
         }
     }
 
     private fun fail(error: ConnectionError): SyncOutcome {
-        val problem = error.toProblem()
-        if (error is ConnectionError.Unauthorized) {
-            _state.value = SyncState(phase = SyncPhase.OFFLINE, message = problem.title)
-        } else {
-            _state.value = SyncState(
-                phase = SyncPhase.OFFLINE,
-                message = "${problem.title}: ${problem.hint}"
-            )
-        }
+        _state.value = SyncState(phase = SyncPhase.OFFLINE)
         return SyncOutcome.Failure(error)
     }
 }

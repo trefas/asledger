@@ -22,7 +22,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ApiResult
 import com.trefas.asledger.data.network.ConnectionError
 import com.trefas.asledger.data.network.ConnectionProblem
@@ -30,7 +32,9 @@ import com.trefas.asledger.data.network.HealthInfo
 import com.trefas.asledger.data.network.toProblem
 import com.trefas.asledger.data.settings.ServerConfig
 import com.trefas.asledger.ui.components.ScreenScaffold
-import com.trefas.asledger.util.formatSyncTime
+import com.trefas.asledger.ui.components.hintText
+import com.trefas.asledger.ui.components.titleText
+import com.trefas.asledger.util.formatDateTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -47,21 +51,20 @@ fun DiagnosticsScreen(
 ) {
     var checking by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<ConnectionProblem?>(null) }
-    var success by remember { mutableStateOf<String?>(null) }
+    var checkedHealth by remember { mutableStateOf<HealthInfo?>(null) }
     val scope = rememberCoroutineScope()
 
     fun check() {
         if (checking) return
         checking = true
         problem = null
-        success = null
+        checkedHealth = null
         scope.launch {
             try {
                 when (val result = onCheck()) {
                     is ApiResult.Ok -> {
                         onHealth(result.value)
-                        success = "Связь есть. Версия ${result.value.version}, " +
-                            "формат ${result.value.formatVersion}."
+                        checkedHealth = result.value
                     }
 
                     is ApiResult.Failure -> problem = result.error.toProblem()
@@ -70,7 +73,8 @@ fun DiagnosticsScreen(
                 throw cancelled
             } catch (failure: Exception) {
                 problem = ConnectionError.Unexpected(
-                    failure.message ?: "не удалось проверить связь"
+                    detail = failure.message,
+                    detailRes = R.string.connection_detail_check_failed
                 ).toProblem()
             } finally {
                 checking = false
@@ -78,7 +82,7 @@ fun DiagnosticsScreen(
         }
     }
 
-    ScreenScaffold(title = "Диагностика", modifier = modifier) {
+    ScreenScaffold(title = stringResource(R.string.diagnostics_title), modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -96,23 +100,38 @@ fun DiagnosticsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Подключение", style = MaterialTheme.typography.titleMedium)
-                    DiagnosticRow("Адрес", config?.baseUrl ?: "не настроен")
-                    DiagnosticRow("Версия сервера", config?.serverVersion?.ifBlank { "неизвестна" } ?: "—")
+                    Text(stringResource(R.string.diagnostics_connection), style = MaterialTheme.typography.titleMedium)
                     DiagnosticRow(
-                        "Формат данных",
+                        stringResource(R.string.diagnostics_address),
+                        config?.baseUrl ?: stringResource(R.string.diagnostics_not_configured)
+                    )
+                    DiagnosticRow(
+                        stringResource(R.string.diagnostics_server_version),
+                        config?.serverVersion?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.diagnostics_unknown)
+                    )
+                    DiagnosticRow(
+                        stringResource(R.string.diagnostics_format),
                         config?.formatVersion?.takeIf { it > 0 }?.toString() ?: "—"
                     )
                     DiagnosticRow(
-                        "Пользователь",
-                        config?.userName?.ifBlank { "не выбран" } ?: "—"
+                        stringResource(R.string.diagnostics_user),
+                        config?.userName?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.diagnostics_not_selected)
                     )
-                    DiagnosticRow("Устройство", config?.clientId?.ifBlank { "—" } ?: "—")
                     DiagnosticRow(
-                        "Последняя синхронизация",
-                        formatSyncTime(config?.lastSyncAt ?: 0)
+                        stringResource(R.string.diagnostics_device),
+                        config?.clientId?.takeIf { it.isNotBlank() } ?: "—"
                     )
-                    DiagnosticRow("Токен", "хранится в Keystore, не отображается")
+                    DiagnosticRow(
+                        stringResource(R.string.diagnostics_last_sync),
+                        (config?.lastSyncAt ?: 0).takeIf { it > 0 }?.let { formatDateTime(it) }
+                            ?: stringResource(R.string.diagnostics_never)
+                    )
+                    DiagnosticRow(
+                        stringResource(R.string.diagnostics_token),
+                        stringResource(R.string.diagnostics_token_value)
+                    )
                 }
             }
 
@@ -128,12 +147,12 @@ fun DiagnosticsScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = problem?.title.orEmpty(),
+                            text = problem?.titleText().orEmpty(),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                         Text(
-                            text = problem?.hint.orEmpty(),
+                            text = problem?.hintText().orEmpty(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -141,9 +160,13 @@ fun DiagnosticsScreen(
                 }
             }
 
-            if (success != null) {
+            checkedHealth?.let { health ->
                 Text(
-                    text = success.orEmpty(),
+                    text = stringResource(
+                        R.string.diagnostics_success,
+                        health.version,
+                        health.formatVersion
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -162,7 +185,11 @@ fun DiagnosticsScreen(
                         strokeWidth = 2.dp
                     )
                 }
-                Text(if (checking) "Проверяем…" else "Проверить связь")
+                Text(
+                    stringResource(
+                        if (checking) R.string.diagnostics_checking else R.string.diagnostics_check
+                    )
+                )
             }
         }
     }

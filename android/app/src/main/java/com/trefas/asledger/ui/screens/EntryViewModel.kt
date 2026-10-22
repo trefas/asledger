@@ -1,8 +1,10 @@
 package com.trefas.asledger.ui.screens
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.trefas.asledger.R
 import com.trefas.asledger.data.model.Account
 import com.trefas.asledger.data.model.AccountType
 import com.trefas.asledger.data.model.DraftLine
@@ -34,7 +36,7 @@ data class EntryLineUi(
     val amount: String = "",
     val role: String = "",
     val side: String = "DEBIT",
-    val error: String? = null
+    @StringRes val errorRes: Int? = null
 )
 
 /** Состояние формы новой или редактируемой проводки. */
@@ -48,12 +50,12 @@ data class EntryUiState(
     val accounts: List<Account> = emptyList(),
     val frequentAccountIds: List<Long> = emptyList(),
     val loadingRoles: Boolean = true,
-    val rolesError: String? = null,
+    @StringRes val rolesErrorRes: Int? = null,
     val editingUuid: String? = null,
     val syncedSource: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
-    val message: String? = null
+    @StringRes val messageRes: Int? = null
 ) {
     val debitKop: Long
         get() = lines.filter { it.side == "DEBIT" }
@@ -138,7 +140,7 @@ class EntryViewModel(
     }
 
     private suspend fun loadRoles(opType: String, details: TransactionDetails?) {
-        _state.update { it.copy(loadingRoles = true, rolesError = null, roles = null) }
+        _state.update { it.copy(loadingRoles = true, rolesErrorRes = null, roles = null) }
         val cached = rolesRepository.cached(opType)
         if (cached != null) {
             applyRoles(cached, details)
@@ -154,8 +156,7 @@ class EntryViewModel(
                         _state.update {
                             it.copy(
                                 loadingRoles = false,
-                                rolesError = "Матрица ролей недоступна офлайн. " +
-                                    "Подключитесь к серверу один раз, чтобы заполнить кэш."
+                                rolesErrorRes = R.string.entry_roles_offline
                             )
                         }
                     }
@@ -165,7 +166,7 @@ class EntryViewModel(
             _state.update {
                 it.copy(
                     loadingRoles = false,
-                    rolesError = "Нет подключения к серверу, а матрица ролей ещё не загружена."
+                    rolesErrorRes = R.string.entry_roles_not_loaded
                 )
             }
         }
@@ -227,7 +228,7 @@ class EntryViewModel(
                 roles = roles,
                 lines = withPreselected,
                 loadingRoles = false,
-                rolesError = null
+                rolesErrorRes = null
             )
         }
     }
@@ -239,7 +240,7 @@ class EntryViewModel(
                 opType = opType,
                 lines = emptyList(),
                 roles = null,
-                rolesError = null
+                rolesErrorRes = null
             )
         }
         viewModelScope.launch { loadRoles(opType, null) }
@@ -277,7 +278,7 @@ class EntryViewModel(
         _state.update { current ->
             current.copy(
                 lines = current.lines.map { line ->
-                    if (line.key == key) line.copy(accountId = accountId, error = null) else line
+                    if (line.key == key) line.copy(accountId = accountId, errorRes = null) else line
                 }
             )
         }
@@ -288,7 +289,7 @@ class EntryViewModel(
         _state.update { current ->
             current.copy(
                 lines = current.lines.map { line ->
-                    if (line.key == key) line.copy(amount = value, error = null) else line
+                    if (line.key == key) line.copy(amount = value, errorRes = null) else line
                 }
             )
         }
@@ -306,7 +307,7 @@ class EntryViewModel(
             current.copy(
                 lines = current.lines.map { line ->
                     if (line.key == key) {
-                        line.copy(role = rule.role, side = rule.side, error = null)
+                        line.copy(role = rule.role, side = rule.side, errorRes = null)
                     } else {
                         line
                     }
@@ -335,14 +336,14 @@ class EntryViewModel(
             _state.update {
                 it.copy(
                     lines = it.lines.map { line ->
-                        line.copy(error = errors[line.key])
+                        line.copy(errorRes = errors[line.key])
                     },
-                    message = "Проверьте строки: дебет и кредит должны совпадать."
+                    messageRes = R.string.entry_message_balance
                 )
             }
             return
         }
-        _state.update { it.copy(saving = true, message = null) }
+        _state.update { it.copy(saving = true, messageRes = null) }
         viewModelScope.launch {
             try {
                 val draft = EntryDraft(
@@ -372,21 +373,21 @@ class EntryViewModel(
                 _state.update {
                     it.copy(
                         saving = false,
-                        message = failure.message ?: "Не удалось сохранить проводку"
+                        messageRes = R.string.entry_save_failed
                     )
                 }
             }
         }
     }
 
-    private fun validate(current: EntryUiState): Map<Long, String> {
-        val errors = LinkedHashMap<Long, String>()
+    private fun validate(current: EntryUiState): Map<Long, Int> {
+        val errors = LinkedHashMap<Long, Int>()
         current.lines.forEach { line ->
             when {
-                line.accountId == null -> errors[line.key] = "Выберите счёт"
+                line.accountId == null -> errors[line.key] = R.string.entry_error_account
                 parseRubles(line.amount)?.let { it > 0 } != true ->
-                    errors[line.key] = "Введите сумму больше нуля"
-                line.role.isBlank() -> errors[line.key] = "Выберите роль"
+                    errors[line.key] = R.string.entry_error_amount
+                line.role.isBlank() -> errors[line.key] = R.string.entry_error_role
                 else -> {
                     val rule = current.roles?.roles?.firstOrNull { it.role == line.role }
                     val account = current.accounts.firstOrNull { it.id == line.accountId }
@@ -395,21 +396,23 @@ class EntryViewModel(
                         rule.accountTypes.isNotEmpty() &&
                         !rule.accountTypes.contains(account.type)
                     ) {
-                        errors[line.key] = "Роль не подходит к типу счёта"
+                        errors[line.key] = R.string.entry_error_role_type
                     }
                 }
             }
         }
         if (errors.isEmpty() && current.debitKop != current.creditKop) {
-            current.lines.forEach { line -> errors[line.key] = "Дебет и кредит не совпадают" }
+            current.lines.forEach { line ->
+                errors[line.key] = R.string.entry_error_debit_credit
+            }
         }
         val minDebit = current.roles?.minDebit ?: 1
         val minCredit = current.roles?.minCredit ?: 1
         if (current.lines.count { it.side == "DEBIT" } < minDebit) {
-            errors[current.lines.firstOrNull()?.key ?: 0] = "Добавьте строку дебета"
+            errors[current.lines.firstOrNull()?.key ?: 0] = R.string.entry_error_add_debit
         }
         if (current.lines.count { it.side == "CREDIT" } < minCredit) {
-            errors[current.lines.firstOrNull()?.key ?: 0] = "Добавьте строку кредита"
+            errors[current.lines.firstOrNull()?.key ?: 0] = R.string.entry_error_add_credit
         }
         return errors
     }

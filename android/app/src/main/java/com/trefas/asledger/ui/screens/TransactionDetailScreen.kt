@@ -25,8 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.trefas.asledger.R
 import com.trefas.asledger.data.model.Account
 import com.trefas.asledger.data.model.SyncStatus
 import com.trefas.asledger.data.model.TransactionDetails
@@ -34,6 +36,7 @@ import com.trefas.asledger.data.model.TransactionLine
 import com.trefas.asledger.data.repository.AccountRepository
 import com.trefas.asledger.data.repository.TransactionRepository
 import com.trefas.asledger.ui.components.ScreenScaffold
+import com.trefas.asledger.ui.components.operationTypeLabel
 import com.trefas.asledger.util.formatDateTime
 import com.trefas.asledger.util.formatKop
 
@@ -61,13 +64,24 @@ fun TransactionDetailScreen(
     val transaction = details
 
     if (transaction == null) {
-        ScreenScaffold(title = "Проводка", modifier = modifier, onBack = onBack) {
-            Text("Проводка не найдена", modifier = Modifier.padding(16.dp))
+        ScreenScaffold(
+            title = stringResource(R.string.transaction_title),
+            modifier = modifier,
+            onBack = onBack
+        ) {
+            Text(
+                stringResource(R.string.transaction_not_found),
+                modifier = Modifier.padding(16.dp)
+            )
         }
         return
     }
 
-    ScreenScaffold(title = "Проводка", modifier = modifier, onBack = onBack) {
+    ScreenScaffold(
+        title = stringResource(R.string.transaction_title),
+        modifier = modifier,
+        onBack = onBack
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -83,7 +97,11 @@ fun TransactionDetailScreen(
                     )
                 ) {
                     Text(
-                        text = "$code: ${transaction.lastError.orEmpty()}",
+                        text = if (code == "ERR_CONNECTION") {
+                            stringResource(R.string.sync_connection_failed)
+                        } else {
+                            "$code: ${transaction.lastError.orEmpty()}"
+                        },
                         modifier = Modifier.padding(12.dp),
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
@@ -98,7 +116,7 @@ fun TransactionDetailScreen(
             }
             if (transaction.duplicateUuids.isNotEmpty()) {
                 Text(
-                    text = "Возможные дубли",
+                    text = stringResource(R.string.sync_duplicates),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.tertiary
                 )
@@ -107,18 +125,18 @@ fun TransactionDetailScreen(
                         onClick = { onOpenTransaction(duplicate) },
                         modifier = Modifier.testTag("duplicate-$duplicate")
                     ) {
-                        Text("Открыть существующую проводку")
+                        Text(stringResource(R.string.action_open_existing))
                     }
                 }
             }
 
             LinesBlock(
-                title = "Дебет",
+                title = stringResource(R.string.entry_debit),
                 lines = transaction.lines.filter { it.side == "DEBIT" },
                 accounts = accounts
             )
             LinesBlock(
-                title = "Кредит",
+                title = stringResource(R.string.entry_credit),
                 lines = transaction.lines.filter { it.side == "CREDIT" },
                 accounts = accounts
             )
@@ -133,29 +151,29 @@ fun TransactionDetailScreen(
                         modifier = Modifier
                             .weight(1f)
                             .testTag("detail-edit")
-                    ) { Text("Исправить") }
+                    ) { Text(stringResource(R.string.action_edit)) }
                     OutlinedButton(
                         onClick = onSync,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Отправить") }
+                    ) { Text(stringResource(R.string.action_send)) }
                 }
                 TextButton(
                     onClick = { confirmDelete = true },
                     modifier = Modifier.testTag("detail-delete")
-                ) { Text("Удалить черновик") }
+                ) { Text(stringResource(R.string.transaction_delete_draft)) }
             } else {
                 Button(
                     onClick = onRepeat,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("detail-repeat")
-                ) { Text("Повторить проводку") }
+                ) { Text(stringResource(R.string.transaction_repeat)) }
                 OutlinedButton(
                     onClick = { confirmReverse = true },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("detail-reverse")
-                ) { Text("Сторно") }
+                ) { Text(stringResource(R.string.transaction_reverse)) }
             }
         }
     }
@@ -163,12 +181,9 @@ fun TransactionDetailScreen(
     if (confirmReverse) {
         AlertDialog(
             onDismissRequest = { confirmReverse = false },
-            title = { Text("Создать сторно?") },
+            title = { Text(stringResource(R.string.transaction_reverse_title)) },
             text = {
-                Text(
-                    "Сервер создаст обратную проводку на ту же сумму. " +
-                        "Исходная проводка останется в журнале."
-                )
+                Text(stringResource(R.string.transaction_reverse_text))
             },
             confirmButton = {
                 TextButton(
@@ -176,28 +191,32 @@ fun TransactionDetailScreen(
                         confirmReverse = false
                         onReverse()
                     }
-                ) { Text("Создать сторно") }
+                ) { Text(stringResource(R.string.transaction_reverse_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmReverse = false }) { Text("Отмена") }
+                TextButton(onClick = { confirmReverse = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         )
     }
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Удалить черновик?") },
-            text = { Text("Проводка и её строки будут удалены с устройства.") },
+            title = { Text(stringResource(R.string.transaction_delete_title)) },
+            text = { Text(stringResource(R.string.transaction_delete_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         confirmDelete = false
                         onDelete()
                     }
-                ) { Text("Удалить") }
+                ) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Отмена") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         )
     }
@@ -207,21 +226,24 @@ fun TransactionDetailScreen(
 private fun DetailHeader(transaction: TransactionDetails) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
+            val fallbackTitle = operationTypeLabel(transaction.opType)
             Text(
-                text = transaction.description.ifBlank {
-                    transaction.opType.replaceFirstChar { it.uppercase() }
-                },
+                text = transaction.description.ifBlank { fallbackTitle },
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "${formatDateTime(transaction.date)} · ${transaction.opType}",
+                text = stringResource(
+                    R.string.transaction_date_type,
+                    formatDateTime(transaction.date),
+                    operationTypeLabel(transaction.opType)
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = transaction.syncStatus.title,
+                text = stringResource(transaction.syncStatus.titleRes),
                 style = MaterialTheme.typography.labelLarge,
                 color = when (transaction.syncStatus) {
                     SyncStatus.REJECTED -> MaterialTheme.colorScheme.error
@@ -258,7 +280,7 @@ private fun LinesBlock(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = account?.name ?: "Счёт ${line.accountId}",
+                        text = account?.name ?: stringResource(R.string.entry_account_fallback, line.accountId),
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Text(

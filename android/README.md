@@ -73,12 +73,17 @@ app/src/main/java/com/trefas/asledger/
 - зависимости создаются в `AppContainer` и передаются через ViewModel-фабрики;
   глобальных mutable-синглтонов нет;
 - ViewModel хранит `StateFlow<...UiState>`, Composable не ходит в сеть и Room;
-- пользовательские тексты и сообщения — на русском;
+- пользовательские тексты — только в `res/values/strings.xml`; в Compose и
+  слое данных нет русских литералов;
+- слой данных не зависит от `Context`: ошибки, прогресс и названия статусов
+  передаются как `@StringRes`, а UI разрешает их через `stringResource`;
 - деньги — только `Long` в копейках, без `Float`/`Double`; форматирование — в
   `util/MoneyFormat.kt`;
 - даты — `Long` epoch millis, форматирование — в `util/ServerTime.kt`;
+  относительные подписи выбирает UI через `FriendlyDate`;
 - сетевые и бизнес-ошибки не выбрасываются в UI, а возвращаются
-  `ApiResult`/`ConnectionError` с понятной подсказкой.
+  `ApiResult`/`ConnectionError`; `ConnectionProblem` хранит ресурсы заголовка и
+  подсказки.
 
 ## Тесты и проверки
 
@@ -174,7 +179,7 @@ adb shell pm clear com.trefas.asledger.debug
 - Поддерживается только `format_version = 1`.
 - План счетов на телефоне только для чтения.
 - Нет отчётов, сверки, импорта hledger, мультивалютности и push-уведомлений.
-- Интерфейс только на русском; не все строки вынесены в `res/values`.
+- Интерфейс только на русском; все пользовательские строки находятся в `res/values/strings.xml`.
 - HTTPS/VPN не настроены: предполагается доверенная домашняя сеть.
 
 Вклад в проект и обязательные проверки — в [../CONTRIBUTING.md](../CONTRIBUTING.md).

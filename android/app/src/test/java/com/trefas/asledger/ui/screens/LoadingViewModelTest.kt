@@ -1,5 +1,6 @@
 package com.trefas.asledger.ui.screens
 
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ConnectionError
 import com.trefas.asledger.data.sync.LibraryLoadResult
 import com.trefas.asledger.data.sync.LibraryProgress
@@ -21,7 +22,7 @@ class LoadingViewModelTest {
     fun `прогресс доходит до успеха`() = runTest {
         val gate = CompletableDeferred<Unit>()
         val viewModel = LoadingViewModel { onProgress ->
-            onProgress(LibraryProgress("Сохраняем проводки", 60))
+            onProgress(LibraryProgress(R.string.progress_transactions, 60))
             gate.await()
             LibraryLoadResult.Success
         }
@@ -49,7 +50,7 @@ class LoadingViewModelTest {
         viewModel.start()
         val failure = viewModel.state.value as LoadingState.Failure
         assertEquals(ConnectionError.ConnectionRefused, failure.error)
-        assertEquals("Сервер не отвечает", failure.problem.title)
+        assertEquals(R.string.connection_refused_title, failure.problem.titleRes)
 
         viewModel.retry()
         assertEquals(LoadingState.Success, viewModel.state.value)
@@ -77,6 +78,6 @@ class LoadingViewModelTest {
 
         val failure = viewModel.state.value as LoadingState.Failure
         assertEquals(ConnectionError.Unauthorized, failure.error)
-        assertEquals("Устройство отвязано", failure.problem.title)
+        assertEquals(R.string.connection_unauthorized_title, failure.problem.titleRes)
     }
 }

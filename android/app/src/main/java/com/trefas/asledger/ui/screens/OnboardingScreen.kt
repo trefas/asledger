@@ -1,5 +1,6 @@
 package com.trefas.asledger.ui.screens
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,40 +25,38 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.R
 import com.trefas.asledger.ui.components.BrandMark
 
 private data class OnboardingStep(
-    val title: String,
-    val text: String,
-    val hint: String
+    @StringRes val titleRes: Int,
+    @StringRes val textRes: Int,
+    @StringRes val hintRes: Int
 )
 
 private val steps = listOf(
     OnboardingStep(
-        title = "Книга всегда под рукой",
-        text = "asledger — семейная книга в локальной сети. Сервер хранит общую " +
-            "историю, а телефон работает даже без связи.",
-        hint = "Адрес сервера вы уже указали. Осталось познакомиться с главным."
+        titleRes = R.string.onboarding_book_title,
+        textRes = R.string.onboarding_book_text,
+        hintRes = R.string.onboarding_book_hint
     ),
     OnboardingStep(
-        title = "План счетов",
-        text = "На экране «Счета» — дерево счетов, остатки и поиск. Нажмите на " +
-            "листовой счёт, чтобы сразу начать с него проводку.",
-        hint = "План счетов меняется на сервере, в телефоне он доступен для просмотра."
+        titleRes = R.string.onboarding_accounts_title,
+        textRes = R.string.onboarding_accounts_text,
+        hintRes = R.string.onboarding_accounts_hint
     ),
     OnboardingStep(
-        title = "Проводки без сети",
-        text = "Выберите тип, счета и суммы в дебете и кредите. Сторону подскажет " +
-            "матрица ролей сервера, а черновик сохранится на устройстве.",
-        hint = "Проводка отправится автоматически, когда появится связь."
+        titleRes = R.string.onboarding_entry_title,
+        textRes = R.string.onboarding_entry_text,
+        hintRes = R.string.onboarding_entry_hint
     ),
     OnboardingStep(
-        title = "Синхронизация и порядок",
-        text = "В журнале видно, что ждёт отправки, что отклонено и где возможен " +
-            "дубль. Все действия можно повторить, исправить или отменить сторно.",
-        hint = "Журнал фильтруется по дате, счёту, типу и статусу."
+        titleRes = R.string.onboarding_sync_title,
+        textRes = R.string.onboarding_sync_text,
+        hintRes = R.string.onboarding_sync_hint
     )
 )
 
@@ -83,27 +82,27 @@ fun OnboardingScreen(
             TextButton(
                 onClick = onDone,
                 modifier = Modifier.testTag("onboarding-skip")
-            ) { Text("Пропустить") }
+            ) { Text(stringResource(R.string.action_skip)) }
         }
         Spacer(Modifier.weight(1f))
         BrandMark(size = 88.dp)
         Spacer(Modifier.height(28.dp))
         Text(
-            text = step.title,
+            text = stringResource(step.titleRes),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
             modifier = Modifier.testTag("onboarding-title")
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = step.text,
+            text = stringResource(step.textRes),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text = step.hint,
+            text = stringResource(step.hintRes),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
             textAlign = TextAlign.Center
@@ -140,7 +139,11 @@ fun OnboardingScreen(
                 .fillMaxWidth()
                 .testTag("onboarding-next")
         ) {
-            Text(if (index == steps.lastIndex) "Начать" else "Далее")
+            Text(
+                stringResource(
+                    if (index == steps.lastIndex) R.string.action_start else R.string.action_next
+                )
+            )
         }
     }
 }

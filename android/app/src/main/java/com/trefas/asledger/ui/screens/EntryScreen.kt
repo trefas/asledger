@@ -44,15 +44,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.R
 import com.trefas.asledger.data.model.Account
 import com.trefas.asledger.data.model.RoleRule
 import com.trefas.asledger.ui.components.FirstOpenHint
 import com.trefas.asledger.ui.components.HintIcon
-import com.trefas.asledger.ui.components.HintTexts
 import com.trefas.asledger.ui.components.ScreenScaffold
+import com.trefas.asledger.ui.components.operationTypeLabel
 import com.trefas.asledger.util.formatDate
 import com.trefas.asledger.util.formatKop
 import java.time.Instant
@@ -86,12 +88,14 @@ fun EntryScreen(
 
     FirstOpenHint(
         id = "entry-form",
-        title = "Как заполнить проводку",
-        text = HintTexts.ENTRY
+        title = stringResource(R.string.hint_title_entry),
+        text = stringResource(R.string.hint_entry)
     )
 
     ScreenScaffold(
-        title = if (state.isEditing) "Изменить проводку" else "Новая проводка",
+        title = stringResource(
+            if (state.isEditing) R.string.entry_title_edit else R.string.entry_title_new
+        ),
         modifier = modifier,
         onBack = onBack,
         actions = {
@@ -99,7 +103,11 @@ fun EntryScreen(
                 onClick = onSave,
                 enabled = !state.saving && !state.loadingRoles
             ) {
-                Text(if (state.saving) "Сохраняем…" else "Сохранить")
+                Text(
+                    stringResource(
+                        if (state.saving) R.string.action_saving else R.string.action_save
+                    )
+                )
             }
         }
     ) {
@@ -112,12 +120,12 @@ fun EntryScreen(
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Тип операции",
+                        text = stringResource(R.string.entry_op_type),
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                     HintIcon(
-                        text = HintTexts.ENTRY,
+                        text = stringResource(R.string.hint_entry),
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
@@ -132,7 +140,7 @@ fun EntryScreen(
                         FilterChip(
                             selected = state.opType == opType,
                             onClick = { onOpType(opType) },
-                            label = { Text(opType.replaceFirstChar { it.uppercase() }) },
+                            label = { Text(operationTypeLabel(opType)) },
                             modifier = Modifier.testTag("entry-op-$opType")
                         )
                     }
@@ -143,8 +151,8 @@ fun EntryScreen(
                 OutlinedTextField(
                     value = state.description,
                     onValueChange = onDescription,
-                    label = { Text("Описание") },
-                    placeholder = { Text("Например, продукты в магазине") },
+                    label = { Text(stringResource(R.string.entry_description)) },
+                    placeholder = { Text(stringResource(R.string.entry_description_placeholder)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -157,20 +165,20 @@ fun EntryScreen(
                     onClick = { showDatePicker = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Дата: ${formatDate(state.date)}")
+                    Text(stringResource(R.string.entry_date, formatDate(state.date)))
                 }
             }
 
             if (state.loadingRoles) {
                 item {
                     Text(
-                        "Загружаем роли операции…",
+                        stringResource(R.string.entry_loading_roles),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            state.rolesError?.let { error ->
+            state.rolesErrorRes?.let { errorRes ->
                 item {
                     Card(
                         colors = CardDefaults.cardColors(
@@ -178,7 +186,7 @@ fun EntryScreen(
                         )
                     ) {
                         Text(
-                            text = error,
+                            text = stringResource(errorRes),
                             modifier = Modifier.padding(12.dp),
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             style = MaterialTheme.typography.bodyMedium
@@ -189,9 +197,9 @@ fun EntryScreen(
 
             item {
                 SideHeader(
-                    title = "Дебет",
+                    title = stringResource(R.string.entry_debit),
                     total = formatKop(state.debitKop),
-                    hint = HintTexts.ENTRY,
+                    hint = stringResource(R.string.hint_entry),
                     onAdd = { onAddLine("DEBIT") }
                 )
             }
@@ -213,9 +221,9 @@ fun EntryScreen(
 
             item {
                 SideHeader(
-                    title = "Кредит",
+                    title = stringResource(R.string.entry_credit),
                     total = formatKop(state.creditKop),
-                    hint = HintTexts.ENTRY,
+                    hint = stringResource(R.string.hint_entry),
                     onAdd = { onAddLine("CREDIT") }
                 )
             }
@@ -256,8 +264,8 @@ fun EntryScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Остаток к распределению")
-                                HintIcon(text = HintTexts.BALANCE)
+                                Text(stringResource(R.string.entry_balance))
+                                HintIcon(text = stringResource(R.string.hint_balance))
                             }
                             Text(
                                 text = formatKop(abs(state.debitKop - state.creditKop)),
@@ -274,7 +282,7 @@ fun EntryScreen(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Дебет")
+                            Text(stringResource(R.string.entry_debit))
                             Text(formatKop(state.debitKop), fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(Modifier.height(4.dp))
@@ -282,13 +290,13 @@ fun EntryScreen(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Кредит")
+                            Text(stringResource(R.string.entry_credit))
                             Text(formatKop(state.creditKop), fontWeight = FontWeight.SemiBold)
                         }
                         if (!balanced) {
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = "Суммы дебета и кредита должны совпадать.",
+                                text = stringResource(R.string.entry_balance_error),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -297,10 +305,10 @@ fun EntryScreen(
                 }
             }
 
-            state.message?.let { message ->
+            state.messageRes?.let { messageRes ->
                 item {
                     Text(
-                        text = message,
+                        text = stringResource(messageRes),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.testTag("entry-message")
@@ -316,16 +324,18 @@ fun EntryScreen(
                         .fillMaxWidth()
                         .testTag("entry-save")
                 ) {
-                    Text(if (state.saving) "Сохраняем…" else "Сохранить проводку")
+                    Text(
+                        stringResource(
+                            if (state.saving) R.string.action_saving else R.string.entry_save_transaction
+                        )
+                    )
                 }
             }
             item {
                 Text(
-                    text = if (state.isEditing) {
-                        "Изменения попадут в очередь и отправятся при связи с сервером."
-                    } else {
-                        "Проводка сохранится на устройстве и отправится, когда появится сеть."
-                    },
+                    text = stringResource(
+                        if (state.isEditing) R.string.entry_hint_edit else R.string.entry_hint_new
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 24.dp)
@@ -349,10 +359,12 @@ fun EntryScreen(
                         }
                         showDatePicker = false
                     }
-                ) { Text("Выбрать") }
+                ) { Text(stringResource(R.string.action_select)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Отмена") }
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         ) {
             DatePicker(state = pickerState)
@@ -388,7 +400,7 @@ private fun SideHeader(
         OutlinedButton(onClick = onAdd) {
             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(4.dp))
-            Text("Строка")
+            Text(stringResource(R.string.entry_add_line))
         }
     }
 }
@@ -433,7 +445,10 @@ private fun EntryLineCard(
                         onClick = { accountMenu = true },
                         modifier = Modifier.testTag("entry-account-${line.key}")
                     ) {
-                        Text(account?.name ?: "Выбрать счёт", maxLines = 1)
+                        Text(
+                            account?.name ?: stringResource(R.string.entry_select_account),
+                            maxLines = 1
+                        )
                     }
                     DropdownMenu(
                         expanded = accountMenu,
@@ -451,7 +466,7 @@ private fun EntryLineCard(
                     }
                 }
                 IconButton(onClick = onRemove) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Удалить строку")
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.entry_delete_line))
                 }
             }
 
@@ -462,7 +477,13 @@ private fun EntryLineCard(
                         onClick = { roleMenu = true },
                         modifier = Modifier.testTag("entry-role-${line.key}")
                     ) {
-                        Text(line.role.ifBlank { "Выбрать роль" })
+                        Text(
+                            if (line.role.isBlank()) {
+                                stringResource(R.string.entry_select_role)
+                            } else {
+                                line.role
+                            }
+                        )
                     }
                     DropdownMenu(
                         expanded = roleMenu,
@@ -471,13 +492,18 @@ private fun EntryLineCard(
                         roles.forEach { rule ->
                             DropdownMenuItem(
                                 text = {
+                                    val typeLabels = rule.accountTypes.map { type ->
+                                        stringResource(type.titleRes)
+                                    }
                                     Text(
-                                        rule.role + if (rule.accountTypes.isEmpty()) {
-                                            ""
+                                        if (typeLabels.isEmpty()) {
+                                            rule.role
                                         } else {
-                                            " · " + rule.accountTypes.joinToString(", ") {
-                                                it.title
-                                            }
+                                            stringResource(
+                                                R.string.entry_role_with_types,
+                                                rule.role,
+                                                typeLabels.joinToString(", ")
+                                            )
                                         }
                                     )
                                 },
@@ -489,17 +515,19 @@ private fun EntryLineCard(
                         }
                     }
                 }
-                HintIcon(text = HintTexts.ROLE)
+                HintIcon(text = stringResource(R.string.hint_role))
             }
 
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = line.amount,
                 onValueChange = onAmount,
-                label = { Text("Сумма, ₽") },
+                label = { Text(stringResource(R.string.entry_amount_label)) },
                 singleLine = true,
-                isError = line.error != null,
-                supportingText = line.error?.let { error -> { Text(error) } },
+                isError = line.errorRes != null,
+                supportingText = line.errorRes?.let { errorRes ->
+                    { Text(stringResource(errorRes)) }
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -508,11 +536,11 @@ private fun EntryLineCard(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(100L, 500L, 1_000L).forEach { rubles ->
                     TextButton(onClick = { onQuickAmount(rubles * 100) }) {
-                        Text("+$rubles", maxLines = 1)
+                        Text(stringResource(R.string.entry_quick_amount, rubles), maxLines = 1)
                     }
                 }
                 TextButton(onClick = { onAmount("") }) {
-                    Text("Очистить", maxLines = 1)
+                    Text(stringResource(R.string.entry_clear), maxLines = 1)
                 }
             }
         }

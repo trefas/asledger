@@ -1,8 +1,11 @@
 package com.trefas.asledger.ui.screens
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trefas.asledger.R
 import com.trefas.asledger.data.model.OutboxItem
+import com.trefas.asledger.data.network.ConnectionProblem
 import com.trefas.asledger.data.network.toProblem
 import com.trefas.asledger.data.repository.LocalEntryRepository
 import com.trefas.asledger.data.settings.ServerConfig
@@ -22,7 +25,9 @@ data class SyncScreenState(
     val items: List<OutboxItem> = emptyList(),
     val sync: SyncState = SyncState(),
     val working: Boolean = false,
-    val message: String? = null
+    val message: String? = null,
+    @StringRes val messageRes: Int? = null,
+    val problem: ConnectionProblem? = null
 )
 
 /** Экран очереди: отправка, предупреждения, дубли и отклонённые проводки. */
@@ -55,24 +60,48 @@ class SyncViewModel(
     fun syncNow() {
         val current = config ?: return
         viewModelScope.launch {
-            _screen.value = _screen.value.copy(working = true, message = null)
-            val result = manager.sync(current)
             _screen.value = _screen.value.copy(
-                working = false,
-                message = when (result) {
-                    is SyncOutcome.Success -> result.warnings.firstOrNull()
-                    is SyncOutcome.Rejected -> "${result.code}: ${result.message}"
-                    is SyncOutcome.Failure -> result.error.toProblem().title
-                    SyncOutcome.NothingToDo -> null
-                }
+                working = true,
+                message = null,
+                messageRes = null,
+                problem = null
             )
+            val result = manager.sync(current)
+            _screen.value = when (result) {
+                is SyncOutcome.Success -> _screen.value.copy(
+                    working = false,
+                    message = result.warnings.firstOrNull()
+                )
+                is SyncOutcome.Rejected -> _screen.value.copy(
+                    working = false,
+                    message = if (result.message.isBlank()) {
+                        result.code
+                    } else {
+                        "${result.code}: ${result.message}"
+                    },
+                    messageRes = if (result.code.isBlank() && result.message.isBlank()) {
+                        R.string.sync_rejected_fallback
+                    } else {
+                        null
+                    }
+                )
+                is SyncOutcome.Failure -> _screen.value.copy(
+                    working = false,
+                    problem = result.error.toProblem()
+                )
+                SyncOutcome.NothingToDo -> _screen.value.copy(working = false)
+            }
         }
     }
 
     fun deleteDraft(uuid: String) {
         viewModelScope.launch {
             runCatching { localEntries.delete(uuid) }
-                .onFailure { _screen.value = _screen.value.copy(message = it.message) }
+                .onFailure {
+                    _screen.value = _screen.value.copy(
+                        messageRes = R.string.sync_delete_failed
+                    )
+                }
         }
     }
 }

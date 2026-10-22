@@ -19,11 +19,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ConnectionError
 import com.trefas.asledger.data.settings.ServerConfig
 import com.trefas.asledger.ui.components.BrandMark
+import com.trefas.asledger.ui.components.hintText
+import com.trefas.asledger.ui.components.titleText
 
 /**
  * Экран первичной загрузки снапшота.
@@ -53,7 +57,7 @@ fun LoadingScreen(
         BrandMark(size = 96.dp)
         Spacer(Modifier.height(24.dp))
         Text(
-            text = "Загружаем книгу",
+            text = stringResource(R.string.loading_title),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
@@ -74,12 +78,13 @@ fun LoadingScreen(
                         .testTag("loading-progress")
                 )
                 Text(
-                    text = progress?.title ?: "Готовимся",
+                    text = progress?.let { stringResource(it.titleRes) }
+                        ?: stringResource(R.string.progress_preparing),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(top = 12.dp)
                 )
                 Text(
-                    text = "${progress?.percent ?: 0} %",
+                    text = stringResource(R.string.loading_percent, progress?.percent ?: 0),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
@@ -89,26 +94,26 @@ fun LoadingScreen(
                     onClick = onCancel,
                     modifier = Modifier.testTag("loading-cancel")
                 ) {
-                    Text("Отменить")
+                    Text(stringResource(R.string.loading_cancel))
                 }
             }
 
             LoadingState.Success -> {
                 Text(
-                    text = "Книга загружена",
+                    text = stringResource(R.string.loading_success),
                     style = MaterialTheme.typography.titleMedium
                 )
             }
 
             is LoadingState.Failure -> {
                 Text(
-                    text = state.problem.title,
+                    text = state.problem.titleText(),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    text = state.problem.hint,
+                    text = state.problem.hintText(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -122,7 +127,7 @@ fun LoadingScreen(
                             .fillMaxWidth()
                             .testTag("loading-reenroll")
                     ) {
-                        Text("Привязать заново")
+                        Text(stringResource(R.string.loading_reenroll))
                     }
                 } else {
                     Button(
@@ -131,7 +136,7 @@ fun LoadingScreen(
                             .fillMaxWidth()
                             .testTag("loading-retry")
                     ) {
-                        Text("Повторить")
+                        Text(stringResource(R.string.action_retry))
                     }
                 }
                 OutlinedButton(
@@ -140,17 +145,17 @@ fun LoadingScreen(
                         .fillMaxWidth()
                         .padding(top = 8.dp)
                 ) {
-                    Text("Изменить адрес")
+                    Text(stringResource(R.string.action_change_address))
                 }
             }
 
             LoadingState.Cancelled -> {
                 Text(
-                    text = "Загрузка отменена",
+                    text = stringResource(R.string.loading_cancelled),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "Сохранённые адрес и пользователь не изменены.",
+                    text = stringResource(R.string.loading_cancelled_text),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -163,7 +168,7 @@ fun LoadingScreen(
                         .fillMaxWidth()
                         .testTag("loading-retry")
                 ) {
-                    Text("Продолжить")
+                    Text(stringResource(R.string.loading_continue))
                 }
                 OutlinedButton(
                     onClick = onChangeServer,
@@ -171,7 +176,7 @@ fun LoadingScreen(
                         .fillMaxWidth()
                         .padding(top = 8.dp)
                 ) {
-                    Text("Изменить адрес")
+                    Text(stringResource(R.string.action_change_address))
                 }
             }
         }

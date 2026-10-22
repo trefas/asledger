@@ -33,7 +33,7 @@ class KeystoreTokenStore(
     private val context: Context
 ) : TokenStore {
     override suspend fun save(token: String) {
-        require(token.isNotBlank()) { "пустой токен" }
+        require(token.isNotBlank()) { "empty token" }
         val encrypted = withContext(Dispatchers.IO) { encrypt(token) }
         context.tokenDataStore.edit { preferences ->
             preferences[KEY_TOKEN] = encrypted
@@ -65,9 +65,9 @@ class KeystoreTokenStore(
 
     private fun decrypt(encoded: String): String {
         val payload = Base64.decode(encoded, Base64.NO_WRAP)
-        require(payload.isNotEmpty()) { "пустой шифротекст" }
+        require(payload.isNotEmpty()) { "empty ciphertext" }
         val ivSize = payload[0].toInt() and 0xFF
-        require(ivSize in 1..MAX_IV_SIZE && payload.size > ivSize + 1) { "повреждённый шифротекст" }
+        require(ivSize in 1..MAX_IV_SIZE && payload.size > ivSize + 1) { "corrupted ciphertext" }
         val iv = payload.copyOfRange(1, 1 + ivSize)
         val ciphertext = payload.copyOfRange(1 + ivSize, payload.size)
         val cipher = Cipher.getInstance(TRANSFORMATION)

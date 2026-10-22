@@ -1,5 +1,6 @@
 package com.trefas.asledger.data.sync
 
+import com.trefas.asledger.R
 import com.trefas.asledger.data.network.ConnectionError
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -26,8 +27,8 @@ class SyncRetryTest {
             ConnectionError.Unauthorized,
             ConnectionError.NotAsledger,
             ConnectionError.Http(status = 500),
-            ConnectionError.InvalidResponse("битый JSON"),
-            ConnectionError.InvalidAddress("порт")
+            ConnectionError.InvalidResponse(R.string.connection_invalid_response_hint),
+            ConnectionError.InvalidAddress(R.string.connection_invalid_address_default)
         ).forEach { error ->
             assertFalse(error.toString(), SyncRetry.isTransient(error))
             assertFalse(error.toString(), SyncRetry.shouldRetry(error, attempt = 0))

@@ -35,18 +35,18 @@ class SyncApplier(
     suspend fun apply(pull: PullDto, knownHash: String): Long {
         if (pull.formatVersion != SnapshotImporter.SUPPORTED_FORMAT_VERSION) {
             throw ChainMismatchException(
-                "формат дельты ${pull.formatVersion} не поддерживается"
+                "unsupported pull format ${pull.formatVersion}"
             )
         }
         val commits = pull.commits.orEmpty().sortedBy { it.resultSeq }
         val chainHead = verifyChain(
             prevHash = if (pull.since == 0L) "" else knownHash,
             commits = commits.map { it.toDomain() }
-        ) ?: throw ChainMismatchException("хэш-цепочка не совпала")
+        ) ?: throw ChainMismatchException("hash chain mismatch")
 
         val expected = if (commits.isEmpty() && pull.since == 0L) "" else chainHead
         if (expected != pull.chainHash) {
-            throw ChainMismatchException("итоговый хэш цепочки не совпал")
+            throw ChainMismatchException("final chain hash mismatch")
         }
 
         val accounts = pull.accounts.orEmpty().map { it.toEntity() }
@@ -119,7 +119,7 @@ class SyncApplier(
 
     private fun SnapshotAccountDto.toEntity(): AccountEntity {
         val accountType = AccountType.fromServer(type)
-            ?: throw SnapshotImportException("неизвестный тип счёта $type у $fullPath")
+            ?: throw SnapshotImportException("unknown account type $type at $fullPath")
         return AccountEntity(
             id = id,
             name = name,
@@ -136,13 +136,13 @@ class SyncApplier(
     }
 
     private fun SnapshotTransactionDto.toEntity(): TransactionEntity {
-        if (uuid.isBlank()) throw SnapshotImportException("пустой UUID в дельте")
+        if (uuid.isBlank()) throw SnapshotImportException("empty UUID in pull")
         return TransactionEntity(
             uuid = uuid,
             serverId = id,
             opType = opType,
             date = runCatching { parseServerTime(date) }
-                .getOrElse { throw SnapshotImportException("некорректная дата у $uuid") },
+                .getOrElse { throw SnapshotImportException("invalid date for $uuid") },
             description = description,
             actorId = actorId,
             reversesId = reversesId,
@@ -157,7 +157,7 @@ class SyncApplier(
     private fun SnapshotTransactionDto.toLines(): List<LineEntity> =
         lines.map { line ->
             if (line.side != "DEBIT" && line.side != "CREDIT") {
-                throw SnapshotImportException("неизвестная сторона ${line.side} у $uuid")
+                throw SnapshotImportException("unknown side ${line.side} in $uuid")
             }
             LineEntity(
                 serverId = line.id,

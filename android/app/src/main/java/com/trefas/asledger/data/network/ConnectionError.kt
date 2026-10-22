@@ -1,5 +1,7 @@
 package com.trefas.asledger.data.network
 
+import androidx.annotation.StringRes
+import com.trefas.asledger.R
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import java.io.IOException
@@ -11,7 +13,7 @@ import javax.net.ssl.SSLException
 /** Классы ошибок подключения, которые важно различать пользователю. */
 sealed interface ConnectionError {
     /** Некорректный адрес или порт. */
-    data class InvalidAddress(val detail: String) : ConnectionError
+    data class InvalidAddress(@StringRes val detailRes: Int) : ConnectionError
 
     /** Сеть недоступна или соединение оборвалось. */
     data object NetworkUnavailable : ConnectionError
@@ -39,7 +41,7 @@ sealed interface ConnectionError {
     data object NotAsledger : ConnectionError
 
     /** Ответ пришёл, но его структура не совпала с контрактом. */
-    data class InvalidResponse(val detail: String = "") : ConnectionError
+    data class InvalidResponse(@StringRes val detailRes: Int = 0) : ConnectionError
 
     /** Формат снапшота несовместим с приложением. */
     data class IncompatibleFormat(
@@ -48,88 +50,105 @@ sealed interface ConnectionError {
     ) : ConnectionError
 
     /** Непредвиденная ошибка; detail не содержит секретов. */
-    data class Unexpected(val detail: String) : ConnectionError
+    data class Unexpected(
+        val detail: String? = null,
+        @StringRes val detailRes: Int = 0
+    ) : ConnectionError
+}
+
+/** Готовая к показу часть текста: ресурс с аргументами или динамическая строка. */
+sealed interface ConnectionDetail {
+    data class Resource(
+        @StringRes val id: Int,
+        val args: List<Any> = emptyList()
+    ) : ConnectionDetail
+
+    data class Text(val value: String) : ConnectionDetail
 }
 
 /** Понятное пользователю объяснение ошибки и подсказка. */
 data class ConnectionProblem(
-    val title: String,
-    val hint: String
+    @StringRes val titleRes: Int,
+    val hint: ConnectionDetail
 )
 
 /** Преобразует ошибку в текст для экрана. */
 fun ConnectionError.toProblem(): ConnectionProblem = when (this) {
     is ConnectionError.InvalidAddress -> ConnectionProblem(
-        title = "Проверьте адрес",
-        hint = detail
+        titleRes = R.string.connection_invalid_address_title,
+        hint = ConnectionDetail.Resource(detailRes)
     )
 
     ConnectionError.NetworkUnavailable -> ConnectionProblem(
-        title = "Нет связи с сервером",
-        hint = "Проверьте Wi-Fi и убедитесь, что телефон и компьютер в одной сети."
+        titleRes = R.string.connection_network_unavailable_title,
+        hint = ConnectionDetail.Resource(R.string.connection_network_unavailable_hint)
     )
 
     ConnectionError.HostNotFound -> ConnectionProblem(
-        title = "Адрес не найден",
-        hint = "Проверьте IP или имя компьютера. Имя должно разрешаться в локальной сети."
+        titleRes = R.string.connection_host_not_found_title,
+        hint = ConnectionDetail.Resource(R.string.connection_host_not_found_hint)
     )
 
     ConnectionError.ConnectionRefused -> ConnectionProblem(
-        title = "Сервер не отвечает",
-        hint = "Запущен ли asledgerd? Проверьте порт API — по умолчанию 8778."
+        titleRes = R.string.connection_refused_title,
+        hint = ConnectionDetail.Resource(R.string.connection_refused_hint)
     )
 
     ConnectionError.Timeout -> ConnectionProblem(
-        title = "Сервер не ответил вовремя",
-        hint = "Проверьте сеть и брандмауэр компьютера, затем попробуйте ещё раз."
+        titleRes = R.string.connection_timeout_title,
+        hint = ConnectionDetail.Resource(R.string.connection_timeout_hint)
     )
 
     ConnectionError.Unauthorized -> ConnectionProblem(
-        title = "Устройство отвязано",
-        hint = "Токен отозван или устарел. Привяжите устройство заново."
+        titleRes = R.string.connection_unauthorized_title,
+        hint = ConnectionDetail.Resource(R.string.connection_unauthorized_hint)
     )
 
-    is ConnectionError.Http -> ConnectionProblem(
-        title = "Сервер вернул ошибку",
-        hint = buildString {
-            if (!message.isNullOrBlank()) {
-                append(message)
-            } else {
-                append("HTTP ")
-                append(status)
-            }
-            if (!code.isNullOrBlank()) {
-                append(" (")
-                append(code)
-                append(")")
-            }
-            if (status == 404) {
-                append(". Проверьте порт API 8778, а не web-интерфейс 8777.")
-            }
-        }
-    )
+    is ConnectionError.Http -> {
+        val codeSuffix = code?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+        val messageSuffix = message?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
+        ConnectionProblem(
+            titleRes = R.string.connection_http_title,
+            hint = ConnectionDetail.Resource(
+                id = if (status == 404) {
+                    R.string.connection_http_404_hint
+                } else {
+                    R.string.connection_http_hint
+                },
+                args = listOf(status, codeSuffix, messageSuffix)
+            )
+        )
+    }
 
     ConnectionError.NotAsledger -> ConnectionProblem(
-        title = "Это не asledger",
-        hint = "По адресу отвечает другой сервис. Укажите порт API 8778, а не web-порт 8777."
+        titleRes = R.string.connection_not_asledger_title,
+        hint = ConnectionDetail.Resource(R.string.connection_not_asledger_hint)
     )
 
     is ConnectionError.InvalidResponse -> ConnectionProblem(
-        title = "Повреждённый ответ",
-        hint = detail.ifBlank {
-            "Сервер вернул данные неизвестного формата. Попробуйте ещё раз."
+        titleRes = R.string.connection_invalid_response_title,
+        hint = if (detailRes != 0) {
+            ConnectionDetail.Resource(detailRes)
+        } else {
+            ConnectionDetail.Resource(R.string.connection_invalid_response_hint)
         }
     )
 
     is ConnectionError.IncompatibleFormat -> ConnectionProblem(
-        title = "Версия сервера несовместима",
-        hint = "Обновите asledgerd. Приложение поддерживает формат $supportedFormat, " +
-            "сервер сообщил $serverFormat."
+        titleRes = R.string.connection_incompatible_title,
+        hint = ConnectionDetail.Resource(
+            id = R.string.connection_incompatible_hint,
+            args = listOf(supportedFormat, serverFormat)
+        )
     )
 
     is ConnectionError.Unexpected -> ConnectionProblem(
-        title = "Не удалось подключиться",
-        hint = detail.ifBlank { "Неизвестная ошибка. Попробуйте ещё раз." }
+        titleRes = R.string.connection_unexpected_title,
+        hint = when {
+            detailRes != 0 -> ConnectionDetail.Resource(detailRes)
+            !detail.isNullOrBlank() -> ConnectionDetail.Text(detail)
+            else -> ConnectionDetail.Resource(R.string.connection_unexpected_hint)
+        }
     )
 }
 
@@ -143,9 +162,7 @@ fun classifyNetworkError(error: Throwable): ConnectionError = when (error) {
     is HttpRequestTimeoutException -> ConnectionError.Timeout
     is java.net.SocketTimeoutException -> ConnectionError.Timeout
     is IOException -> ConnectionError.NetworkUnavailable
-    else -> ConnectionError.Unexpected(
-        error.message ?: error::class.simpleName ?: "неизвестная ошибка"
-    )
+    else -> ConnectionError.Unexpected(detail = error.message ?: error::class.simpleName)
 }
 
 /** Сопоставляет HTTP-статус и конверт ошибки. */

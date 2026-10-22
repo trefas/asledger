@@ -1,5 +1,6 @@
 package com.trefas.asledger.ui.screens
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,9 +39,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.trefas.asledger.R
 import com.trefas.asledger.data.model.JournalFilter
 import com.trefas.asledger.data.model.SyncStatus
 import com.trefas.asledger.data.model.TransactionSummary
@@ -53,21 +56,22 @@ import com.trefas.asledger.data.sync.SyncPhase
 import com.trefas.asledger.ui.components.BrandMark
 import com.trefas.asledger.ui.components.FirstOpenHint
 import com.trefas.asledger.ui.components.HintIcon
-import com.trefas.asledger.ui.components.HintTexts
 import com.trefas.asledger.ui.components.ScreenScaffold
-import com.trefas.asledger.util.formatFriendlyDate
+import com.trefas.asledger.ui.components.operationTypeLabel
+import com.trefas.asledger.util.FriendlyDate
 import com.trefas.asledger.util.formatKop
+import com.trefas.asledger.util.friendlyDate
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 /** Период журнала. */
-private enum class JournalPeriod(val title: String) {
-    ALL("Все"),
-    MONTH("Месяц"),
-    WEEK("7 дней"),
-    TODAY("Сегодня")
+private enum class JournalPeriod(@StringRes val titleRes: Int) {
+    ALL(R.string.journal_period_all),
+    MONTH(R.string.journal_period_month),
+    WEEK(R.string.journal_period_week),
+    TODAY(R.string.journal_period_today)
 }
 
 /** Журнал проводок с поиском, фильтрами и статусом синхронизации. */
@@ -119,17 +123,17 @@ fun JournalScreen(
 
     FirstOpenHint(
         id = "journal",
-        title = "Как читать журнал",
-        text = HintTexts.JOURNAL
+        title = stringResource(R.string.hint_title_journal),
+        text = stringResource(R.string.hint_journal)
     )
 
     ScreenScaffold(
-        title = "Журнал",
+        title = stringResource(R.string.journal_title),
         modifier = modifier,
         actions = {
-            HintIcon(text = HintTexts.STATUS)
+            HintIcon(text = stringResource(R.string.hint_status))
             IconButton(onClick = onNewEntry) {
-                Icon(Icons.Filled.Add, contentDescription = "Новая проводка")
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.journal_new_entry))
             }
         }
     ) {
@@ -154,7 +158,7 @@ fun JournalScreen(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Поиск по описанию") },
+                    label = { Text(stringResource(R.string.journal_search_label)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -168,23 +172,23 @@ fun JournalScreen(
                     FilterChip(
                         selected = status == null,
                         onClick = { status = null },
-                        label = { Text("Все") }
+                        label = { Text(stringResource(R.string.journal_filter_all)) }
                     )
                     FilterChip(
                         selected = status == SyncStatus.PENDING,
                         onClick = { status = SyncStatus.PENDING },
-                        label = { Text("К отправке") }
+                        label = { Text(stringResource(R.string.journal_filter_pending)) }
                     )
                     FilterChip(
                         selected = status == SyncStatus.REJECTED,
                         onClick = { status = SyncStatus.REJECTED },
-                        label = { Text("Отклонено") }
+                        label = { Text(stringResource(R.string.journal_filter_rejected)) }
                     )
                     JournalPeriod.entries.forEach { candidate ->
                         FilterChip(
                             selected = period == candidate,
                             onClick = { period = candidate },
-                            label = { Text(candidate.title) }
+                            label = { Text(stringResource(candidate.titleRes)) }
                         )
                     }
                 }
@@ -195,14 +199,16 @@ fun JournalScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     FilterMenuText(
-                        label = opType ?: "Тип",
-                        options = listOf(null to "Все типы") +
-                            MOBILE_OP_TYPES.map { it to it.replaceFirstChar { c -> c.uppercase() } },
+                        label = opType?.let { operationTypeLabel(it) }
+                            ?: stringResource(R.string.journal_filter_type),
+                        options = listOf(null to stringResource(R.string.journal_filter_all_types)) +
+                            MOBILE_OP_TYPES.map { it to operationTypeLabel(it) },
                         onSelect = { opType = it }
                     )
                     FilterMenuLong(
-                        label = accounts.firstOrNull { it.id == accountId }?.name ?: "Счёт",
-                        options = listOf(null to "Все счета") +
+                        label = accounts.firstOrNull { it.id == accountId }?.name
+                            ?: stringResource(R.string.journal_filter_account),
+                        options = listOf(null to stringResource(R.string.journal_filter_all_accounts)) +
                             accounts.map { it.id to it.name },
                         onSelect = { accountId = it }
                     )
@@ -220,7 +226,7 @@ fun JournalScreen(
                                 accountId = null
                                 period = JournalPeriod.ALL
                             }
-                        ) { Text("Сбросить") }
+                        ) { Text(stringResource(R.string.journal_reset)) }
                     }
                 }
 
@@ -321,14 +327,14 @@ private fun SyncBanner(
             Column(Modifier.padding(start = 10.dp)) {
                 Text(
                     text = when {
-                        offline -> "Нет связи с сервером"
-                        rejected > 0 -> "Отклонено проводок: $rejected"
-                        else -> "Ждут отправки: $pending"
+                        offline -> stringResource(R.string.journal_sync_offline)
+                        rejected > 0 -> stringResource(R.string.journal_sync_rejected, rejected)
+                        else -> stringResource(R.string.journal_sync_pending, pending)
                     },
                     style = MaterialTheme.typography.titleSmall
                 )
                 Text(
-                    text = "Откройте очередь синхронизации",
+                    text = stringResource(R.string.journal_sync_open),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -350,17 +356,21 @@ private fun EmptyJournal(userName: String, filtered: Boolean) {
             Spacer(Modifier.height(16.dp))
         }
         Text(
-            text = if (filtered) "Ничего не найдено" else "Проводок пока нет",
+            text = stringResource(
+                if (filtered) R.string.journal_empty_filtered_title else R.string.journal_empty_title
+            ),
             style = MaterialTheme.typography.titleLarge
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = if (filtered) {
-                "Измените поиск или сбросьте фильтры."
-            } else {
-                "Создайте первую проводку: она сохранится на устройстве и " +
-                    "отправится на сервер, когда появится сеть." +
-                    if (userName.isNotBlank()) "\n\nТекущий пользователь: $userName" else ""
+            text = when {
+                filtered -> stringResource(R.string.journal_empty_filtered_text)
+                userName.isNotBlank() -> stringResource(
+                    R.string.journal_empty_text_with_user,
+                    stringResource(R.string.journal_empty_text),
+                    userName
+                )
+                else -> stringResource(R.string.journal_empty_text)
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -389,8 +399,9 @@ private fun JournalRow(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
+                val fallbackTitle = operationTypeLabel(transaction.opType)
                 Text(
-                    text = transaction.description.ifBlank { transaction.opType },
+                    text = transaction.description.ifBlank { fallbackTitle },
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f)
                 )
@@ -405,20 +416,27 @@ private fun JournalRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                val dateText = when (val value = friendlyDate(transaction.date)) {
+                    FriendlyDate.Today -> stringResource(R.string.date_today)
+                    FriendlyDate.Yesterday -> stringResource(R.string.date_yesterday)
+                    is FriendlyDate.Absolute -> value.text
+                }
                 Text(
-                    text = buildString {
-                        append(formatFriendlyDate(transaction.date))
-                        if (transaction.actorName.isNotBlank()) {
-                            append(" · ")
-                            append(transaction.actorName)
-                        }
+                    text = if (transaction.actorName.isNotBlank()) {
+                        stringResource(
+                            R.string.journal_date_actor,
+                            dateText,
+                            transaction.actorName
+                        )
+                    } else {
+                        dateText
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (transaction.syncStatus != SyncStatus.SYNCED) {
                     Text(
-                        text = transaction.syncStatus.title,
+                        text = stringResource(transaction.syncStatus.titleRes),
                         style = MaterialTheme.typography.bodySmall,
                         color = when (transaction.syncStatus) {
                             SyncStatus.REJECTED -> MaterialTheme.colorScheme.error

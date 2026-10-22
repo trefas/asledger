@@ -1,12 +1,15 @@
 package com.trefas.asledger.data.model
 
+import androidx.annotation.StringRes
+import com.trefas.asledger.R
+
 /** Тип счёта из матрицы ASL-2.2. */
-enum class AccountType(val serverValue: String, val title: String) {
-    ASSET("актив", "Актив"),
-    LIABILITY("пассив", "Пассив"),
-    CAPITAL("капитал", "Капитал"),
-    INCOME("доход", "Доход"),
-    EXPENSE("расход", "Расход");
+enum class AccountType(val serverValue: String, @StringRes val titleRes: Int) {
+    ASSET("актив", R.string.account_type_asset),
+    LIABILITY("пассив", R.string.account_type_liability),
+    CAPITAL("капитал", R.string.account_type_capital),
+    INCOME("доход", R.string.account_type_income),
+    EXPENSE("расход", R.string.account_type_expense);
 
     companion object {
         fun fromServer(value: String): AccountType? =
@@ -56,12 +59,12 @@ data class SyncMeta(
 )
 
 /** Статус проводки в локальной очереди. */
-enum class SyncStatus(val serverValue: String, val title: String) {
-    SYNCED("synced", "Синхронизировано"),
-    PENDING("pending", "К отправке"),
-    SENDING("sending", "Отправляется"),
-    REJECTED("rejected", "Отклонено"),
-    DRAFT("draft", "Черновик");
+enum class SyncStatus(val serverValue: String, @StringRes val titleRes: Int) {
+    SYNCED("synced", R.string.sync_status_synced),
+    PENDING("pending", R.string.sync_status_pending),
+    SENDING("sending", R.string.sync_status_sending),
+    REJECTED("rejected", R.string.sync_status_rejected),
+    DRAFT("draft", R.string.sync_status_draft);
 
     companion object {
         fun fromServer(value: String?): SyncStatus =

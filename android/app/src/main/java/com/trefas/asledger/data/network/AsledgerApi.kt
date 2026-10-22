@@ -1,5 +1,6 @@
 package com.trefas.asledger.data.network
 
+import com.trefas.asledger.R
 import com.trefas.asledger.data.settings.ServerConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -139,7 +140,7 @@ class AsledgerApi(
         }
         val snapshot = runCatching { response.body<SnapshotDto>() }.getOrNull()
             ?: return@request ApiResult.Failure(
-                ConnectionError.InvalidResponse("не удалось разобрать снапшот книги")
+                ConnectionError.InvalidResponse(R.string.connection_detail_snapshot_parse)
             )
         if (snapshot.formatVersion != SUPPORTED_FORMAT_VERSION) {
             return@request ApiResult.Failure(
@@ -204,14 +205,14 @@ class AsledgerApi(
         }
         val body = runCatching { response.body<PushResponseDto>() }.getOrNull()
             ?: return@request ApiResult.Failure(
-                ConnectionError.InvalidResponse("не удалось разобрать ответ синхронизации")
+                ConnectionError.InvalidResponse(R.string.connection_detail_sync_parse)
             )
         if (body.status != "accepted" &&
             body.status != "accepted-with-warnings" &&
             body.status != "rejected"
         ) {
             return@request ApiResult.Failure(
-                ConnectionError.InvalidResponse("неизвестный статус отправки: ${body.status}")
+                ConnectionError.InvalidResponse(R.string.connection_detail_sync_status)
             )
         }
         ApiResult.Ok(body)
@@ -240,7 +241,7 @@ class AsledgerApi(
         }
         val body = runCatching { response.body<PullDto>() }.getOrNull()
             ?: return@request ApiResult.Failure(
-                ConnectionError.InvalidResponse("не удалось разобрать изменения книги")
+                ConnectionError.InvalidResponse(R.string.connection_detail_pull_parse)
             )
         if (body.formatVersion != SUPPORTED_FORMAT_VERSION) {
             return@request ApiResult.Failure(
@@ -272,7 +273,7 @@ class AsledgerApi(
         }
         val body = runCatching { response.body<EngineRolesDto>() }.getOrNull()
             ?: return@request ApiResult.Failure(
-                ConnectionError.InvalidResponse("не удалось разобрать роли операции")
+                ConnectionError.InvalidResponse(R.string.connection_detail_roles_parse)
             )
         ApiResult.Ok(body)
     }

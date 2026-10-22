@@ -16,7 +16,7 @@ internal fun AccountEntity.toDomain(): Account = Account(
     name = name,
     fullPath = fullPath,
     type = AccountType.fromServer(type)
-        ?: throw IllegalStateException("неизвестный тип счёта: $type"),
+        ?: throw IllegalStateException("unknown account type: $type"),
     parentId = parentId,
     isLeaf = isLeaf,
     minBalanceKop = minBalanceKop,

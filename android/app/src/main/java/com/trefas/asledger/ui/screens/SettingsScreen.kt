@@ -21,8 +21,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.trefas.asledger.BuildConfig
+import com.trefas.asledger.R
 import com.trefas.asledger.data.settings.ServerConfig
 import com.trefas.asledger.ui.components.ScreenScaffold
 
@@ -39,7 +41,7 @@ fun SettingsScreen(
 ) {
     var confirmForget by remember { mutableStateOf(false) }
 
-    ScreenScaffold(title = "Настройки", modifier = modifier) {
+    ScreenScaffold(title = stringResource(R.string.settings_title), modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -57,42 +59,45 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Сервер", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_server), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = config?.baseUrl ?: "Книга не подключена",
+                        text = config?.baseUrl ?: stringResource(R.string.settings_not_connected),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
                     if (config != null && config.serverVersion.isNotBlank()) {
                         Text(
-                            text = "Версия: ${config.serverVersion}, формат ${config.formatVersion}",
+                            text = stringResource(
+                                R.string.settings_version_format,
+                                config.serverVersion,
+                                config.formatVersion
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     if (config != null && config.hasSession) {
                         Text(
-                            text = "Пользователь: ${config.userName}",
+                            text = stringResource(R.string.settings_user, config.userName),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
                     Text(
-                        text = "Порт по умолчанию — 8778. Адрес можно изменить, " +
-                            "если компьютер переехал в другую сеть.",
+                        text = stringResource(R.string.settings_port_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(onClick = onChangeServer) {
-                        Text("Изменить адрес")
+                        Text(stringResource(R.string.action_change_address))
                     }
                     if (config?.hasSession == true) {
                         OutlinedButton(onClick = onChangeUser) {
-                            Text("Сменить пользователя")
+                            Text(stringResource(R.string.settings_change_user))
                         }
                     }
                     TextButton(onClick = { confirmForget = true }) {
                         Text(
-                            text = "Забыть сервер",
+                            text = stringResource(R.string.settings_forget_server),
                             color = MaterialTheme.colorScheme.error
                         )
                     }
@@ -109,15 +114,14 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Диагностика", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_diagnostics), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Проверка связи, версия сервера, время последней " +
-                            "синхронизации и состояние токена. Токен не показывается.",
+                        text = stringResource(R.string.settings_diagnostics_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Button(onClick = onDiagnostics) {
-                        Text("Открыть диагностику")
+                        Text(stringResource(R.string.settings_open_diagnostics))
                     }
                 }
             }
@@ -132,14 +136,13 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Помощь", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_help), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Подсказки о статусах, дублях, офлайн-работе и " +
-                            "привязке устройства.",
+                        text = stringResource(R.string.settings_help_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedButton(onClick = onHelp) { Text("Открыть справку") }
+                    OutlinedButton(onClick = onHelp) { Text(stringResource(R.string.settings_open_help)) }
                 }
             }
 
@@ -153,15 +156,13 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("О приложении", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_about), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "asledger ${BuildConfig.VERSION_NAME}",
+                        text = stringResource(R.string.settings_about_version, BuildConfig.VERSION_NAME),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "Android 14 (API 34) и новее. Данные книги хранятся " +
-                            "на вашем сервере; приложение работает с локальной копией " +
-                            "и синхронизируется, когда сервер доступен.",
+                        text = stringResource(R.string.settings_about_text),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -173,12 +174,9 @@ fun SettingsScreen(
     if (confirmForget) {
         AlertDialog(
             onDismissRequest = { confirmForget = false },
-            title = { Text("Забыть сервер?") },
+            title = { Text(stringResource(R.string.settings_forget_title)) },
             text = {
-                Text(
-                    "Адрес и токен будут удалены с устройства. Локальные черновики " +
-                        "проводок не удаляются. Для продолжения потребуется привязка заново."
-                )
+                Text(stringResource(R.string.settings_forget_text))
             },
             confirmButton = {
                 TextButton(
@@ -187,12 +185,12 @@ fun SettingsScreen(
                         onForgetServer()
                     }
                 ) {
-                    Text("Забыть")
+                    Text(stringResource(R.string.settings_forget_confirm))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirmForget = false }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
