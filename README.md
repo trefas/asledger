@@ -133,7 +133,7 @@ cd C:\asledger
 Файл `asledger-<версия>.apk.sha256` содержит контрольную сумму APK. Проверка:
 
 ```bash
-sha256sum -c asledger-1.0.6.apk.sha256
+sha256sum -c asledger-1.0.7.apk.sha256
 ```
 
 Если проверка не проходит или установщик пишет «При анализе пакета произошла
@@ -220,7 +220,7 @@ API, web и интеграционный стенд, `templates/` и `assets/` �
 - [x] S8 — Release
 
 Android-приложение (эпик [#90](https://github.com/trefas/asledger/issues/90))
-выпущено как `v1.0.6`:
+выпущено как `v1.0.7`:
 
 - [x] S9 — Каркас и бренд
 - [x] S10 — Подключение и первый запуск
