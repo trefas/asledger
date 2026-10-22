@@ -220,7 +220,7 @@ API, web и интеграционный стенд, `templates/` и `assets/` �
 - [x] S8 — Release
 
 Android-приложение (эпик [#90](https://github.com/trefas/asledger/issues/90))
-выпущено как `v1.0.3`:
+выпущено как `v1.0.4`:
 
 - [x] S9 — Каркас и бренд
 - [x] S10 — Подключение и первый запуск

@@ -102,6 +102,13 @@ SHA-256 APK
 `e17c40b79ebf3ff7ff1c85cd9026fe78671d1a71a2c2c8d06fb87588241f6ae2`,
 установка поверх `1.0.2` сохранила данные.
 
+Релиз `v1.0.4` содержит v2- и v3-подписи: run
+[39794526068](https://github.com/trefas/asledger/actions/runs/39794526068).
+APK `asledger-1.0.4.apk` имеет размер `4 561 412` байт и SHA-256
+`756cf995583e64cb9aa6925dcce3d253a54a8c03449cc9538b96ccc2d61fd809`;
+скачанный файл прошёл `sha256sum -c`, `apksigner`, `zipalign` (4 КБ и 16 КБ)
+и установлен через `adb` на Android 14 (API 34) поверх `1.0.3`.
+
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,
 «Документация» по conventional-префиксам `feat:`, `fix:`, `perf:`, `docs:`;
