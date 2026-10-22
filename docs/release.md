@@ -171,6 +171,15 @@ nova 14i (Android 12, API 31) APK устанавливается, приложе
 иконка `asledger` видна в шторке EMUI Launcher. На эмуляторе API 34 сборка
 также устанавливается и запускается.
 
+Опубликован [v1.1.2](https://github.com/trefas/asledger/releases/tag/v1.1.2),
+workflow
+[39856818274](https://github.com/trefas/asledger/actions/runs/39856818274).
+APK `asledger-1.1.2.apk` имеет размер `4 718 767` байт и SHA-256
+`ae2cc4cc6e9d9afa91a5879372ab058c1e6e4635c4f6337b06ca9744fc49797d`;
+`aapt` подтверждает `versionName=1.1.2`, `versionCode=10102`,
+`sdkVersion:'31'`, `targetSdkVersion:'34'` и `launchable-activity`,
+`apksigner --min-sdk-version 21` — v1, v2 и v3, `zipalign` — 4 КБ и 16 КБ.
+
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,
 «Документация» по conventional-префиксам `feat:`, `fix:`, `perf:`, `docs:`;
