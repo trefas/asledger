@@ -373,6 +373,15 @@ v1-подписи, `launchable-activity` и выравнивание готов�
 на эмуляторе API 34 иконка отображается в списке приложений. Экраны Compose
 в `res/layout` не компилируются — они находятся в `classes.dex`.
 
+Релиз `v1.1.1` опубликован workflow
+[39843998616](https://github.com/trefas/asledger/actions/runs/39843998616);
+APK `asledger-1.1.1.apk` имеет размер `4 702 387` байт и SHA-256
+`a67cc16a4fb30157de83afa64891f9a8bcc93eac79a56a61c8f3cccc02a6af4d`.
+`apksigner --min-sdk-version 21` подтверждает v1, v2 и v3, `zipalign`
+(4 КБ и 16 КБ) проходит, `aapt` видит `versionName=1.1.1`,
+`versionCode=10101`, `minSdk=34`, `targetSdk=34` и `launchable-activity`.
+Скачанный из релиза APK установлен на эмулятор API 34 и запускается.
+
 ## Приёмка первой версии
 
 Автоматические проверки, доступные в CI и локально:

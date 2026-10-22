@@ -60,7 +60,7 @@ Makefile передаёт значения в линкер:
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.1.0.apk.sha256
+sha256sum -c asledger-1.1.1.apk.sha256
 ```
 
 ## Публикация по тегу
@@ -151,6 +151,15 @@ v2/v3 без JAR-манифеста. На Android 14 штатная провер
 до успешной установки APK из файлового менеджера Huawei и проверки запуска.
 Workflow дополнительно проверяет v1-подпись, наличие `META-INF/MANIFEST.MF`,
 `launchable-activity` и выравнивание готового APK перед публикацией.
+
+Релиз опубликован workflow
+[39843998616](https://github.com/trefas/asledger/actions/runs/39843998616).
+APK `asledger-1.1.1.apk` имеет размер `4 702 387` байт и SHA-256
+`a67cc16a4fb30157de83afa64891f9a8bcc93eac79a56a61c8f3cccc02a6af4d`.
+`apksigner --min-sdk-version 21` подтверждает v1, v2 и v3, `zipalign`
+(4 КБ и 16 КБ) проходит, `aapt` видит `launchable-activity`, `versionName=1.1.1`
+и `versionCode=10101`. Скачанный APK установлен на эмулятор API 34, данные
+приложения сохранились.
 
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,
