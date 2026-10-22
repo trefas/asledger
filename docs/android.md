@@ -179,7 +179,7 @@ ui/ (Compose) ── AppContainer ── data/repository ── Room (локал
 ## Сборка и проверки
 
 Требуются JDK 21 и Android SDK с платформой `android-36` и build-tools
-`36.0.0` (`minSdk 34`, `compileSdk`/`targetSdk` 36).
+`36.0.0` (`minSdk 34`, `compileSdk` 36, `targetSdk` 34).
 
 ```bash
 cd android

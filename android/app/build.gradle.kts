@@ -48,7 +48,10 @@ android {
         applicationId = "com.trefas.asledger"
         // Android 14 (API 34) и новее — требование эпика.
         minSdk = 34
-        targetSdk = 36
+        // targetSdk совпадает с минимальной поддерживаемой версией:
+        // установщик EMUI на Huawei отклоняет APK, собранный под более
+        // новую целевую платформу, даже если устройство уже на API 34.
+        targetSdk = 34
         // Тег v1.2.3 даёт versionName 1.2.3 и versionCode 10203.
         versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_000
         versionName = System.getenv("ANDROID_VERSION_NAME")

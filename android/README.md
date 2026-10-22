@@ -14,7 +14,7 @@ Jetpack Compose (Material 3), Room, Ktor и WorkManager. Сервер — `asled
 | Android SDK | platform 36, build-tools 36.0.0 |
 | Gradle | через wrapper (`./gradlew`) |
 | Kotlin | 2.1.20 |
-| minSdk / targetSdk | 34 / 36 |
+| minSdk / targetSdk | 34 / 34 |
 
 Переменные окружения:
 
