@@ -12,7 +12,9 @@ import com.trefas.asledger.data.repository.TransactionRepository
 import com.trefas.asledger.data.security.KeystoreTokenStore
 import com.trefas.asledger.data.security.TokenStore
 import com.trefas.asledger.data.settings.DataStoreServerConfigStore
+import com.trefas.asledger.data.settings.HintStore
 import com.trefas.asledger.data.settings.ServerConfigStore
+import com.trefas.asledger.data.settings.SharedPreferencesHintStore
 import com.trefas.asledger.data.sync.LibraryLoader
 import com.trefas.asledger.data.sync.SnapshotImporter
 import com.trefas.asledger.data.sync.SyncApplier
@@ -45,6 +47,9 @@ class AppContainer(context: Context) {
 
     /** Токен устройства; в файлах лежит только шифротекст Keystore. */
     val tokenStore: TokenStore = KeystoreTokenStore(appContext)
+
+    /** Отметки о просмотренных обучающих подсказках. */
+    val hintStore: HintStore = SharedPreferencesHintStore(appContext)
 
     /** HTTP-клиент для REST API asledger. */
     val httpClient: HttpClient by lazy { createHttpClient(OkHttp.create { }) }

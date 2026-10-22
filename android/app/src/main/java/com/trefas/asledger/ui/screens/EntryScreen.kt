@@ -49,12 +49,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.trefas.asledger.data.model.Account
 import com.trefas.asledger.data.model.RoleRule
+import com.trefas.asledger.ui.components.FirstOpenHint
+import com.trefas.asledger.ui.components.HintIcon
+import com.trefas.asledger.ui.components.HintTexts
 import com.trefas.asledger.ui.components.ScreenScaffold
 import com.trefas.asledger.util.formatDate
 import com.trefas.asledger.util.formatKop
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlin.math.abs
 
 /** Форма проводки: роли, строки дебета и кредита, офлайн-сохранение. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -80,6 +84,12 @@ fun EntryScreen(
         if (state.saved) onSaved()
     }
 
+    FirstOpenHint(
+        id = "entry-form",
+        title = "Как заполнить проводку",
+        text = HintTexts.ENTRY
+    )
+
     ScreenScaffold(
         title = if (state.isEditing) "Изменить проводку" else "Новая проводка",
         modifier = modifier,
@@ -100,11 +110,17 @@ fun EntryScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Text(
-                    text = "Тип операции",
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Тип операции",
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    HintIcon(
+                        text = HintTexts.ENTRY,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
                 FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -175,6 +191,7 @@ fun EntryScreen(
                 SideHeader(
                     title = "Дебет",
                     total = formatKop(state.debitKop),
+                    hint = HintTexts.ENTRY,
                     onAdd = { onAddLine("DEBIT") }
                 )
             }
@@ -198,6 +215,7 @@ fun EntryScreen(
                 SideHeader(
                     title = "Кредит",
                     total = formatKop(state.creditKop),
+                    hint = HintTexts.ENTRY,
                     onAdd = { onAddLine("CREDIT") }
                 )
             }
@@ -232,6 +250,26 @@ fun EntryScreen(
                     )
                 ) {
                     Column(Modifier.padding(12.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Остаток к распределению")
+                                HintIcon(text = HintTexts.BALANCE)
+                            }
+                            Text(
+                                text = formatKop(abs(state.debitKop - state.creditKop)),
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (balanced) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                }
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -326,6 +364,7 @@ fun EntryScreen(
 private fun SideHeader(
     title: String,
     total: String,
+    hint: String,
     onAdd: () -> Unit
 ) {
     Row(
@@ -336,7 +375,10 @@ private fun SideHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                HintIcon(text = hint)
+            }
             Text(
                 total,
                 style = MaterialTheme.typography.bodySmall,
@@ -414,37 +456,40 @@ private fun EntryLineCard(
             }
 
             Spacer(Modifier.height(8.dp))
-            Box {
-                OutlinedButton(
-                    onClick = { roleMenu = true },
-                    modifier = Modifier.testTag("entry-role-${line.key}")
-                ) {
-                    Text(line.role.ifBlank { "Выбрать роль" })
-                }
-                DropdownMenu(
-                    expanded = roleMenu,
-                    onDismissRequest = { roleMenu = false }
-                ) {
-                    roles.forEach { rule ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    rule.role + if (rule.accountTypes.isEmpty()) {
-                                        ""
-                                    } else {
-                                        " · " + rule.accountTypes.joinToString(", ") {
-                                            it.title
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box {
+                    OutlinedButton(
+                        onClick = { roleMenu = true },
+                        modifier = Modifier.testTag("entry-role-${line.key}")
+                    ) {
+                        Text(line.role.ifBlank { "Выбрать роль" })
+                    }
+                    DropdownMenu(
+                        expanded = roleMenu,
+                        onDismissRequest = { roleMenu = false }
+                    ) {
+                        roles.forEach { rule ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        rule.role + if (rule.accountTypes.isEmpty()) {
+                                            ""
+                                        } else {
+                                            " · " + rule.accountTypes.joinToString(", ") {
+                                                it.title
+                                            }
                                         }
-                                    }
-                                )
-                            },
-                            onClick = {
-                                roleMenu = false
-                                onRole(rule.role)
-                            }
-                        )
+                                    )
+                                },
+                                onClick = {
+                                    roleMenu = false
+                                    onRole(rule.role)
+                                }
+                            )
+                        }
                     }
                 }
+                HintIcon(text = HintTexts.ROLE)
             }
 
             Spacer(Modifier.height(8.dp))

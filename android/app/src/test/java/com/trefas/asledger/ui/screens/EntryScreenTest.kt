@@ -150,6 +150,7 @@ class EntryScreenTest {
         val balanceError = "Суммы дебета и кредита должны совпадать."
         compose.onNodeWithTag("entry-form").performScrollToNode(hasText(balanceError))
         compose.onNodeWithText(balanceError).assertIsDisplayed()
+        compose.onNodeWithTag("entry-form").performScrollToNode(hasTestTag("entry-message"))
         compose.onNodeWithTag("entry-message").assertIsDisplayed()
     }
 

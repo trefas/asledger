@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import com.trefas.asledger.ui.components.LocalHintStore
 import com.trefas.asledger.ui.navigation.AsledgerNavHost
 import com.trefas.asledger.ui.theme.AsledgerTheme
 
@@ -24,7 +26,11 @@ class MainActivity : ComponentActivity() {
         container = (application as AsledgerApp).container
         setContent {
             AsledgerTheme {
-                AsledgerNavHost(container = container)
+                CompositionLocalProvider(
+                    LocalHintStore provides container.hintStore
+                ) {
+                    AsledgerNavHost(container = container)
+                }
             }
         }
     }

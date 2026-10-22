@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.trefas.asledger.ui.components.HintTexts
 import com.trefas.asledger.ui.components.ScreenScaffold
 
 private data class HelpTopic(val title: String, val text: String)
@@ -34,12 +35,10 @@ private val topics = listOf(
             "роль из матрицы ASL-2.2: приложению не нужно угадывать дебет и кредит. " +
             "Суммы должны совпадать; черновик сохранится даже без сети."
     ),
-    HelpTopic(
-        "Что означают статусы?",
-        "«К отправке» — проводка ждёт сеть. «Отправляется» — пакет уже ушёл. " +
-            "«Отклонено» — сервер вернул правило, которое нужно исправить. " +
-            "«Синхронизировано» — проводка есть в книге сервера."
-    ),
+    HelpTopic("Что такое дебет и кредит?", HintTexts.ENTRY),
+    HelpTopic("Что такое роль строки?", HintTexts.ROLE),
+    HelpTopic("Почему остаток не нулевой?", HintTexts.BALANCE),
+    HelpTopic("Что означают статусы?", HintTexts.STATUS),
     HelpTopic(
         "Почему появился дубль?",
         "Если повторная отправка совпала по смыслу с уже существующей проводкой, " +

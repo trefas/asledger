@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import com.trefas.asledger.data.model.OutboxItem
 import com.trefas.asledger.data.model.SyncStatus
 import com.trefas.asledger.data.sync.SyncPhase
+import com.trefas.asledger.ui.components.FirstOpenHint
+import com.trefas.asledger.ui.components.HintIcon
+import com.trefas.asledger.ui.components.HintTexts
 import com.trefas.asledger.ui.components.ScreenScaffold
 import com.trefas.asledger.util.formatDateTime
 import com.trefas.asledger.util.formatKop
@@ -44,11 +47,18 @@ fun SyncScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    FirstOpenHint(
+        id = "sync",
+        title = "Что означают статусы",
+        text = HintTexts.STATUS
+    )
+
     ScreenScaffold(
         title = "Синхронизация",
         modifier = modifier,
         onBack = onBack,
         actions = {
+            HintIcon(text = HintTexts.STATUS)
             if (state.working) {
                 CircularProgressIndicator(
                     modifier = Modifier

@@ -51,6 +51,9 @@ import com.trefas.asledger.data.repository.TransactionRepository
 import com.trefas.asledger.data.sync.SyncManager
 import com.trefas.asledger.data.sync.SyncPhase
 import com.trefas.asledger.ui.components.BrandMark
+import com.trefas.asledger.ui.components.FirstOpenHint
+import com.trefas.asledger.ui.components.HintIcon
+import com.trefas.asledger.ui.components.HintTexts
 import com.trefas.asledger.ui.components.ScreenScaffold
 import com.trefas.asledger.util.formatFriendlyDate
 import com.trefas.asledger.util.formatKop
@@ -114,10 +117,17 @@ fun JournalScreen(
     }
     val items by pageFlow.collectAsStateWithLifecycle(initialValue = emptyList())
 
+    FirstOpenHint(
+        id = "journal",
+        title = "Как читать журнал",
+        text = HintTexts.JOURNAL
+    )
+
     ScreenScaffold(
         title = "Журнал",
         modifier = modifier,
         actions = {
+            HintIcon(text = HintTexts.STATUS)
             IconButton(onClick = onNewEntry) {
                 Icon(Icons.Filled.Add, contentDescription = "Новая проводка")
             }
