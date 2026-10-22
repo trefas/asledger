@@ -42,7 +42,9 @@ val hasReleaseSigning = releaseStorePath != null &&
 
 android {
     namespace = "com.trefas.asledger"
-    compileSdk = 36
+    // Compose 1.8 и AndroidX 1.16 требуют compileSdk не ниже 35.
+    // Для targetSdk это не ограничение: он остаётся 34.
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.trefas.asledger"

@@ -87,13 +87,15 @@ jobs:
 
       # android-actions/setup-android@v3 вызывает устаревший пакет `tools`,
       # которого нет в cmdline-tools 16. Устанавливаем нужные пакеты напрямую.
-      - name: Установить Android SDK 36
+      - name: Установить Android SDK 35 и 36
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
           sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n1)"
           yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
-          "$sdkmanager" --sdk_root="$ANDROID_HOME" "platforms;android-36" "build-tools;36.0.0"
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" \
+            "platforms;android-35" "platforms;android-36" \
+            "build-tools;35.0.0" "build-tools;36.0.0"
 
       - uses: gradle/actions/setup-gradle@v4
 
