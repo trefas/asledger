@@ -60,7 +60,7 @@ Makefile передаёт значения в линкер:
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.0.5.apk.sha256
+sha256sum -c asledger-1.0.6.apk.sha256
 ```
 
 ## Публикация по тегу
@@ -115,6 +115,15 @@ APK `asledger-1.0.5.apk` имеет размер `4 561 412` байт и SHA-256
 `0dd8e4159e937facc7acafc7e27620c55c76b2f24510f9c2d583383c4d38f1c9`;
 `aapt` подтверждает `launchable-activity`, `apksigner` — v2 и v3,
 `zipalign` — 4 КБ и 16 КБ. Установка на API 34 прошла успешно.
+
+Релиз `v1.0.6` снижает `targetSdk` до 34 для совместимости с установщиком
+EMUI на Huawei: run
+[39812643245](https://github.com/trefas/asledger/actions/runs/39812643245).
+APK `asledger-1.0.6.apk` имеет размер `4 561 412` байт и SHA-256
+`e59adaec195fe72b57c33dd450676d9d8d819c4ead36b75a28c41edc31c780e7`;
+`aapt` подтверждает `targetSdkVersion:'34'` и `launchable-activity`,
+`apksigner` — v2 и v3, `zipalign` — 4 КБ и 16 КБ. Установка на API 34 прошла
+успешно.
 
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,
