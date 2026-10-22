@@ -60,7 +60,7 @@ Makefile передаёт значения в линкер:
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.0.0.apk.sha256
+sha256sum -c asledger-1.0.2.apk.sha256
 ```
 
 ## Публикация по тегу

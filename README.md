@@ -128,7 +128,7 @@ cd C:\asledger
 Файл `asledger-<версия>.apk.sha256` содержит контрольную сумму APK. Проверка:
 
 ```bash
-sha256sum -c asledger-1.0.0.apk.sha256
+sha256sum -c asledger-1.0.2.apk.sha256
 ```
 
 Архитектура и протокол: [docs/android.md](docs/android.md). Сборка, тесты и
@@ -209,7 +209,8 @@ API, web и интеграционный стенд, `templates/` и `assets/` �
 - [x] S7 — Интеграционные тесты
 - [x] S8 — Release
 
-Android-приложение (эпик [#90](https://github.com/trefas/asledger/issues/90)):
+Android-приложение (эпик [#90](https://github.com/trefas/asledger/issues/90))
+выпущено как `v1.0.2`:
 
 - [x] S9 — Каркас и бренд
 - [x] S10 — Подключение и первый запуск
@@ -218,6 +219,7 @@ Android-приложение (эпик [#90](https://github.com/trefas/asledger/
 - [x] S13 — План счетов и ввод
 - [x] S14 — Онбординг и UX
 - [x] S15 — Релиз APK
+- [ ] S16 — Локализация строк и подсказки (следующий патч)
 
 План работ ПК-версии и история решений — в
 [эпике #1](https://github.com/trefas/asledger/issues/1).
