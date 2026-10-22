@@ -41,7 +41,7 @@ Makefile передаёт значения в линкер:
 | linux/amd64 | `asledger_<версия>_linux_amd64.tar.gz` | `asledgerd`, `asledgerctl` |
 | linux/arm64 | `asledger_<версия>_linux_arm64.tar.gz` | `asledgerd`, `asledgerctl` |
 | windows/amd64 | `asledger_<версия>_windows_amd64.zip` | `asledgerd.exe`, `asledgerctl.exe` |
-| Android 14+ | `asledger-<версия>.apk` | приложение asledger |
+| Android 12+ | `asledger-<версия>.apk` | приложение asledger |
 
 В именах архивов версия печатается без префикса `v` (`asledger_1.0.0_…`), а в
 самих бинарниках — как в теге (`asledgerd v1.0.0`): GoReleaser подставляет в
@@ -60,7 +60,7 @@ Makefile передаёт значения в линкер:
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.1.1.apk.sha256
+sha256sum -c asledger-1.1.2.apk.sha256
 ```
 
 ## Публикация по тегу
@@ -78,9 +78,9 @@ git push origin v1.0.0
 2. **Android** — job собирает `asledgerd` для JVM-интеграционных тестов, гоняет
    тесты, покрытие, lint и ktlint, собирает release APK с R8 и подписывает его
    ключом из секретов. `versionName` берётся из тега, `versionCode` считается
-   как `major*10000 + minor*100 + patch`. Workflow проверяет наличие v2- и
+   как `major*10000 + minor*100 + patch`. Workflow проверяет наличие v1-, v2- и
    v3-подписей, а также `versionName`, `versionCode` и `minSdk` через
-   `apksigner`/`aapt`.
+   `apksigner`/`aapt`; для v1 явно задаётся `--min-sdk-version 21`.
 3. **Публикация** — job с `needs: [test, android]`, поэтому релиз не создаётся
    при падающих тестах или неподписанном APK. GoReleaser собирает артефакты и
    публикует GitHub Release, после чего в него загружаются APK и `.sha256`.
@@ -116,10 +116,11 @@ APK `asledger-1.0.5.apk` имеет размер `4 561 412` байт и SHA-256
 `aapt` подтверждает `launchable-activity`, `apksigner` — v2 и v3,
 `zipalign` — 4 КБ и 16 КБ. Установка на API 34 прошла успешно.
 
-Релиз `v1.0.6` снижает `targetSdk` до 34 для совместимости с установщиком
-EMUI на Huawei: run
+Релиз `v1.0.6` снижает `targetSdk` до 34: run
 [39812643245](https://github.com/trefas/asledger/actions/runs/39812643245).
-APK `asledger-1.0.6.apk` имеет размер `4 561 412` байт и SHA-256
+Фактическая причина ошибки на Huawei nova 14i (Android 12, API 31) была в
+`minSdk 34`, а не в `targetSdk`; это исправлено в `1.1.2`. APK
+`asledger-1.0.6.apk` имеет размер `4 561 412` байт и SHA-256
 `e59adaec195fe72b57c33dd450676d9d8d819c4ead36b75a28c41edc31c780e7`;
 `aapt` подтверждает `targetSdkVersion:'34'` и `launchable-activity`,
 `apksigner` — v2 и v3, `zipalign` — 4 КБ и 16 КБ. Установка на API 34 прошла
@@ -160,6 +161,15 @@ APK `asledger-1.1.1.apk` имеет размер `4 702 387` байт и SHA-256
 (4 КБ и 16 КБ) проходит, `aapt` видит `launchable-activity`, `versionName=1.1.1`
 и `versionCode=10101`. Скачанный APK установлен на эмулятор API 34, данные
 приложения сохранились.
+
+На Huawei nova 14i `1.1.1` не установился: `adb install` вернул
+`INSTALL_FAILED_OLDER_SDK` (требуется API 34, устройство работает на API 31).
+Поэтому v1-подпись не была причиной #135.
+
+Релиз `v1.1.2` снижает `minSdk` до 31 и оставляет `targetSdk` 34. На Huawei
+nova 14i (Android 12, API 31) APK устанавливается, приложение запускается,
+иконка `asledger` видна в шторке EMUI Launcher. На эмуляторе API 34 сборка
+также устанавливается и запускается.
 
 Release notes собираются автоматически из истории коммитов (GoReleaser,
 `changelog`): группы «Новые возможности», «Исправления», «Производительность»,

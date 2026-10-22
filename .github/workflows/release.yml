@@ -118,14 +118,14 @@ jobs:
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | head -n1)"
           zipalign="$(find "$ANDROID_HOME/build-tools" -name zipalign -type f | head -n1)"
           aapt="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | head -n1)"
-          # V1 (JAR)-подпись обязательна: установщики EMUI/HMS при разборе
-          # пакета читают META-INF/MANIFEST.MF и без него выдают «При анализе
-          # пакета произошла ошибка», хотя adb install проходит.
+          # V1 (JAR)-подпись оставлена для совместимости с нестандартными
+          # установщиками EMUI/HMS. Причиной #135 был minSdk 34 на устройстве
+          # API 31, а не отсутствие v1.
           unzip -l "$apk" | grep -F "META-INF/MANIFEST.MF"
           unzip -l "$apk" | grep -E "META-INF/.*\.RSA|META-INF/.*\.DSA"
           "$apksigner" verify --print-certs "$apk"
           # v1 актуальна только до API 23, а apksigner по умолчанию берёт
-          # minSdk из APK (34) и вообще не проверяет v1/v2. Поэтому для
+          # minSdk из APK (31) и вообще не проверяет v1/v2. Поэтому для
           # проверки JAR-подписи явно задаём минимальный API.
           "$apksigner" verify --verbose --min-sdk-version 21 "$apk" \
             | grep -F "Verified using v1 scheme (JAR signing): true"
@@ -138,7 +138,7 @@ jobs:
           "$zipalign" -c -p 4 "$apk"
           "$aapt" dump badging "$apk" | grep -F "versionName='${ANDROID_VERSION_NAME}'"
           "$aapt" dump badging "$apk" | grep -F "versionCode='${ANDROID_VERSION_CODE}'"
-          "$aapt" dump badging "$apk" | grep -F "sdkVersion:'34'"
+          "$aapt" dump badging "$apk" | grep -F "sdkVersion:'31'"
           # Точка входа лаунчера обязана присутствовать в готовом APK, иначе
           # приложение ставится через adb, но не появляется в системе.
           "$aapt" dump badging "$apk" | grep -F "launchable-activity:"

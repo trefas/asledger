@@ -7,7 +7,7 @@
 
 ## Совместимость
 
-- **Android 14 (API 34) и новее.**
+- **Android 12 (API 31) и новее.**
 - Язык — Kotlin, интерфейс — Jetpack Compose (Material 3).
 - Учёт только в рублях (₽), интерфейс на кириллице.
 - Ориентация — портретная и альбомная; телефон и планшет.
@@ -204,7 +204,7 @@ ui/ (Compose) ── AppContainer ── data/repository ── Room (локал
 ## Сборка и проверки
 
 Требуются JDK 21 и Android SDK с платформами `android-35`/`android-36` и
-build-tools `35.0.0`/`36.0.0` (`minSdk 34`, `compileSdk` 35, `targetSdk` 34).
+build-tools `35.0.0`/`36.0.0` (`minSdk 31`, `compileSdk` 35, `targetSdk` 34).
 
 ```bash
 cd android
@@ -325,11 +325,11 @@ APK `asledger-1.0.4.apk` имеет размер `4 561 412` байт и SHA-256
 APK `asledger-1.0.5.apk` имеет размер `4 561 412` байт и SHA-256
 `0dd8e4159e937facc7acafc7e27620c55c76b2f24510f9c2d583383c4d38f1c9`.
 
-Сборка `1.0.6` (versionCode `10006`) снижает `targetSdk` с 36 до 34:
-установщик EMUI на Huawei nova 14i (Android 14, API 34) отклонял APK с
-`targetSdk 36` при открытии из файлового менеджера, хотя `adb install`
-проходил. `minSdk` остаётся 34, `compileSdk` — 36. Релиз опубликован
-workflow
+Сборка `1.0.6` (versionCode `10006`) снижает `targetSdk` с 36 до 34.
+Фактическая причина ошибки установки на Huawei nova 14i (Android 12, API 31)
+оказалась в `minSdk 34`: `adb install` возвращал
+`INSTALL_FAILED_OLDER_SDK: Requires newer sdk version #34 (current version is #31)`.
+`targetSdk` остаётся 34, `compileSdk` — 36. Релиз опубликован workflow
 [39812643245](https://github.com/trefas/asledger/actions/runs/39812643245);
 APK `asledger-1.0.6.apk` имеет размер `4 561 412` байт и SHA-256
 `e59adaec195fe72b57c33dd450676d9d8d819c4ead36b75a28c41edc31c780e7`.
@@ -382,6 +382,16 @@ APK `asledger-1.1.1.apk` имеет размер `4 702 387` байт и SHA-256
 `versionCode=10101`, `minSdk=34`, `targetSdk=34` и `launchable-activity`.
 Скачанный из релиза APK установлен на эмулятор API 34 и запускается.
 
+На Huawei nova 14i этот APK всё равно не установился: `adb install` вернул
+`INSTALL_FAILED_OLDER_SDK` (требуется API 34, устройство работает на API 31).
+Поэтому v1-подпись не была причиной #135.
+
+Сборка `1.1.2` (versionCode `10102`) снижает `minSdk` с 34 до 31:
+Huawei nova 14i работает на Android 12 (API 31), а `targetSdk` остаётся 34.
+На устройстве `adb install` проходит, приложение запускается, иконка
+`asledger` появляется в шторке EMUI Launcher. На эмуляторе API 34 сборка
+также устанавливается и запускается.
+
 ## Приёмка первой версии
 
 Автоматические проверки, доступные в CI и локально:
@@ -394,8 +404,8 @@ APK `asledger-1.1.1.apk` имеет размер `4 702 387` байт и SHA-256
   resync.
 - [x] Покрытие слоя `data/**` не ниже 70 % (фактически 85,6 % строк).
 - [x] `lintDebug` и `ktlintCheck` без ошибок.
-- [x] Release APK подписан схемами v2 и v3, `versionName=1.1.0`,
-  `versionCode=10100`, `minSdk=34`, `targetSdk=34`, `compileSdk=35`;
+- [x] Release APK подписан схемами v1, v2 и v3, `versionName=1.1.2`,
+  `versionCode=10102`, `minSdk=31`, `targetSdk=34`, `compileSdk=35`;
   debug-сертификат не используется.
 - [x] В APK есть `launchable-activity`; категория `MAIN`/`LAUNCHER` и
   `android:exported="true"` сохранены.
@@ -429,9 +439,16 @@ APK `asledger-1.1.1.apk` имеет размер `4 702 387` байт и SHA-256
   один раз, закрывается кнопкой «Понятно», а отметка сохраняется после
   перезапуска; иконки «?» у полей открывают короткое объяснение.
 
+### Проверка на Huawei nova 14i (Android 12, API 31)
+
+- [x] `adb install -r asledger-1.1.2.apk` проходит без `INSTALL_FAILED_OLDER_SDK`.
+- [x] приложение запускается, открывается экран подключения к книге.
+- [x] иконка `asledger` видна в шторке EMUI Launcher.
+- [x] `targetSdk 34` на API 31 не мешает установке и работе.
+
 ### Если APK не устанавливается
 
-1. Проверьте версию Android: нужен Android 14 (API 34) или новее.
+1. Проверьте версию Android: нужен Android 12 (API 31) или новее.
 2. Убедитесь, что скачан именно APK, а не страница GitHub: размер и SHA-256
    указаны в описании релиза, проверка — `sha256sum -c
    asledger-<версия>.apk.sha256`.
@@ -445,6 +462,10 @@ APK `asledger-1.1.1.apk` имеет размер `4 702 387` байт и SHA-256
    `adb logcat` в момент установки.
 
 ### Если приложение установлено, но иконки нет
+
+В `1.1.2` проверено на Huawei nova 14i (API 31): после установки иконка
+`asledger` появляется в шторке EMUI Launcher. Если иконки нет на другой
+прошивке:
 
 1. Перезагрузите телефон: лаунчер не всегда обновляет список сразу после
    установки APK.

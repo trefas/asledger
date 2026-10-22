@@ -178,7 +178,7 @@
     <string name="settings_open_help">Открыть справку</string>
     <string name="settings_about">О приложении</string>
     <string name="settings_about_version">asledger %1$s</string>
-    <string name="settings_about_text">Android 14 (API 34) и новее. Данные книги хранятся на вашем сервере; приложение работает с локальной копией и синхронизируется, когда сервер доступен.</string>
+    <string name="settings_about_text">Android 12 (API 31) и новее. Данные книги хранятся на вашем сервере; приложение работает с локальной копией и синхронизируется, когда сервер доступен.</string>
     <string name="settings_forget_title">Забыть сервер?</string>
     <string name="settings_forget_text">Адрес и токен будут удалены с устройства. Локальные черновики проводок не удаляются. Для продолжения потребуется привязка заново.</string>
     <string name="settings_forget_confirm">Забыть</string>

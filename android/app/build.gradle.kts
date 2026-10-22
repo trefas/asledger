@@ -48,21 +48,21 @@ android {
 
     defaultConfig {
         applicationId = "com.trefas.asledger"
-        // Android 14 (API 34) и новее — требование эпика.
-        minSdk = 34
-        // targetSdk совпадает с минимальной поддерживаемой версией:
-        // установщик EMUI на Huawei отклоняет APK, собранный под более
-        // новую целевую платформу, даже если устройство уже на API 34.
+        // Android 12 (API 31) и новее. Huawei nova 14i работает на API 31;
+        // при minSdk 34 установщик отклонял APK с INSTALL_FAILED_OLDER_SDK.
+        minSdk = 31
+        // targetSdk не является минимальной версией устройства: Android 12
+        // штатно устанавливает APK с targetSdk 34 и применяет совместимое
+        // поведение. Оставляем 34 как целевую платформу Android 14.
         targetSdk = 34
         // Тег v1.2.3 даёт versionName 1.2.3 и versionCode 10203.
-        // minSdk 34 сам по себе не требует JAR-подписи (v1), но установщики
-        // EMUI/HMS при разборе пакета опираются на META-INF/MANIFEST.MF:
-        // без v1 они отклоняют APK с «При анализе пакета произошла ошибка».
-        // Поэтому v1 включена принудительно в signingConfig ниже.
-        versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_101
+        // minSdk 31 сам по себе не требует JAR-подписи (v1). Она оставлена
+        // как совместимостная мера для нестандартных установщиков EMUI/HMS;
+        // основной причиной ошибки #135 был minSdk 34 на устройстве API 31.
+        versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_102
         versionName = System.getenv("ANDROID_VERSION_NAME")
             ?.takeIf { it.isNotBlank() }
-            ?: "1.1.1"
+            ?: "1.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -82,13 +82,11 @@ android {
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
-                // V1 (JAR)-подпись обязательна для установщиков EMUI/HMS:
-                // без META-INF/MANIFEST.MF пакет отклоняется с «При анализе
-                // пакета произошла ошибка», хотя adb install проходит.
-                // AGP по умолчанию включает v1 только при minSdk < 24, здесь
-                // она включена принудительно. V2/V3 сохраняются: порядок
-                // zipalign -> apksigner соблюдает AGP, блоки подписи не
-                // нарушаются.
+                // V1 (JAR)-подпись оставлена для совместимости с
+                // нестандартными установщиками EMUI/HMS. AGP по умолчанию
+                // включает v1 только при minSdk < 24, здесь она включена
+                // принудительно. V2/V3 сохраняются: порядок zipalign ->
+                // apksigner соблюдает AGP, блоки подписи не нарушаются.
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true

@@ -1,6 +1,6 @@
 # Android-клиент asledger
 
-Мобильный клиент для Android 14 (API 34) и новее. Один модуль `:app` на Kotlin,
+Мобильный клиент для Android 12 (API 31) и новее. Один модуль `:app` на Kotlin,
 Jetpack Compose (Material 3), Room, Ktor и WorkManager. Сервер — `asledgerd` из
 корня репозитория; протокол и границы версии описаны в
 [../docs/android.md](../docs/android.md), REST API — в
@@ -15,7 +15,7 @@ Jetpack Compose (Material 3), Room, Ktor и WorkManager. Сервер — `asled
 | Gradle | через wrapper (`./gradlew`) |
 | Kotlin | 2.1.20 |
 | compileSdk | 35 |
-| minSdk / targetSdk | 34 / 34 |
+| minSdk / targetSdk | 31 / 34 |
 
 Переменные окружения:
 
