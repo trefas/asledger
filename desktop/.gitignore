@@ -3,5 +3,8 @@ out/
 release/
 dist/
 coverage/
+config.json
+data/
+logs/
 *.log
 .DS_Store

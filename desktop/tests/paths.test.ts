@@ -1,3 +1,4 @@
+import { resolve, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   apiUrl,
@@ -10,51 +11,48 @@ import {
 
 describe('пути desktop-клиента', () => {
   it('в dev-режиме берёт бинарь и ресурсы из корня репозитория', () => {
+    const appPath = join('/repo', 'desktop')
+    const userDataPath = join('/home', 'user', '.config', 'asledger')
     const paths = resolveDesktopPaths({
       isPackaged: false,
-      appPath: '/repo/desktop',
-      resourcesPath: '/unused',
-      userDataPath: '/home/user/.config/asledger',
+      appPath,
+      resourcesPath: join('/unused'),
+      userDataPath,
       env: {},
       platform: 'linux',
     })
 
-    expect(paths.backendBinary).toBe('/repo/bin/asledgerd')
-    expect(paths.assetsDir).toBe('/repo/assets/logo')
-    expect(paths.chartsDir).toBe('/repo/templates/charts')
-    expect(paths.dbPath).toBe(
-      '/home/user/.config/asledger/data/asledger.db',
-    )
-    expect(paths.logFile).toBe(
-      '/home/user/.config/asledger/logs/asledgerd.log',
-    )
+    expect(paths.backendBinary).toBe(join(appPath, '..', 'bin', 'asledgerd'))
+    expect(paths.assetsDir).toBe(join(appPath, '..', 'assets', 'logo'))
+    expect(paths.chartsDir).toBe(join(appPath, '..', 'templates', 'charts'))
+    expect(paths.dbPath).toBe(join(userDataPath, 'data', 'asledger.db'))
+    expect(paths.logFile).toBe(join(userDataPath, 'logs', 'asledgerd.log'))
   })
 
   it('в упакованном приложении использует resources и .exe на Windows', () => {
+    const resourcesPath = join('/opt', 'asledger', 'resources')
     const paths = resolveDesktopPaths({
       isPackaged: true,
-      appPath: '/opt/asledger/resources/app.asar',
-      resourcesPath: '/opt/asledger/resources',
-      userDataPath: '/home/user/.config/asledger',
+      appPath: join(resourcesPath, 'app.asar'),
+      resourcesPath,
+      userDataPath: join('/home', 'user', '.config', 'asledger'),
       env: {},
       platform: 'win32',
     })
 
     expect(paths.backendBinary).toBe(
-      '/opt/asledger/resources/bin/asledgerd.exe',
+      join(resourcesPath, 'bin', 'asledgerd.exe'),
     )
-    expect(paths.assetsDir).toBe('/opt/asledger/resources/assets/logo')
-    expect(paths.chartsDir).toBe(
-      '/opt/asledger/resources/templates/charts',
-    )
+    expect(paths.assetsDir).toBe(join(resourcesPath, 'assets', 'logo'))
+    expect(paths.chartsDir).toBe(join(resourcesPath, 'templates', 'charts'))
   })
 
   it('учитывает переопределения путей из окружения', () => {
     const paths = resolveDesktopPaths({
       isPackaged: false,
-      appPath: '/repo/desktop',
-      resourcesPath: '/unused',
-      userDataPath: '/home/user/.config/asledger',
+      appPath: join('/repo', 'desktop'),
+      resourcesPath: join('/unused'),
+      userDataPath: join('/home', 'user', '.config', 'asledger'),
       env: {
         ASLEDGERD_BIN: '/tmp/asledgerd-test',
         ASLEDGER_DESKTOP_DATA_DIR: '/tmp/asledger-data',
@@ -63,9 +61,9 @@ describe('пути desktop-клиента', () => {
       platform: 'linux',
     })
 
-    expect(paths.backendBinary).toBe('/tmp/asledgerd-test')
-    expect(paths.dataDir).toBe('/tmp/asledger-data')
-    expect(paths.logDir).toBe('/tmp/asledger-logs')
+    expect(paths.backendBinary).toBe(resolve('/tmp/asledgerd-test'))
+    expect(paths.dataDir).toBe(resolve('/tmp/asledger-data'))
+    expect(paths.logDir).toBe(resolve('/tmp/asledger-logs'))
   })
 
   it('собирает аргументы asledgerd с адресами на все интерфейсы', () => {

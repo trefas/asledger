@@ -20,6 +20,8 @@ export interface PathOptions {
   appPath: string
   resourcesPath: string
   userDataPath: string
+  dataDir?: string
+  logDir?: string
   env?: NodeJS.ProcessEnv
   platform?: NodeJS.Platform
 }
@@ -46,9 +48,12 @@ export function resolveDesktopPaths(options: PathOptions): DesktopPaths {
   const platform = options.platform ?? process.platform
   const dataDir =
     envPath(env, 'ASLEDGER_DESKTOP_DATA_DIR') ??
+    options.dataDir ??
     join(options.userDataPath, 'data')
   const logDir =
-    envPath(env, 'ASLEDGER_DESKTOP_LOG_DIR') ?? join(options.userDataPath, 'logs')
+    envPath(env, 'ASLEDGER_DESKTOP_LOG_DIR') ??
+    options.logDir ??
+    join(options.userDataPath, 'logs')
   const backendBinary =
     envPath(env, 'ASLEDGERD_BIN') ??
     (options.isPackaged

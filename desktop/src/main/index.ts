@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { join } from 'node:path'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { dirname, join } from 'node:path'
 import { APP_NAME } from '../shared/app'
 import {
   IPC_CHANNELS,
@@ -8,9 +8,8 @@ import {
   type DesktopInfo,
 } from '../shared/ipc'
 import { BackendProcess } from './backend'
+import { loadOrCreateConfig, type DesktopConfig } from './config'
 import {
-  DEFAULT_API_PORT,
-  DEFAULT_WEB_PORT,
   apiUrl,
   buildBackendArgs,
   healthUrl,
@@ -32,22 +31,24 @@ function broadcast(channel: string, payload: unknown): void {
   }
 }
 
-function createBackend(): BackendProcess {
+function createBackend(config: DesktopConfig): BackendProcess {
   const paths = resolveDesktopPaths({
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
     resourcesPath: process.resourcesPath,
     userDataPath: app.getPath('userData'),
+    dataDir: config.dataDir,
+    logDir: config.logDir,
   })
 
   const server = new BackendProcess({
     command: paths.backendBinary,
-    args: buildBackendArgs(paths, DEFAULT_WEB_PORT, DEFAULT_API_PORT),
+    args: buildBackendArgs(paths, config.webPort, config.apiPort),
     cwd: paths.dataDir,
     logFile: paths.logFile,
-    healthUrl: healthUrl(DEFAULT_API_PORT),
-    webUrl: webUrl(DEFAULT_WEB_PORT),
-    apiUrl: apiUrl(DEFAULT_API_PORT),
+    healthUrl: healthUrl(config.apiPort),
+    webUrl: webUrl(config.webPort),
+    apiUrl: apiUrl(config.apiPort),
   })
 
   server.onState((state: BackendState) => {
@@ -130,10 +131,23 @@ function registerIpc(server: BackendProcess): void {
   })
 }
 
-app.setAppUserModelId(APP_ID)
+async function bootstrap(): Promise<void> {
+  let config: DesktopConfig
+  try {
+    config = await loadOrCreateConfig({
+      appDir: app.isPackaged
+        ? dirname(app.getPath('exe'))
+        : app.getAppPath(),
+      userDataPath: app.getPath('userData'),
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    dialog.showErrorBox('asledger Desktop', message)
+    app.quit()
+    return
+  }
 
-app.whenReady().then(() => {
-  backend = createBackend()
+  backend = createBackend(config)
   registerIpc(backend)
   createWindow()
 
@@ -142,6 +156,12 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
+}
+
+app.setAppUserModelId(APP_ID)
+
+app.whenReady().then(() => {
+  void bootstrap()
 })
 
 app.on('web-contents-created', (_event, contents) => {
