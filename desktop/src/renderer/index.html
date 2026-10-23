@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:* http://127.0.0.1:*"
+    />
+    <title>asledger Desktop</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">a</span>
+          <span class="brand-name">asledger</span>
+          <span class="brand-sub">Desktop</span>
+        </div>
+        <span id="status" class="status" data-tone="neutral">Каркас готов</span>
+      </header>
+
+      <main class="page">
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Локальный сервер</p>
+              <h1>asledgerd</h1>
+            </div>
+          </div>
+
+          <p id="detail" class="lead">Сервер не запущен.</p>
+
+          <dl class="meta">
+            <div>
+              <dt>Web</dt>
+              <dd id="web-url">…</dd>
+            </div>
+            <div>
+              <dt>API</dt>
+              <dd id="api-url">…</dd>
+            </div>
+            <div>
+              <dt>PID</dt>
+              <dd id="pid">—</dd>
+            </div>
+            <div class="meta-wide">
+              <dt>Журнал</dt>
+              <dd id="log-path">…</dd>
+            </div>
+          </dl>
+
+          <div class="actions">
+            <button id="start" class="btn" type="button">Запустить</button>
+            <button id="stop" class="btn btn-secondary" type="button">
+              Остановить
+            </button>
+            <button id="restart" class="btn btn-secondary" type="button">
+              Перезапустить
+            </button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Диагностика</p>
+              <h2>Журнал сервера</h2>
+            </div>
+            <button id="clear-log" class="btn btn-secondary btn-small" type="button">
+              Очистить
+            </button>
+          </div>
+          <pre id="log" class="log" aria-live="polite"></pre>
+        </section>
+
+        <section class="card hint">
+          <h2>Версия приложения</h2>
+          <dl class="meta">
+            <div>
+              <dt>Версия</dt>
+              <dd id="version">…</dd>
+            </div>
+            <div>
+              <dt>Платформа</dt>
+              <dd id="platform">…</dd>
+            </div>
+            <div>
+              <dt>Electron</dt>
+              <dd id="electron">…</dd>
+            </div>
+          </dl>
+          <p class="muted">
+            Следующие шаги: локальные IPv4 и URL для телефона (#143), упаковка
+            бинаря и ресурсов (#145), подключение книги в окне Electron.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
