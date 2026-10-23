@@ -268,6 +268,12 @@ func openSQLite(ctx context.Context, path string, key []byte, encrypted bool) (*
 		_ = sqlDB.Close()
 		return nil, classifyOpenError(path, err, encrypted)
 	}
+	// Книга и sidecar должны быть доступны только владельцу. На Windows
+	// os.Chmod меняет только read-only и не мешает открытию.
+	if err := os.Chmod(path, 0o600); err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("store: не удалось выставить права на книгу %q: %w", path, err)
+	}
 	return &DB{DB: sqlDB, path: path, encrypted: encrypted}, nil
 }
 

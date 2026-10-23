@@ -1,6 +1,7 @@
 // Команда asledgerctl — утилита администратора asledger.
 //
-// Подкоманды: migrate (привести книгу к актуальной схеме), backup (создать
+// Подкоманды: migrate (привести книгу к актуальной схеме), migrate-encrypt
+// (зашифровать plaintext-книгу), passwd (сменить пароль), backup (создать
 // консистентную резервную копию), charts list|import (шаблонные планы счетов),
 // import hledger (импорт книги hledger), export hledger|csv|json (выгрузка
 // книги) и version. Конфигурация — та же, что у asledgerd: файл JSON,
@@ -34,6 +35,8 @@ const usageText = `asledgerctl — утилита администратора a
 
 Подкоманды:
   migrate                привести книгу к актуальной схеме
+  migrate-encrypt        зашифровать незашифрованную книгу SQLCipher
+  passwd                 сменить пароль зашифрованной книги
   backup                 создать консистентную резервную копию книги
   charts list            показать доступные шаблоны планов счетов
   charts import <файл>   импортировать план счетов из JSON
@@ -52,6 +55,10 @@ const usageText = `asledgerctl — утилита администратора a
   -key-file <путь>      файл с raw-ключом (32 байта, hex или base64)
   -key-fd <n>           fd с raw-ключом (0 — stdin)
   -allow-plaintext      явно открыть незашифрованную книгу (миграция/тесты)
+  -new-password-file <путь>  новый пароль для passwd
+  -new-password-fd <n>       fd с новым паролем (0 — stdin)
+  -backup <путь>             путь к резервной копии (migrate-encrypt/passwd)
+  -dry-run                   проверить без изменений (migrate-encrypt/passwd)
   -out <путь>           файл выгрузки (у export; по умолчанию — стандартный вывод)
 
 Коды выхода:
@@ -80,6 +87,10 @@ func run(args []string) int {
 		return 0
 	case "migrate":
 		return runMigrate(args[1:])
+	case "migrate-encrypt":
+		return runMigrateEncrypt(args[1:])
+	case "passwd":
+		return runPasswd(args[1:])
 	case "backup":
 		return runBackup(args[1:])
 	case "charts":
@@ -157,6 +168,20 @@ func runBackup(args []string) int {
 	// VACUUM INTO создаёт консистентную копию даже при активном WAL.
 	if _, err := db.ExecContext(ctx, `VACUUM INTO ?`, target); err != nil {
 		return fail(fmt.Errorf("backup: не удалось создать копию: %w", err))
+	}
+	if err := os.Chmod(target, 0o600); err != nil {
+		return fail(fmt.Errorf("backup: права копии: %w", err))
+	}
+	if db.Encrypted() {
+		sidecar := key.ParamsPath(cfg.DBPath)
+		if _, err := os.Stat(sidecar); err != nil {
+			_ = os.Remove(target)
+			return fail(fmt.Errorf("backup: sidecar %q недоступен: %w", sidecar, err))
+		}
+		if err := copyFile(sidecar, key.ParamsPath(target)); err != nil {
+			_ = os.Remove(target)
+			return fail(fmt.Errorf("backup: sidecar копии: %w", err))
+		}
 	}
 	fmt.Printf("резервная копия: %s\n", target)
 	return 0
