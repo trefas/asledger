@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -42,6 +43,14 @@ func main() {
 }
 
 func run(args []string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return runContext(ctx, args)
+}
+
+// runContext выполняет запуск с переданным контекстом. Отдельная функция
+// позволяет тестировать сервер и корректную остановку без сигналов процесса.
+func runContext(ctx context.Context, args []string) error {
 	if hasVersionFlag(args) {
 		fmt.Println("asledgerd", version.String())
 		return nil
@@ -52,9 +61,6 @@ func run(args []string) error {
 		return err
 	}
 	logger := logging.New(cfg.LogLevel, cfg.LogFormat)
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	db, err := store.Open(ctx, cfg.DBPath)
 	if err != nil {
@@ -82,31 +88,46 @@ func run(args []string) error {
 		return err
 	}
 
-	servers := []*http.Server{
+	servers := []namedServer{
 		{
-			Addr:              cfg.WebAddr,
-			Handler:           webServer.Handler(),
-			ReadHeaderTimeout: readHeaderTimeout,
-			ReadTimeout:       readTimeout,
-			WriteTimeout:      writeTimeout,
-			IdleTimeout:       idleTimeout,
+			name: "web",
+			srv: &http.Server{
+				Addr:              cfg.WebAddr,
+				Handler:           webServer.Handler(),
+				ReadHeaderTimeout: readHeaderTimeout,
+				ReadTimeout:       readTimeout,
+				WriteTimeout:      writeTimeout,
+				IdleTimeout:       idleTimeout,
+			},
 		},
 		{
-			Addr:              cfg.APIAddr,
-			Handler:           apiServer.Handler(),
-			ReadHeaderTimeout: readHeaderTimeout,
-			ReadTimeout:       readTimeout,
-			WriteTimeout:      writeTimeout,
-			IdleTimeout:       idleTimeout,
+			name: "api",
+			srv: &http.Server{
+				Addr:              cfg.APIAddr,
+				Handler:           apiServer.Handler(),
+				ReadHeaderTimeout: readHeaderTimeout,
+				ReadTimeout:       readTimeout,
+				WriteTimeout:      writeTimeout,
+				IdleTimeout:       idleTimeout,
+			},
 		},
 	}
 
 	errc := make(chan error, len(servers))
-	for _, srv := range servers {
-		go func(srv *http.Server) {
-			logger.Info("сервер запущен", "addr", srv.Addr)
-			errc <- srv.ListenAndServe()
-		}(srv)
+	for _, item := range servers {
+		go func(item namedServer) {
+			listener, err := net.Listen("tcp", item.srv.Addr)
+			if err != nil {
+				errc <- fmt.Errorf("%s: %w", item.name, err)
+				return
+			}
+			logger.Info("сервер запущен", "name", item.name, "addr", listener.Addr())
+			if err := item.srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errc <- fmt.Errorf("%s: %w", item.name, err)
+				return
+			}
+			errc <- nil
+		}(item)
 	}
 	logger.Info("asledgerd запущен",
 		"version", version.String(),
@@ -115,24 +136,29 @@ func run(args []string) error {
 		"db", cfg.DBPath,
 	)
 
+	var runErr error
 	select {
 	case err := <-errc:
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return err
-		}
+		runErr = err
 	case <-ctx.Done():
 		logger.Info("получен сигнал завершения, останавливаем серверы")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	for _, srv := range servers {
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.Warn("ошибка остановки сервера", "addr", srv.Addr, "err", err)
+	for _, item := range servers {
+		if err := item.srv.Shutdown(shutdownCtx); err != nil {
+			logger.Warn("ошибка остановки сервера", "name", item.name, "addr", item.srv.Addr, "err", err)
 		}
 	}
 	logger.Info("asledgerd остановлен")
-	return nil
+	return runErr
+}
+
+// namedServer связывает HTTP-сервер с понятным именем для диагностики.
+type namedServer struct {
+	name string
+	srv  *http.Server
 }
 
 // hasVersionFlag сообщает, запрошен ли вывод версии.
