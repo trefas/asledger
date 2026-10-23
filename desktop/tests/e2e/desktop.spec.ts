@@ -51,7 +51,7 @@ function backendBinary(): string {
   )
 }
 
-test('запускает asledgerd, показывает журнал и корректно останавливает', async () => {
+test('запускает asledgerd, открывает книгу и корректно останавливает', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'asledger-desktop-e2e-'))
   const binary = backendBinary()
   if (!existsSync(binary)) {
@@ -121,6 +121,13 @@ test('запускает asledgerd, показывает журнал и кор�
       clipboard.readText(),
     )
     expect(clipboard).toContain('asledgerd')
+
+    const bookPromise = app.waitForEvent('window')
+    await window.locator('#open-book').click()
+    const book = await bookPromise
+    await book.waitForLoadState('domcontentloaded')
+    expect(book.url()).toContain(`:${webPort}`)
+    await book.close()
 
     await window.locator('#stop').click()
     await expect(window.locator('#status')).toHaveText('Остановлен', {

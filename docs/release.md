@@ -72,13 +72,63 @@ Desktop-клиент собирается отдельно из `desktop/` и к
 cd desktop
 ASLEDGER_VERSION="${GITHUB_REF_NAME}" npm run sync-version
 ASLEDGER_VERSION="${GITHUB_REF_NAME}" npm run verify:version
-npm run package:dist
+npm run package:dist          # Linux amd64: AppImage и deb
+npm run package:linux:arm64   # Linux arm64: AppImage и deb
+npm run package:win           # Windows amd64: NSIS и portable
+npm run package:win:zip       # Windows amd64: ZIP без установки
 ```
 
-Артефакты: Linux AppImage/deb (amd64 и arm64), Windows NSIS/portable (amd64).
-Для кросс-сборки Windows без wine доступен ZIP (`npm run package:win:zip`).
-macOS в MVP `v1.2.0` не входит: нет сертификата и нотаризации. Windows и macOS
-артефакты пока не подписываются; подпись — отдельная задача.
+`package:win` и `package:win:zip` запускаются на Windows-раннере; локальная
+кросс-сборка ZIP возможна без wine. macOS в MVP `v1.2.0` не входит: нет
+сертификата и нотаризации. Windows-артефакты не подписываются; подпись —
+отдельная задача.
+
+### Артефакты `v1.2.0`
+
+| Файл | Платформа | Установка |
+| --- | --- | --- |
+| `asledger-1.2.0-linux-x86_64.AppImage` | Linux amd64 | без установки |
+| `asledger-1.2.0-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
+| `asledger-1.2.0-linux-arm64.AppImage` | Linux arm64 | без установки |
+| `asledger-1.2.0-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
+| `asledger-1.2.0-win-x64.exe` | Windows x64 | NSIS, per-user |
+| `asledger-1.2.0-win-x64-portable.exe` | Windows x64 | portable |
+| `asledger-1.2.0-win-x64.zip` | Windows x64 | распаковать и запустить |
+| `SHA256SUMS-linux` | Linux | контрольные суммы |
+| `SHA256SUMS-windows` | Windows | контрольные суммы |
+
+Ссылки на файлы релиза строятся по шаблону
+`https://github.com/trefas/asledger/releases/download/v1.2.0/<файл>`;
+страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.2.0`.
+Конкретные SHA-256 появляются в `SHA256SUMS-linux` и `SHA256SUMS-windows`
+после сборки; они не хранятся в репозитории. Проверка:
+
+```bash
+# Linux/macOS или Git Bash
+sha256sum -c SHA256SUMS-linux
+sha256sum -c SHA256SUMS-windows
+
+# Windows PowerShell
+Get-FileHash .\asledger-1.2.0-win-x64.exe -Algorithm SHA256
+```
+
+Перед публикацией workflow сверяет версию `package.json`, `package-lock.json`,
+`asledgerd --version` и тег. Для этого в desktop-джобах выполняются
+`sync-version` и `verify:version`; упакованный бинарь проверяется
+`verify:package`. Если версия не совпала, релиз не публикуется.
+
+### Проверка релиза `v1.2.0`
+
+1. Скачать `SHA256SUMS-linux` и `SHA256SUMS-windows`, проверить хэши скачанных
+   файлов.
+2. На чистой Linux-машине запустить AppImage без установки: окно открывается,
+   статус «Готово», кнопка «Открыть книгу» показывает web-интерфейс,
+   `asledgerd` останавливается при закрытии приложения.
+3. На чистой Windows-машине проверить NSIS, portable и ZIP: установка без
+   администратора (NSIS/portable), запуск, healthcheck, открытие книги,
+   остановка процесса.
+4. Проверить, что Go-сервер и Android-клиент из того же тега не
+   регрессировали: `make check`, `make android-check` и APK из релиза.
 
 ## Публикация по тегу
 
@@ -98,9 +148,15 @@ git push origin v1.0.0
    как `major*10000 + minor*100 + patch`. Workflow проверяет наличие v1-, v2- и
    v3-подписей, а также `versionName`, `versionCode` и `minSdk` через
    `apksigner`/`aapt`; для v1 явно задаётся `--min-sdk-version 21`.
-3. **Публикация** — job с `needs: [test, android]`, поэтому релиз не создаётся
-   при падающих тестах или неподписанном APK. GoReleaser собирает артефакты и
-   публикует GitHub Release, после чего в него загружаются APK и `.sha256`.
+3. **Desktop** — две независимые джобы `desktop-linux` и `desktop-windows`
+   собирают AppImage/deb для amd64 и arm64, NSIS/portable/ZIP для Windows,
+   проверяют пакеты и готовят `SHA256SUMS-linux`/`SHA256SUMS-windows`.
+   macOS в матрицу не входит.
+4. **Публикация** — job с
+   `needs: [test, android, desktop-linux, desktop-windows]`, поэтому релиз не
+   создаётся при падающих тестах, неподписанном APK или сломанной упаковке
+   desktop. GoReleaser собирает серверные артефакты и публикует GitHub Release,
+   после чего в него загружаются APK, desktop-пакеты и файлы контрольных сумм.
 
 Секреты Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
 `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Ключ хранится вне репозитория;

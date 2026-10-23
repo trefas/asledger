@@ -1,8 +1,9 @@
 name: Release
 
 # Релиз публикуется только по тегу v* и только после зелёных проверок.
-# GoReleaser собирает linux/amd64, linux/arm64 и windows/amd64; отдельная
-# джоба собирает подписанный Android APK и прикладывает его к релизу.
+# GoReleaser собирает linux/amd64, linux/arm64 и windows/amd64; отдельные
+# джобы собирают подписанный Android APK и desktop-пакеты Linux/Windows,
+# затем прикладывают их к GitHub Release вместе с SHA-256.
 
 on:
   push:
@@ -158,9 +159,141 @@ jobs:
           path: ${{ runner.temp }}/android-release/*
           if-no-files-found: error
 
+  desktop-linux:
+    name: Desktop Linux (release)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Синхронизировать версию с тегом
+        env:
+          ASLEDGER_VERSION: ${{ github.ref_name }}
+        run: npm run sync-version
+
+      - name: Проверить версию
+        env:
+          ASLEDGER_VERSION: ${{ github.ref_name }}
+        run: npm run verify:version
+
+      - name: Проверки
+        run: npm run check
+
+      - name: Собрать Linux-пакет
+        run: npm run package:dist
+
+      - name: Проверить пакет
+        run: npm run verify:package
+
+      - name: Собрать Linux arm64
+        run: npm run package:linux:arm64
+
+      - name: Проверить пакет arm64
+        run: npm run verify:package:linux:arm64
+
+      - name: Подготовить артефакты и SHA-256
+        run: |
+          mkdir -p "$RUNNER_TEMP/desktop-linux"
+          cp release/*.AppImage release/*.deb "$RUNNER_TEMP/desktop-linux/"
+          cd "$RUNNER_TEMP/desktop-linux"
+          sha256sum * > SHA256SUMS-linux
+
+      - name: Приложить Desktop Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: asledger-desktop-linux-release
+          path: ${{ runner.temp }}/desktop-linux/*
+          if-no-files-found: error
+
+  desktop-windows:
+    name: Desktop Windows (release)
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Синхронизировать версию с тегом
+        env:
+          ASLEDGER_VERSION: ${{ github.ref_name }}
+        run: npm run sync-version
+
+      - name: Проверить версию
+        env:
+          ASLEDGER_VERSION: ${{ github.ref_name }}
+        run: npm run verify:version
+
+      - name: Проверки
+        run: npm run check
+
+      - name: Собрать Windows-пакет
+        run: npm run package:win
+
+      - name: Собрать Windows ZIP
+        run: npm run package:win:zip
+
+      - name: Проверить пакет
+        run: npm run verify:package:win
+
+      - name: Подготовить артефакты и SHA-256
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\desktop-windows" | Out-Null
+          Copy-Item release\*.exe "$env:RUNNER_TEMP\desktop-windows"
+          Copy-Item release\*.zip "$env:RUNNER_TEMP\desktop-windows"
+          $lines = Get-ChildItem "$env:RUNNER_TEMP\desktop-windows\*" -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)"
+          }
+          # LF, чтобы `sha256sum -c` работал и в Git Bash.
+          ($lines -join "`n") | Set-Content -NoNewline -Encoding utf8 `
+            "$env:RUNNER_TEMP\desktop-windows\SHA256SUMS-windows"
+
+      - name: Приложить Desktop Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: asledger-desktop-windows-release
+          path: ${{ runner.temp }}/desktop-windows/*
+          if-no-files-found: error
+
   release:
     name: Публикация релиза
-    needs: [test, android]
+    needs: [test, android, desktop-linux, desktop-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -186,11 +319,31 @@ jobs:
           name: asledger-android-release
           path: ${{ runner.temp }}/android-release
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: asledger-desktop-linux-release
+          path: ${{ runner.temp }}/desktop-linux
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: asledger-desktop-windows-release
+          path: ${{ runner.temp }}/desktop-windows
+
       - name: Загрузить APK в релиз
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${GITHUB_REF_NAME}" \
             "$RUNNER_TEMP"/android-release/* --clobber
+          gh release view "${GITHUB_REF_NAME}" \
+            --json assets --jq '.assets[].name'
+
+      - name: Загрузить Desktop в релиз
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            "$RUNNER_TEMP"/desktop-linux/* \
+            "$RUNNER_TEMP"/desktop-windows/* --clobber
           gh release view "${GITHUB_REF_NAME}" \
             --json assets --jq '.assets[].name'

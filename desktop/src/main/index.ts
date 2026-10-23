@@ -30,6 +30,7 @@ import {
 const APP_ID = 'org.asledger.desktop'
 
 let mainWindow: BrowserWindow | null = null
+let bookWindow: BrowserWindow | null = null
 let backend: BackendProcess | null = null
 let networkMonitor: NetworkMonitor | null = null
 let backendStopped = false
@@ -117,9 +118,51 @@ function createWindow(): void {
   }
 }
 
+function createBookWindow(url: string): void {
+  if (bookWindow && !bookWindow.isDestroyed()) {
+    bookWindow.show()
+    bookWindow.focus()
+    return
+  }
+
+  const window = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    show: false,
+    title: `${APP_NAME} — книга`,
+    backgroundColor: '#ffffff',
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+      devTools: !app.isPackaged,
+    },
+  })
+
+  bookWindow = window
+  window.on('closed', () => {
+    if (bookWindow === window) {
+      bookWindow = null
+    }
+  })
+  window.once('ready-to-show', () => {
+    window.show()
+  })
+  void window.loadURL(url).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    dialog.showErrorBox('asledger', `Не удалось открыть книгу: ${message}`)
+    window.close()
+  })
+}
+
 function registerIpc(
   server: BackendProcess,
   monitor: NetworkMonitor,
+  bookUrl: string,
 ): void {
   ipcMain.handle(IPC_CHANNELS.getInfo, (): DesktopInfo => {
     return {
@@ -131,6 +174,12 @@ function registerIpc(
     }
   })
 
+  ipcMain.handle(IPC_CHANNELS.openBook, (): void => {
+    if (server.getState().status !== 'ready') {
+      throw new Error('Сервер ещё не готов')
+    }
+    createBookWindow(bookUrl)
+  })
   ipcMain.handle(IPC_CHANNELS.backendGetState, (): BackendState => {
     return server.getState()
   })
@@ -188,7 +237,7 @@ async function bootstrap(): Promise<void> {
   )
   networkMonitor = monitor
   backend = createBackend(config)
-  registerIpc(backend, monitor)
+  registerIpc(backend, monitor, webUrl(config.webPort))
   monitor.start()
   createWindow()
 

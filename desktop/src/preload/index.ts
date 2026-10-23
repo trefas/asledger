@@ -55,6 +55,8 @@ const network: NetworkApi = {
 
 const api: DesktopApi = {
   getInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getInfo) as Promise<DesktopInfo>,
+  openBook: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.openBook) as Promise<void>,
   backend,
   network,
   copyText: (text) =>

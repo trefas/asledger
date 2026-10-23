@@ -32,6 +32,7 @@ const addressesElement = requireElement<HTMLUListElement>('#addresses')
 const addressesEmptyElement = requireElement<HTMLElement>('#addresses-empty')
 
 const startButton = requireElement<HTMLButtonElement>('#start')
+const openBookButton = requireElement<HTMLButtonElement>('#open-book')
 const stopButton = requireElement<HTMLButtonElement>('#stop')
 const restartButton = requireElement<HTMLButtonElement>('#restart')
 const clearLogButton = requireElement<HTMLButtonElement>('#clear-log')
@@ -70,6 +71,7 @@ function applyState(state: BackendState): void {
 
   const busy = state.status === 'starting' || state.status === 'stopping'
   startButton.disabled = busy || state.status === 'ready'
+  openBookButton.disabled = state.status !== 'ready'
   stopButton.disabled =
     state.status !== 'ready' && state.status !== 'starting'
   restartButton.disabled = busy
@@ -192,6 +194,18 @@ async function openLogFile(): Promise<void> {
   }
 }
 
+async function openBook(): Promise<void> {
+  const original = openBookButton.textContent
+  try {
+    await window.asledger.openBook()
+  } catch {
+    openBookButton.textContent = 'Ошибка'
+    window.setTimeout(() => {
+      openBookButton.textContent = original
+    }, 1500)
+  }
+}
+
 async function loadInfo(): Promise<void> {
   try {
     const info = await window.asledger.getInfo()
@@ -226,6 +240,9 @@ stopButton.addEventListener('click', () => {
 })
 restartButton.addEventListener('click', () => {
   void runAction(() => window.asledger.backend.restart())
+})
+openBookButton.addEventListener('click', () => {
+  void openBook()
 })
 clearLogButton.addEventListener('click', () => {
   logLines.length = 0

@@ -6,8 +6,9 @@ Android-клиентом: сервер `asledgerd` и Android остаются �
 Сейчас в репозитории находятся **каркас** (#139), **менеджер процесса**
 (#140), portable-конфигурация (#141), адреса для телефона (#143), **журнал
 сервера** (#144) и **упаковка** (#145): окно Electron, безопасный preload-API,
-запуск `asledgerd`, healthcheck, статусы, журнал, кнопки старта/остановки и
-готовые пакеты с `asledgerd`, ассетами и шаблонами.
+запуск `asledgerd`, healthcheck, статусы, журнал, кнопки старта/остановки,
+открытие книги в отдельном окне и готовые пакеты с `asledgerd`, ассетами и
+шаблонами.
 
 ## Требования
 
@@ -23,6 +24,7 @@ cd desktop
 npm ci
 npm run dev       # Electron + Vite dev server
 npm run check     # typecheck, unit-тесты и production-сборка
+npm run test:e2e  # Playwright smoke: окно, книга, журнал, остановка
 npm run start     # запуск уже собранного приложения
 npm run package   # распакованное приложение для текущей ОС
 npm run package:dist  # AppImage/deb на Linux, NSIS/portable на Windows
@@ -116,9 +118,9 @@ ASLEDGER_VERSION=v1.2.0 npm run verify:version
   `asledger-1.2.0-linux-amd64.deb`).
 - Linux arm64: AppImage и deb (`asledger-1.2.0-linux-arm64.AppImage`,
   `asledger-1.2.0-linux-arm64.deb`), `npm run package:linux:arm64`.
-- Windows amd64: NSIS и portable (`asledger-1.2.0-win-x64.exe` и
-  `asledger-1.2.0-win-x64-portable.exe`); для локальной кросс-сборки без wine
-  доступен ZIP: `npm run package:win:zip`.
+- Windows amd64: NSIS, portable и ZIP (`asledger-1.2.0-win-x64.exe`,
+  `asledger-1.2.0-win-x64-portable.exe`, `asledger-1.2.0-win-x64.zip`); ZIP
+  собирается `npm run package:win:zip`, в том числе локально без wine.
 - macOS: **не входит в MVP v1.2.0**. Нет сертификата и нотаризации; сборка и
   публикация macOS станут отдельной задачей после проверки требований.
 
@@ -131,7 +133,7 @@ root; для работы без администратора используй
 Проверка распакованного пакета:
 
 ```bash
-npm run verify:package       # Linux/macOS: запускает asledgerd --version
+npm run verify:package       # Linux amd64: запускает asledgerd --version
 npm run verify:package:linux:arm64  # проверяет arm64-пакет
 npm run verify:package:win   # Windows: проверяет бинарь, ассеты и версию
 ```
@@ -185,6 +187,15 @@ npm run verify:package:win   # Windows: проверяет бинарь, асс�
 Журнал создаётся в portable-каталоге или в `app.getPath('userData')`, поэтому
 для чтения не нужны права администратора.
 
+## Книга в окне Electron
+
+После статуса «Готово» доступна кнопка «Открыть книгу». Она открывает
+отдельное окно Electron с web-интерфейсом `asledgerd` по адресу
+`http://127.0.0.1:<web_port>` (по умолчанию `8777`). Окно работает без Node.js
+в renderer: `contextIsolation`, `sandbox`, `nodeIntegration: false`; внешние
+ссылки открываются в системном браузере. Повторное нажатие фокусирует уже
+открытое окно. Если сервер остановлен или ещё запускается, кнопка недоступна.
+
 ## Адреса для телефона
 
 Раздел «Адреса для телефона» показывает IPv4-адреса активных интерфейсов и
@@ -212,4 +223,5 @@ Loopback, link-local (`169.254.0.0/16`), multicast и зарезервирова
 
 ## Следующие шаги
 
-- #146 — CI, smoke/E2E и проверка артефактов.
+- #147 — документация, установка и релиз `v1.2.0`.
+- #138/#148 — шифрование книги и SQLCipher в `v1.3.0`.

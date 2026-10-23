@@ -1,6 +1,7 @@
 /** Каналы IPC между main и renderer. */
 export const IPC_CHANNELS = {
   getInfo: 'desktop:get-info',
+  openBook: 'desktop:open-book',
   backendGetState: 'backend:get-state',
   backendStart: 'backend:start',
   backendStop: 'backend:stop',
@@ -72,6 +73,7 @@ export interface DesktopInfo {
 /** Узкий API, который preload выставляет в window.asledger. */
 export interface DesktopApi {
   getInfo(): Promise<DesktopInfo>
+  openBook(): Promise<void>
   backend: BackendApi
   network: NetworkApi
   copyText(text: string): Promise<void>

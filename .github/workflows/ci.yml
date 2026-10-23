@@ -2,6 +2,7 @@ name: CI
 
 # Сборка, тесты и статические проверки на каждый push и pull request.
 # Тесты выполняются на обеих целевых платформах: Linux и Windows.
+# Desktop-джобы отдельно проверяют Electron, smoke под xvfb и упаковку.
 
 on:
   push:
