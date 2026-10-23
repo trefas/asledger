@@ -38,6 +38,33 @@ npm run verify:package   # проверить бинарь, ассеты и ве
 текущей ОС/архитектуры, а `afterPack` кладёт его в `resources/bin`. Для
 разработки используйте `npm run dev` или `npm start`.
 
+### Те же проверки, что в CI
+
+```bash
+cd desktop
+npm ci
+npm run check
+npm run build:backend
+npm run test:e2e       # на Linux без графического сеанса: xvfb-run -a npm run test:e2e
+npm run package:dist
+npm run verify:package
+```
+
+Для Windows-джобы CI:
+
+```powershell
+cd desktop
+npm ci
+npm run check
+npm run package:win
+npm run verify:package:win
+```
+
+`npm run check` включает typecheck, unit-тесты Vitest и production-сборку.
+Smoke-тест Playwright запускает Electron, ждёт healthcheck, проверяет журнал и
+корректную остановку `asledgerd`; он не входит в `npm run check`, чтобы
+обычные тесты работали без графического сеанса.
+
 В dev-режиме менеджер ищет `asledgerd` в `../bin/`. Соберите его командой
 `make build` в корне репозитория. Данные и журналы лежат рядом с `config.json`
 (portable) либо в `app.getPath('userData')`, если portable-режим недоступен.

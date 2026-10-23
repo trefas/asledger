@@ -3,6 +3,9 @@ out/
 release/
 dist/
 coverage/
+test-results/
+playwright-report/
+blob-report/
 resources/backend/
 config.json
 data/

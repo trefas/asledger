@@ -40,7 +40,9 @@ const resourcesDir =
 const binaryName = platform === 'win32' ? 'asledgerd.exe' : 'asledgerd'
 const binaryPath = join(resourcesDir, 'bin', binaryName)
 
+const appAsar = join(resourcesDir, 'app.asar')
 const required = [
+  appAsar,
   binaryPath,
   join(resourcesDir, 'assets', 'logo', 'asledger-logo.svg'),
   join(resourcesDir, 'templates', 'charts', 'personal.json'),
@@ -56,6 +58,16 @@ if (!existsSync(unpackedDir)) {
 for (const path of required) {
   if (!existsSync(path)) {
     throw new Error(`В пакете нет обязательного файла: ${path}`)
+  }
+}
+
+// В app.asar не должно быть абсолютных путей сборочной машины.
+const asar = readFileSync(appAsar)
+for (const absolute of [desktopDir, resolve(desktopDir, '..')]) {
+  for (const candidate of [absolute, absolute.replaceAll('\\', '/')]) {
+    if (asar.includes(Buffer.from(candidate))) {
+      throw new Error(`В app.asar найден абсолютный путь сборки: ${candidate}`)
+    }
   }
 }
 
