@@ -261,7 +261,7 @@ push.
 APK годится только для проверки R8 и не публикуется.
 
 `versionName` берётся из тега без `v`, `versionCode` — по схеме
-`major*10000 + minor*100 + patch` (`v1.2.3` → `1.2.3` / `10203`). Workflow
+`major*10000 + minor*100 + patch` (`v1.3.0` → `1.3.0` / `10300`). Workflow
 проверяет подпись, `versionName`, `versionCode` и `minSdk` через `apksigner` и
 `aapt`, затем публикует `asledger-<версия>.apk` и
 `asledger-<версия>.apk.sha256`.

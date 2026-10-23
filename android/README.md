@@ -145,7 +145,7 @@ keyPassword=…
 Без ключа release-сборка подписывается debug-ключом и печатает
 предупреждение — такой APK нельзя публиковать.
 
-`versionName` по умолчанию `1.0.0`, `versionCode` — `10000`. В CI они
+`versionName` по умолчанию `1.3.0`, `versionCode` — `10300`. В CI они
 переопределяются из тега: `ANDROID_VERSION_NAME`, `ANDROID_VERSION_CODE`.
 Release workflow проверяет подпись и версию через `apksigner`/`aapt`, публикует
 APK и `.sha256`.
@@ -153,7 +153,7 @@ APK и `.sha256`.
 ## Локальный сервер и сброс данных
 
 ```bash
-# сервер с отдельной книгой и портами
+# сервер с отдельной книгой и портами; в TTY он спросит пароль книги
 ./bin/asledgerd -db /tmp/asledger-dev.db \
   -api-addr 127.0.0.1:8778 -web-addr 127.0.0.1:8777
 
