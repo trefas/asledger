@@ -33,12 +33,12 @@
 
           <dl class="meta">
             <div>
-              <dt>Web</dt>
-              <dd id="web-url">…</dd>
+              <dt>Web-порт</dt>
+              <dd id="web-port">…</dd>
             </div>
             <div>
-              <dt>API</dt>
-              <dd id="api-url">…</dd>
+              <dt>API-порт</dt>
+              <dd id="api-port">…</dd>
             </div>
             <div>
               <dt>PID</dt>
@@ -59,6 +59,27 @@
               Перезапустить
             </button>
           </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Android</p>
+              <h2>Адреса для телефона</h2>
+            </div>
+            <button id="refresh-network" class="btn btn-secondary btn-small" type="button">
+              Обновить
+            </button>
+          </div>
+          <p class="muted">
+            Телефон должен быть в той же локальной сети. Эти адреса не открывают
+            доступ из интернета.
+          </p>
+          <ul id="addresses" class="addresses"></ul>
+          <p id="addresses-empty" class="muted" hidden>
+            Локальные IPv4 не найдены. Проверьте Wi-Fi или Ethernet и обновите
+            список.
+          </p>
         </section>
 
         <section class="card">

@@ -7,6 +7,9 @@ export const IPC_CHANNELS = {
   backendRestart: 'backend:restart',
   backendState: 'backend:state',
   backendLog: 'backend:log',
+  networkGet: 'network:get',
+  networkAddresses: 'network:addresses',
+  clipboardWrite: 'clipboard:write',
 } as const
 
 /** Состояние дочернего процесса asledgerd. */
@@ -27,6 +30,20 @@ export interface BackendLogEntry {
   stream: 'stdout' | 'stderr'
   line: string
   at: string
+}
+
+/** Готовый адрес для Android-клиента. */
+export interface NetworkAddress {
+  interfaceName: string
+  address: string
+  apiUrl: string
+  webUrl: string
+}
+
+/** API списка локальных адресов. */
+export interface NetworkApi {
+  get(): Promise<NetworkAddress[]>
+  onAddresses(listener: (addresses: NetworkAddress[]) => void): () => void
 }
 
 /** API управления сервером, доступное renderer через preload. */
@@ -52,4 +69,6 @@ export interface DesktopInfo {
 export interface DesktopApi {
   getInfo(): Promise<DesktopInfo>
   backend: BackendApi
+  network: NetworkApi
+  copyText(text: string): Promise<void>
 }

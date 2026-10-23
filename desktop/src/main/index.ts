@@ -1,4 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  shell,
+} from 'electron'
 import { dirname, join } from 'node:path'
 import { APP_NAME } from '../shared/app'
 import {
@@ -6,9 +13,11 @@ import {
   type BackendLogEntry,
   type BackendState,
   type DesktopInfo,
+  type NetworkAddress,
 } from '../shared/ipc'
 import { BackendProcess } from './backend'
 import { loadOrCreateConfig, type DesktopConfig } from './config'
+import { NetworkMonitor, currentLocalIPv4 } from './network'
 import {
   apiUrl,
   buildBackendArgs,
@@ -21,6 +30,7 @@ const APP_ID = 'org.asledger.desktop'
 
 let mainWindow: BrowserWindow | null = null
 let backend: BackendProcess | null = null
+let networkMonitor: NetworkMonitor | null = null
 let backendStopped = false
 
 function broadcast(channel: string, payload: unknown): void {
@@ -106,7 +116,10 @@ function createWindow(): void {
   }
 }
 
-function registerIpc(server: BackendProcess): void {
+function registerIpc(
+  server: BackendProcess,
+  monitor: NetworkMonitor,
+): void {
   ipcMain.handle(IPC_CHANNELS.getInfo, (): DesktopInfo => {
     return {
       appName: APP_NAME,
@@ -129,6 +142,18 @@ function registerIpc(server: BackendProcess): void {
   ipcMain.handle(IPC_CHANNELS.backendRestart, async (): Promise<BackendState> => {
     return server.restart()
   })
+  ipcMain.handle(IPC_CHANNELS.networkGet, (): NetworkAddress[] => {
+    return monitor.refresh()
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.clipboardWrite,
+    (_event, text: unknown): void => {
+      if (typeof text !== 'string') {
+        throw new Error('clipboard: ожидалась строка')
+      }
+      clipboard.writeText(text)
+    },
+  )
 }
 
 async function bootstrap(): Promise<void> {
@@ -147,8 +172,14 @@ async function bootstrap(): Promise<void> {
     return
   }
 
+  const monitor = new NetworkMonitor(
+    () => currentLocalIPv4(config.webPort, config.apiPort),
+    (addresses) => broadcast(IPC_CHANNELS.networkAddresses, addresses),
+  )
+  networkMonitor = monitor
   backend = createBackend(config)
-  registerIpc(backend)
+  registerIpc(backend, monitor)
+  monitor.start()
   createWindow()
 
   app.on('activate', () => {
@@ -172,6 +203,7 @@ app.on('web-contents-created', (_event, contents) => {
 })
 
 app.on('before-quit', (event) => {
+  networkMonitor?.stop()
   if (!backend || backendStopped) {
     return
   }

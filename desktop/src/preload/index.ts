@@ -10,6 +10,8 @@ import {
   type BackendState,
   type DesktopApi,
   type DesktopInfo,
+  type NetworkAddress,
+  type NetworkApi,
 } from '../shared/ipc'
 
 function subscribe<T>(
@@ -40,9 +42,19 @@ const backend: BackendApi = {
     subscribe<BackendLogEntry>(IPC_CHANNELS.backendLog, listener),
 }
 
+const network: NetworkApi = {
+  get: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.networkGet) as Promise<NetworkAddress[]>,
+  onAddresses: (listener) =>
+    subscribe<NetworkAddress[]>(IPC_CHANNELS.networkAddresses, listener),
+}
+
 const api: DesktopApi = {
   getInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getInfo) as Promise<DesktopInfo>,
   backend,
+  network,
+  copyText: (text) =>
+    ipcRenderer.invoke(IPC_CHANNELS.clipboardWrite, text) as Promise<void>,
 }
 
 contextBridge.exposeInMainWorld('asledger', api)
