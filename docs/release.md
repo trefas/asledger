@@ -63,6 +63,23 @@ sha256sum -c checksums.txt
 sha256sum -c asledger-1.1.2.apk.sha256
 ```
 
+## Desktop-клиент (Electron)
+
+Desktop-клиент собирается отдельно из `desktop/` и кладёт в пакет свой
+`asledgerd`, ассеты и шаблоны. Версия синхронизируется с тегом:
+
+```bash
+cd desktop
+ASLEDGER_VERSION="${GITHUB_REF_NAME}" npm run sync-version
+ASLEDGER_VERSION="${GITHUB_REF_NAME}" npm run verify:version
+npm run package:dist
+```
+
+Артефакты: Linux AppImage/deb (amd64 и arm64), Windows NSIS/portable (amd64).
+Для кросс-сборки Windows без wine доступен ZIP (`npm run package:win:zip`).
+macOS в MVP `v1.2.0` не входит: нет сертификата и нотаризации. Windows и macOS
+артефакты пока не подписываются; подпись — отдельная задача.
+
 ## Публикация по тегу
 
 ```bash

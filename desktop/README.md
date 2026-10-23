@@ -4,10 +4,10 @@ Desktop-клиент asledger на Electron. Отдельное приложен
 Android-клиентом: сервер `asledgerd` и Android остаются без изменений.
 
 Сейчас в репозитории находятся **каркас** (#139), **менеджер процесса**
-(#140), portable-конфигурация (#141), адреса для телефона (#143) и **журнал
-сервера** (#144): окно Electron, безопасный preload-API, запуск `asledgerd`,
-healthcheck, статусы, журнал и кнопки старта/остановки. Упаковка появится в
-следующих задачах S17–S19.
+(#140), portable-конфигурация (#141), адреса для телефона (#143), **журнал
+сервера** (#144) и **упаковка** (#145): окно Electron, безопасный preload-API,
+запуск `asledgerd`, healthcheck, статусы, журнал, кнопки старта/остановки и
+готовые пакеты с `asledgerd`, ассетами и шаблонами.
 
 ## Требования
 
@@ -24,14 +24,19 @@ npm ci
 npm run dev       # Electron + Vite dev server
 npm run check     # typecheck, unit-тесты и production-сборка
 npm run start     # запуск уже собранного приложения
-npm run package   # несобранный каталог приложения для текущей ОС
-npm run package:dist
+npm run package   # распакованное приложение для текущей ОС
+npm run package:dist  # AppImage/deb на Linux, NSIS/portable на Windows
+npm run package:linux    # Linux AppImage/deb
+npm run package:linux:arm64  # Linux arm64 AppImage/deb
+npm run package:win      # Windows NSIS/portable (Windows runner или wine)
+npm run package:win:zip  # Windows ZIP без wine (локально)
+npm run verify:package   # проверить бинарь, ассеты и версию в пакете
 ```
 
 `npm run package` создаёт каталог в `desktop/release/` и не требует прав
-администратора. Сейчас в пакет не кладётся `asledgerd`: это задача #145.
-Поэтому запуск из `release/linux-unpacked` покажет ошибку «бинарь не найден»;
-для разработки используйте `npm run dev` или `npm start`.
+администратора. Перед упаковкой `build:backend` собирает `asledgerd` для
+текущей ОС/архитектуры, а `afterPack` кладёт его в `resources/bin`. Для
+разработки используйте `npm run dev` или `npm start`.
 
 В dev-режиме менеджер ищет `asledgerd` в `../bin/`. Соберите его командой
 `make build` в корне репозитория. Данные и журналы лежат рядом с `config.json`
@@ -46,12 +51,63 @@ src/main/       главный процесс Electron
 src/preload/    узкий contextBridge-API для renderer
 src/renderer/   HTML/CSS/TypeScript интерфейса
 src/shared/     типы и чистые функции, общие для процессов
+scripts/        сборка asledgerd, afterPack и проверка пакета
 tests/          unit-тесты Vitest
 ```
 
 Главный процесс не загружает Node.js в renderer: включены
 `contextIsolation`, `sandbox` и отключён `nodeIntegration`. Renderer получает
 только методы из `window.asledger`, описанные в `src/shared/ipc.ts`.
+
+## Сборка и упаковка
+
+Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.2.0`).
+`npm run build:backend` передаёт её в `asledgerd` через `-ldflags`, поэтому
+`asledgerd --version`, имя артефакта и `package.json` согласованы. При выпуске
+по тегу версия синхронизируется заранее:
+
+```bash
+ASLEDGER_VERSION=v1.2.0 npm run sync-version
+ASLEDGER_VERSION=v1.2.0 npm run verify:version
+```
+
+Порядок упаковки:
+
+1. `build:backend` собирает статический `asledgerd` (`CGO_ENABLED=0`) в
+   `resources/backend/<os>-<arch>/`; цель можно задать явно:
+   `npm run build:backend -- --target=windows/amd64`.
+2. `electron-builder` собирает renderer/main/preload в `out/` и кладёт их в
+   `app.asar`.
+3. `afterPack` копирует нужный бинарь в `resources/bin/asledgerd[.exe]`.
+4. `extraResources` добавляет `assets/logo`, `templates/charts`, `LICENSE` и
+   `README.md`. Пути в приложении считаются от `process.resourcesPath`, а не от
+   текущего каталога запуска.
+
+Артефакты:
+
+- Linux amd64: AppImage и deb (`asledger-1.2.0-linux-x86_64.AppImage`,
+  `asledger-1.2.0-linux-amd64.deb`).
+- Linux arm64: AppImage и deb (`asledger-1.2.0-linux-arm64.AppImage`,
+  `asledger-1.2.0-linux-arm64.deb`), `npm run package:linux:arm64`.
+- Windows amd64: NSIS и portable (`asledger-1.2.0-win-x64.exe` и
+  `asledger-1.2.0-win-x64-portable.exe`); для локальной кросс-сборки без wine
+  доступен ZIP: `npm run package:win:zip`.
+- macOS: **не входит в MVP v1.2.0**. Нет сертификата и нотаризации; сборка и
+  публикация macOS станут отдельной задачей после проверки требований.
+
+Подпись Windows/macOS в MVP не выполняется: артефакты неподписанные, ОС может
+показать предупреждение. Подпись — отдельная задача. AppImage, portable и ZIP
+не требуют прав администратора; NSIS с `perMachine: false` ставится в
+пользовательский каталог. deb — системный пакет, его установка обычно требует
+root; для работы без администратора используйте AppImage.
+
+Проверка распакованного пакета:
+
+```bash
+npm run verify:package       # Linux/macOS: запускает asledgerd --version
+npm run verify:package:linux:arm64  # проверяет arm64-пакет
+npm run verify:package:win   # Windows: проверяет бинарь, ассеты и версию
+```
 
 ## Конфигурация
 
@@ -129,5 +185,4 @@ Loopback, link-local (`169.254.0.0/16`), multicast и зарезервирова
 
 ## Следующие шаги
 
-- #145 — упаковка бинаря, ресурсов и установщиков.
 - #146 — CI, smoke/E2E и проверка артефактов.
