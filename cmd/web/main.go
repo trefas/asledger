@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -53,6 +54,7 @@ func run(args []string) error {
 	}
 	db, err := store.Open(context.Background(), cfg.DBPath, openOpts...)
 	if err != nil {
+		logKeyAttempt(logger, err)
 		return err
 	}
 	defer func() { _ = db.Close() }()
@@ -94,4 +96,17 @@ func run(args []string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// logKeyAttempt фиксирует неудачную попытку открыть книгу без секрета в
+// журнале. Пароль, ключ и DSN сюда не попадают.
+func logKeyAttempt(logger *slog.Logger, err error) {
+	switch {
+	case errors.Is(err, store.ErrWrongKey):
+		logger.Warn("книга не открыта: неверный пароль или ключ")
+	case errors.Is(err, store.ErrKeyRequired), errors.Is(err, store.ErrKeyNotFound),
+		errors.Is(err, key.ErrPasswordRequired), errors.Is(err, key.ErrPlaintextBook),
+		errors.Is(err, key.ErrParamsNotFound):
+		logger.Warn("книга не открыта: нет ключа, sidecar или книга не зашифрована")
+	}
 }

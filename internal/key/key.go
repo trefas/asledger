@@ -172,7 +172,7 @@ func SaveParams(dbPath string, p Params) error {
 
 	path := ParamsPath(dbPath)
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("key: не удалось создать каталог %q: %w", dir, err)
 	}
 	tmp, err := os.CreateTemp(dir, ".kdf-*.json")
@@ -196,11 +196,20 @@ func SaveParams(dbPath string, p Params) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("key: не удалось закрыть sidecar: %w", err)
 	}
-	// На Windows rename поверх существующего файла может не работать; для
-	// первого создания sidecar этот путь не нужен, а при смене пароля старый
-	// файл удаляется вызывающим кодом после успешной проверки.
 	if err := os.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("key: не удалось заменить sidecar %q: %w", path, err)
+		// На Windows rename поверх существующего файла не работает.
+		// Уводим старый sidecar в .old и при неудаче возвращаем его на
+		// место: даже при смене пароля старый файл не должен исчезнуть.
+		backup := path + ".old"
+		_ = os.Remove(backup)
+		if moveErr := os.Rename(path, backup); moveErr != nil {
+			return fmt.Errorf("key: не удалось заменить sidecar %q: %w", path, err)
+		}
+		if renameErr := os.Rename(tmpName, path); renameErr != nil {
+			_ = os.Rename(backup, path)
+			return fmt.Errorf("key: не удалось заменить sidecar %q: %w", path, renameErr)
+		}
+		_ = os.Remove(backup)
 	}
 	return nil
 }
@@ -492,3 +501,51 @@ func zero(data []byte) {
 		data[i] = 0
 	}
 }
+
+// ReadPassword читает пароль из явного источника. Если источник не задан,
+// возвращается ErrPasswordRequired: интерактивный ввод выполняет вызывающий
+// код через PromptPassword, чтобы задать свой текст приглашения.
+func ReadPassword(source Source) ([]byte, error) {
+	if err := source.Validate(); err != nil {
+		return nil, err
+	}
+	if source.KeyFile != "" || source.KeyFD != nil {
+		return nil, errors.New("key: для пароля задан источник ключа")
+	}
+	if !source.Any() {
+		return nil, ErrPasswordRequired
+	}
+	return readPassword(source)
+}
+
+// PromptPassword читает пароль с TTY без эха.
+func PromptPassword(label string) ([]byte, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return nil, ErrPasswordRequired
+	}
+	fmt.Fprint(os.Stderr, label)
+	password, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr)
+	if err != nil {
+		return nil, fmt.Errorf("key: не удалось прочитать пароль: %w", err)
+	}
+	if len(password) == 0 {
+		return nil, errors.New("key: пустой пароль")
+	}
+	return password, nil
+}
+
+// DeriveFromSource читает пароль из источника и выводит ключ с заданными
+// параметрами. Вызывающий код должен затереть возвращённый ключ после
+// использования.
+func DeriveFromSource(source Source, params Params) ([]byte, error) {
+	password, err := ReadPassword(source)
+	if err != nil {
+		return nil, err
+	}
+	defer zero(password)
+	return Derive(password, params)
+}
+
+// Zero затирает срез best-effort.
+func Zero(data []byte) { zero(data) }

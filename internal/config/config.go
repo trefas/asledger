@@ -10,7 +10,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -112,13 +111,24 @@ func (c *Config) loadFile(path string) error {
 }
 
 // scanConfigFlag ищет флаг -config/--config в аргументах командной строки.
+//
+// Полный flag.Parse останавливается на первом незнакомом флаге, поэтому
+// путь к конфигу ищется вручную: иначе `-password-file ... -config ...`
+// потерял бы файл конфигурации.
 func scanConfigFlag(args []string) string {
-	fs := flag.NewFlagSet("config-scan", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	path := fs.String("config", "", "")
-	// Ошибки разбора здесь несущественны: полный разбор выполняется позже.
-	_ = fs.Parse(args)
-	return *path
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "-config" || args[i] == "--config":
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+		case strings.HasPrefix(args[i], "-config="):
+			return strings.TrimPrefix(args[i], "-config=")
+		case strings.HasPrefix(args[i], "--config="):
+			return strings.TrimPrefix(args[i], "--config=")
+		}
+	}
+	return ""
 }
 
 // applyEnv перекрывает конфигурацию значениями переменных окружения.

@@ -10,10 +10,21 @@ User=asledger
 Group=asledger
 WorkingDirectory=/var/lib/asledger
 EnvironmentFile=-/etc/asledger/asledger.env
+
+# Пароль книги передаётся службе через systemd credentials, а не через
+# argv/env. Раскомментируйте строку после создания файла:
+#   sudo install -m 0400 -o root -g root /path/to/secret /etc/asledger/asledger-password
+# asledgerd сам найдёт $CREDENTIALS_DIRECTORY/asledger-password.
+#LoadCredential=asledger-password:/etc/asledger/asledger-password
+
 ExecStart=/usr/local/bin/asledgerd -db /var/lib/asledger/asledger.db -assets /usr/local/share/asledger/assets/logo -charts-dir /usr/local/share/asledger/templates/charts -web-addr :8777 -api-addr :8778
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=15
+
+# Ключ/пароль не должны попадать в core dump и файлы, доступные группе.
+LimitCORE=0
+UMask=0077
 
 # Ограничения безопасности: службе нужна только запись в каталог книги.
 NoNewPrivileges=yes

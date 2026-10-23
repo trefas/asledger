@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -36,7 +37,7 @@ func TestParamsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat sidecar: %v", err)
 	}
-	if info.Mode().Perm()&0o077 != 0 {
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("sidecar доступен группе/другим: %o", info.Mode().Perm())
 	}
 	loaded, err := LoadParams(dbPath)
