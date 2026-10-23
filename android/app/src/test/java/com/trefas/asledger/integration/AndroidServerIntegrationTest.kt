@@ -297,11 +297,18 @@ class AndroidServerIntegrationTest {
             webPort = freePort()
             val temp = Files.createTempDirectory("asledger-jvm-it").toFile()
             val log = File(temp, "asledgerd.log")
+            // Книга шифруется SQLCipher. Android-клиент не знает пароль:
+            // он работает через API, поэтому сервер получает пароль из
+            // файла, а не из argv. Это проверяет совместимость #153.
+            val password = File(temp, "password.txt").apply {
+                writeText("android-integration-password\n")
+            }
             process = ProcessBuilder(
                 binary.absolutePath,
                 "-api-addr", "127.0.0.1:$apiPort",
                 "-web-addr", "127.0.0.1:$webPort",
                 "-db", File(temp, "book.db").absolutePath,
+                "-password-file", password.absolutePath,
                 "-assets", File(root, "assets/logo").absolutePath,
                 "-charts-dir", File(root, "templates/charts").absolutePath,
                 "-log-level", "error"
