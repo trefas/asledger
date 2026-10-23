@@ -20,6 +20,7 @@ import (
 
 	"github.com/trefas/asledger/internal/api"
 	"github.com/trefas/asledger/pkg/core/store"
+	"github.com/trefas/asledger/pkg/core/store/storetest"
 )
 
 // testChart — минимальный план счетов стенда.
@@ -54,14 +55,7 @@ func newStand(t *testing.T) *stand {
 	t.Helper()
 	ctx := context.Background()
 
-	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "book.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := db.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
+	db := storetest.OpenTemp(t)
 	if _, err := db.CreateUser(ctx, userName, userSecret); err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
