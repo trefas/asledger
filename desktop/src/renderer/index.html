@@ -88,9 +88,17 @@
               <p class="eyebrow">Диагностика</p>
               <h2>Журнал сервера</h2>
             </div>
-            <button id="clear-log" class="btn btn-secondary btn-small" type="button">
-              Очистить
-            </button>
+            <div class="card-actions">
+              <button id="copy-log" class="btn btn-secondary btn-small" type="button">
+                Скопировать логи
+              </button>
+              <button id="open-log" class="btn btn-secondary btn-small" type="button">
+                Открыть файл
+              </button>
+              <button id="clear-log" class="btn btn-secondary btn-small" type="button">
+                Очистить
+              </button>
+            </div>
           </div>
           <pre id="log" class="log" aria-live="polite"></pre>
         </section>
@@ -112,8 +120,8 @@
             </div>
           </dl>
           <p class="muted">
-            Следующие шаги: локальные IPv4 и URL для телефона (#143), упаковка
-            бинаря и ресурсов (#145), подключение книги в окне Electron.
+            Следующие шаги: упаковка бинаря и ресурсов (#145), подключение книги
+            в окне Electron.
           </p>
         </section>
       </main>

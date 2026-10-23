@@ -15,6 +15,11 @@ if (mode === 'exit') {
   process.exit(3)
 }
 
+if (mode === 'port') {
+  console.error('asledgerd: web: listen tcp :8777: bind: address already in use')
+  process.exit(1)
+}
+
 if (mode === 'sleep') {
   console.log('fake-asledgerd: спит')
   setInterval(() => {}, 1000)
@@ -33,6 +38,7 @@ if (mode === 'sleep') {
 
   server.listen(port, '127.0.0.1', () => {
     console.log('fake-asledgerd: готов')
+    console.log('password=hunter2 token=abc123')
     console.error('fake-asledgerd: тестовая строка stderr')
   })
 

@@ -7,6 +7,8 @@ export const IPC_CHANNELS = {
   backendRestart: 'backend:restart',
   backendState: 'backend:state',
   backendLog: 'backend:log',
+  backendReadLog: 'backend:read-log',
+  backendOpenLog: 'backend:open-log',
   networkGet: 'network:get',
   networkAddresses: 'network:addresses',
   clipboardWrite: 'clipboard:write',
@@ -52,6 +54,8 @@ export interface BackendApi {
   start(): Promise<BackendState>
   stop(): Promise<BackendState>
   restart(): Promise<BackendState>
+  readLog(): Promise<string[]>
+  openLog(): Promise<void>
   onState(listener: (state: BackendState) => void): () => void
   onLog(listener: (entry: BackendLogEntry) => void): () => void
 }

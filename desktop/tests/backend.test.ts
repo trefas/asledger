@@ -38,7 +38,7 @@ async function tempDir(): Promise<string> {
 function makeProcess(
   port: number,
   dir: string,
-  mode: 'ready' | 'exit' | 'sleep',
+  mode: 'ready' | 'exit' | 'sleep' | 'port',
   startupTimeoutMs = 2000,
 ): BackendProcess {
   return new BackendProcess({
@@ -78,7 +78,11 @@ describe('BackendProcess', () => {
       const log = await readFile(join(dir, 'logs', 'asledgerd.log'), 'utf8')
       expect(log).toContain('fake-asledgerd: готов')
       expect(log).toContain('тестовая строка stderr')
+      expect(log).toContain('password=***')
+      expect(log).not.toContain('hunter2')
+      expect(log).not.toContain('abc123')
       expect(logs.some((entry) => entry.line.includes('готов'))).toBe(true)
+      expect(logs.every((entry) => !entry.line.includes('hunter2'))).toBe(true)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -91,7 +95,44 @@ describe('BackendProcess', () => {
       const server = makeProcess(port, dir, 'exit')
       const state = await server.start()
       expect(state.status).toBe('error')
-      expect(state.detail).toMatch(/завершился|не ответил/)
+      expect(state.detail).toMatch(/ошибка|завершился|не ответил/)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('показывает ошибку занятого порта и путь к журналу', async () => {
+    const dir = await tempDir()
+    try {
+      const port = await freePort()
+      const server = makeProcess(port, dir, 'port')
+      const state = await server.start()
+      expect(state.status).toBe('error')
+      expect(state.detail).toContain('address already in use')
+      expect(state.logPath).toContain('asledgerd.log')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('объясняет отсутствие бинаря', async () => {
+    const dir = await tempDir()
+    try {
+      const port = await freePort()
+      const server = new BackendProcess({
+        command: join(dir, 'no-such-asledgerd'),
+        args: [],
+        cwd: join(dir, 'data'),
+        logFile: join(dir, 'logs', 'asledgerd.log'),
+        healthUrl: healthUrl(port),
+        webUrl: webUrl(port),
+        apiUrl: apiUrl(port),
+        startupTimeoutMs: 1000,
+        stopTimeoutMs: 100,
+      })
+      const state = await server.start()
+      expect(state.status).toBe('error')
+      expect(state.detail).toContain('Не найден asledgerd')
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

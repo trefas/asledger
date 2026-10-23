@@ -9,6 +9,7 @@ import type {
   BackendStatus,
 } from '../shared/ipc'
 import { waitForHealth } from './health'
+import { maskSecrets } from './log'
 
 export interface BackendOptions {
   command: string
@@ -28,6 +29,14 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function spawnErrorText(command: string, error: Error): string {
+  const code = (error as NodeJS.ErrnoException).code
+  if (code === 'ENOENT') {
+    return `Не найден asledgerd: ${command}. Соберите его или задайте ASLEDGERD_BIN.`
+  }
+  return `Не удалось запустить asledgerd: ${error.message}`
+}
+
 /**
  * Управляет дочерним процессом asledgerd.
  *
@@ -41,6 +50,8 @@ export class BackendProcess {
     BackendOptions
   private child: ChildProcess | null = null
   private logStream: WriteStream | null = null
+  private lastStderr = ''
+  private spawnError: Error | null = null
   private stopping = false
   private startPromise: Promise<BackendState> | null = null
   private state: BackendState
@@ -92,6 +103,8 @@ export class BackendProcess {
     }
 
     this.stopping = false
+    this.lastStderr = ''
+    this.spawnError = null
     this.setState('starting', 'Запуск asledgerd')
     this.startPromise = this.doStart()
     try {
@@ -152,18 +165,30 @@ export class BackendProcess {
         timeoutMs: this.options.startupTimeoutMs,
         fetchImpl: this.options.fetchImpl,
         isProcessAlive: () =>
-          spawned.exitCode === null && spawned.signalCode === null,
+          this.spawnError === null &&
+          spawned.exitCode === null &&
+          spawned.signalCode === null,
       })
 
       if (this.stopping || this.child !== spawned) {
-        this.setState('stopped', 'Запуск отменён', null)
+        if (this.stopping) {
+          this.setState('stopped', 'Запуск отменён', null)
+        } else {
+          this.setState(
+            'error',
+            this.lastStderr || 'asledgerd завершился до готовности',
+            null,
+          )
+        }
         return this.getState()
       }
 
       this.setState('ready', 'Сервер готов', spawned.pid ?? null)
       return this.getState()
     } catch (error) {
-      const message = errorText(error)
+      const message = this.spawnError
+        ? spawnErrorText(this.options.command, this.spawnError)
+        : this.lastStderr || errorText(error)
       await this.stopChild()
       this.closeLog()
       if (this.stopping) {
@@ -233,13 +258,20 @@ export class BackendProcess {
   }
 
   private appendLog(stream: 'stdout' | 'stderr', line: string): void {
+    const safeLine = maskSecrets(line)
+    if (
+      stream === 'stderr' &&
+      /(level=ERROR|\berror\b|fatal|asledgerd:)/i.test(safeLine)
+    ) {
+      this.lastStderr = safeLine
+    }
     const entry: BackendLogEntry = {
       stream,
-      line,
+      line: safeLine,
       at: new Date().toISOString(),
     }
     try {
-      this.logStream?.write(`[${entry.at}] [${stream}] ${line}\n`)
+      this.logStream?.write(`[${entry.at}] [${stream}] ${safeLine}\n`)
     } catch {
       this.logStream = null
     }
@@ -271,11 +303,16 @@ export class BackendProcess {
   }
 
   private handleSpawnError(child: ChildProcess, error: Error): void {
+    this.spawnError = error
     if (this.child === child) {
       this.child = null
     }
     this.closeLog()
-    this.setState('error', `Не удалось запустить asledgerd: ${error.message}`, null)
+    this.setState(
+      'error',
+      spawnErrorText(this.options.command, error),
+      null,
+    )
   }
 
   private handleExit(
@@ -299,7 +336,11 @@ export class BackendProcess {
         : code !== null
           ? `код ${code}`
           : 'неизвестная причина'
-    this.setState('error', `asledgerd завершился: ${reason}`, null)
+    this.setState(
+      'error',
+      this.lastStderr || `asledgerd завершился: ${reason}`,
+      null,
+    )
   }
 
   private async stopChild(): Promise<void> {

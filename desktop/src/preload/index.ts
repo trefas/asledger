@@ -36,6 +36,10 @@ const backend: BackendApi = {
     ipcRenderer.invoke(IPC_CHANNELS.backendStop) as Promise<BackendState>,
   restart: () =>
     ipcRenderer.invoke(IPC_CHANNELS.backendRestart) as Promise<BackendState>,
+  readLog: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.backendReadLog) as Promise<string[]>,
+  openLog: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.backendOpenLog) as Promise<void>,
   onState: (listener) =>
     subscribe<BackendState>(IPC_CHANNELS.backendState, listener),
   onLog: (listener) =>

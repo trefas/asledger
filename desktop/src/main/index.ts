@@ -17,6 +17,7 @@ import {
 } from '../shared/ipc'
 import { BackendProcess } from './backend'
 import { loadOrCreateConfig, type DesktopConfig } from './config'
+import { readLogTail } from './log'
 import { NetworkMonitor, currentLocalIPv4 } from './network'
 import {
   apiUrl,
@@ -141,6 +142,15 @@ function registerIpc(
   })
   ipcMain.handle(IPC_CHANNELS.backendRestart, async (): Promise<BackendState> => {
     return server.restart()
+  })
+  ipcMain.handle(IPC_CHANNELS.backendReadLog, async (): Promise<string[]> => {
+    return readLogTail(server.getState().logPath)
+  })
+  ipcMain.handle(IPC_CHANNELS.backendOpenLog, async (): Promise<void> => {
+    const error = await shell.openPath(server.getState().logPath)
+    if (error) {
+      throw new Error(error)
+    }
   })
   ipcMain.handle(IPC_CHANNELS.networkGet, (): NetworkAddress[] => {
     return monitor.refresh()

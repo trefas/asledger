@@ -35,6 +35,8 @@ const startButton = requireElement<HTMLButtonElement>('#start')
 const stopButton = requireElement<HTMLButtonElement>('#stop')
 const restartButton = requireElement<HTMLButtonElement>('#restart')
 const clearLogButton = requireElement<HTMLButtonElement>('#clear-log')
+const copyLogButton = requireElement<HTMLButtonElement>('#copy-log')
+const openLogButton = requireElement<HTMLButtonElement>('#open-log')
 const refreshNetworkButton =
   requireElement<HTMLButtonElement>('#refresh-network')
 
@@ -105,17 +107,20 @@ function addressRow(label: string, url: string): HTMLDivElement {
   copy.className = 'btn btn-secondary btn-small'
   copy.textContent = 'Копировать'
   copy.addEventListener('click', () => {
-    void copyUrl(url, copy)
+    void copyWithFeedback(url, copy)
   })
 
   row.append(name, code, copy)
   return row
 }
 
-async function copyUrl(url: string, button: HTMLButtonElement): Promise<void> {
+async function copyWithFeedback(
+  text: string,
+  button: HTMLButtonElement,
+): Promise<void> {
   const original = button.textContent
   try {
-    await window.asledger.copyText(url)
+    await window.asledger.copyText(text)
     button.textContent = 'Скопировано'
   } catch {
     button.textContent = 'Ошибка'
@@ -162,6 +167,31 @@ async function refreshNetwork(): Promise<void> {
   }
 }
 
+async function loadLogTail(): Promise<void> {
+  try {
+    const tail = await window.asledger.backend.readLog()
+    const merged = [...new Set([...tail, ...logLines])]
+    logLines.length = 0
+    logLines.push(...merged.slice(-MAX_LOG_LINES))
+    logElement.textContent = logLines.join('\n')
+    logElement.scrollTop = logElement.scrollHeight
+  } catch {
+    // Журнала ещё может не быть: это не ошибка запуска.
+  }
+}
+
+async function openLogFile(): Promise<void> {
+  const original = openLogButton.textContent
+  try {
+    await window.asledger.backend.openLog()
+  } catch {
+    openLogButton.textContent = 'Ошибка'
+    window.setTimeout(() => {
+      openLogButton.textContent = original
+    }, 1500)
+  }
+}
+
 async function loadInfo(): Promise<void> {
   try {
     const info = await window.asledger.getInfo()
@@ -201,6 +231,12 @@ clearLogButton.addEventListener('click', () => {
   logLines.length = 0
   logElement.textContent = ''
 })
+copyLogButton.addEventListener('click', () => {
+  void copyWithFeedback(logLines.join('\n'), copyLogButton)
+})
+openLogButton.addEventListener('click', () => {
+  void openLogFile()
+})
 refreshNetworkButton.addEventListener('click', () => {
   void refreshNetwork()
 })
@@ -211,4 +247,5 @@ window.asledger.network.onAddresses(renderAddresses)
 
 void loadInfo()
 void window.asledger.backend.getState().then(applyState)
+void loadLogTail()
 void refreshNetwork()

@@ -157,6 +157,13 @@ code {
   margin-bottom: 0;
 }
 
+.card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .eyebrow {
   margin: 0 0 0.35rem;
   color: var(--green-700);
