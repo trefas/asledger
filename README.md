@@ -189,7 +189,7 @@ web-браузер ───────────┘        │
 Архитектурные решения и контракты: [docs/api.md](docs/api.md),
 [docs/web.md](docs/web.md), [docs/hledger.md](docs/hledger.md),
 [docs/testing.md](docs/testing.md), [docs/release.md](docs/release.md),
-[docs/android.md](docs/android.md).
+[docs/android.md](docs/android.md), [docs/security.md](docs/security.md).
 
 ## Шаблонные планы счетов
 
