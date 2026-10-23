@@ -28,7 +28,7 @@ sudo cp asledgerd asledgerctl /usr/local/bin/
 sudo cp -r templates/charts /usr/local/share/asledger/templates/
 sudo cp -r assets/logo /usr/local/share/asledger/assets/
 sudo chown -R asledger:asledger /var/lib/asledger
-sudo chmod 750 /var/lib/asledger
+sudo chmod 700 /var/lib/asledger
 ```
 
 ## 3. Пароль и шифрование книги
@@ -73,6 +73,8 @@ dump и файлы, доступные группе. Если credential нед�
 ```bash
 sudo systemctl stop asledgerd
 sudo -u asledger asledgerctl passwd -db /var/lib/asledger/asledger.db
+# Обновите /etc/asledger/asledger-password: служба читает новый пароль
+# из LoadCredential, старый файл после смены пароля не подойдёт.
 sudo systemctl start asledgerd
 ```
 
