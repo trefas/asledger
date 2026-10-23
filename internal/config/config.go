@@ -12,7 +12,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
+
+	"github.com/trefas/asledger/internal/key"
 )
 
 // Значения по умолчанию.
@@ -49,6 +52,11 @@ type Config struct {
 	LogLevel string `json:"log_level"`
 	// LogFormat — формат журнала: text или json.
 	LogFormat string `json:"log_format"`
+	// Key — источники пароля/ключа книги. В config.json не сериализуется.
+	Key key.Source `json:"-"`
+	// AllowPlaintext — явный режим незашифрованной книги (миграция/тесты).
+	// Обычный запуск должен требовать ключ.
+	AllowPlaintext bool `json:"-"`
 }
 
 // Default возвращает конфигурацию со значениями по умолчанию.
@@ -130,6 +138,14 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) {
 	set(&c.ChartsDir, "ASLEDGER_CHARTS_DIR")
 	set(&c.LogLevel, "ASLEDGER_LOG_LEVEL")
 	set(&c.LogFormat, "ASLEDGER_LOG_FORMAT")
+	// Пути к секретам — не секреты; сам пароль/ключ в env не поддерживается.
+	set(&c.Key.PasswordFile, "ASLEDGER_PASSWORD_FILE")
+	set(&c.Key.KeyFile, "ASLEDGER_KEY_FILE")
+	if v, ok := lookup("ASLEDGER_ALLOW_PLAINTEXT"); ok && v != "" {
+		if enabled, err := strconv.ParseBool(v); err == nil {
+			c.AllowPlaintext = enabled
+		}
+	}
 }
 
 // applyFlags перекрывает конфигурацию аргументами командной строки.
@@ -144,11 +160,23 @@ func (c *Config) applyFlags(args []string) error {
 	fs.StringVar(&c.ChartsDir, "charts-dir", c.ChartsDir, "каталог шаблонных планов счетов")
 	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "уровень журнала: debug, info, warn, error")
 	fs.StringVar(&c.LogFormat, "log-format", c.LogFormat, "формат журнала: text или json")
+	fs.StringVar(&c.Key.PasswordFile, "password-file", c.Key.PasswordFile, "файл с паролем книги")
+	passwordFD := fs.Int("password-fd", -1, "fd с паролем книги (0 — stdin)")
+	fs.StringVar(&c.Key.KeyFile, "key-file", c.Key.KeyFile, "файл с raw-ключом книги")
+	keyFD := fs.Int("key-fd", -1, "fd с raw-ключом книги (0 — stdin)")
+	fs.BoolVar(&c.AllowPlaintext, "allow-plaintext", c.AllowPlaintext,
+		"явно открыть незашифрованную книгу (миграция/тесты)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() > 0 {
 		return fmt.Errorf("config: неожиданные аргументы: %s", strings.Join(fs.Args(), " "))
+	}
+	if *passwordFD >= 0 {
+		c.Key.PasswordFD = passwordFD
+	}
+	if *keyFD >= 0 {
+		c.Key.KeyFD = keyFD
 	}
 	return nil
 }
@@ -176,6 +204,12 @@ func (c *Config) Validate() error {
 	case "text", "json":
 	default:
 		return fmt.Errorf("config: недопустимый формат журнала %q", c.LogFormat)
+	}
+	if err := c.Key.Validate(); err != nil {
+		return err
+	}
+	if c.AllowPlaintext && c.Key.Any() {
+		return errors.New("config: -allow-plaintext нельзя сочетать с паролем или ключом")
 	}
 	return nil
 }

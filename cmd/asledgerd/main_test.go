@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/trefas/asledger/internal/key"
+	"github.com/trefas/asledger/pkg/core/store"
 )
 
 func TestRunContextServesHealthAndStops(t *testing.T) {
@@ -74,6 +78,60 @@ func TestRunContextReportsPortConflict(t *testing.T) {
 	assertPortFree(t, apiPort)
 }
 
+func TestRunContextEncryptedBookWithPasswordFile(t *testing.T) {
+	webPort := freePort(t)
+	apiPort := freePort(t)
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "book.db")
+	passwordPath := filepath.Join(dir, "password")
+	if err := os.WriteFile(passwordPath, []byte("пароль книги\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	args := testArgs(t, webPort, apiPort)
+	args = replaceArg(args, "-db", dbPath)
+	args = append(args, "-password-file", passwordPath)
+	// Убираем явный plaintext-режим, который testArgs добавляет для старых
+	// тестов: этот сценарий должен открыть зашифрованную книгу.
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-allow-plaintext" {
+			args = append(args[:i], args[i+1:]...)
+			break
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errc := make(chan error, 1)
+	go func() { errc <- runContext(ctx, args) }()
+
+	waitForHealth(t, fmt.Sprintf("http://127.0.0.1:%d/api/v1/health", apiPort), &struct {
+		Status string `json:"status"`
+	}{})
+	cancel()
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Fatalf("runContext: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("сервер не остановился")
+	}
+
+	provider, err := key.NewProvider(dbPath, key.Source{PasswordFile: passwordPath})
+	if err != nil {
+		t.Fatalf("NewProvider: %v", err)
+	}
+	db, err := store.Open(context.Background(), dbPath, store.WithKeyProvider(provider))
+	if err != nil {
+		t.Fatalf("Open encrypted: %v", err)
+	}
+	defer db.Close()
+	if !db.Encrypted() {
+		t.Fatal("asledgerd создал незашифрованную книгу")
+	}
+}
+
 func testArgs(t *testing.T, webPort, apiPort int) []string {
 	t.Helper()
 	return []string{
@@ -83,6 +141,7 @@ func testArgs(t *testing.T, webPort, apiPort int) []string {
 		"-web-addr", fmt.Sprintf(":%d", webPort),
 		"-api-addr", fmt.Sprintf(":%d", apiPort),
 		"-log-level", "error",
+		"-allow-plaintext",
 	}
 }
 

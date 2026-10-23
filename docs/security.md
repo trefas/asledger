@@ -5,9 +5,10 @@
 Результаты spike — [#148](https://github.com/trefas/asledger/issues/148),
 модель угроз и решения по ключу — [#149](https://github.com/trefas/asledger/issues/149).
 
-Статус: решение для `v1.3.0`; код `store`, миграция и Electron-экран пароля
-появятся в #150–#154. До их готовности книга остаётся незашифрованной, как в
-`v1.2.0`; частичный SQLCipher-релиз не выпускается.
+Статус: `store` и источники ключа реализованы в #150/#152; миграция
+plaintext → SQLCipher, смена пароля и Electron-экран пароля продолжаются в
+#151/#154. До готовности миграции обычный запуск с незашифрованной книгой
+требует явного `-allow-plaintext`; частичный SQLCipher-релиз не выпускается.
 
 ## 1. Что защищаем
 
@@ -123,7 +124,9 @@ SQLCipher защищает данные **только в состоянии п�
 
 ### Sidecar с параметрами KDF
 
-Рядом с книгой создаётся `asledger.kdf.json` (имя уточняется в #150):
+Рядом с книгой создаётся sidecar `<db>.kdf.json`: для книги `asledger.db` это
+`asledger.db.kdf.json`. Имя привязано к файлу книги, чтобы несколько книг в
+одном каталоге не перепутали параметры KDF.
 
 ```json
 {
@@ -165,12 +168,24 @@ Argon2id. Он не хранится в `config.json`, не передаётся
 | Источник | Как работает | Ограничения |
 | --- | --- | --- |
 | Интерактивный ввод | `asledgerd`/`asledgerctl` читает пароль с TTY без эха | Нет TTY у службы; пароль остаётся в памяти процесса |
-| stdin/pipe | Electron пишет пароль в stdin дочернего `asledgerd`, затем закрывает поток | Нельзя логировать stdin; нужен таймаут и понятная ошибка |
+| stdin/pipe | Electron пишет пароль в stdin дочернего `asledgerd` (`--password-fd=0`), затем закрывает поток | Нельзя логировать stdin; нужен таймаут и понятная ошибка |
 | fd | `--password-fd=N`; родитель передаёт уже открытый дескриптор | Дескриптор не должен наследоваться другими процессами |
-| Файл | `--password-file=PATH`; путь не является секретом | Файл `0600`, владелец — пользователь службы; удалить после чтения |
+| Файл | `--password-file=PATH` или `ASLEDGER_PASSWORD_FILE`; путь не является секретом | Файл `0600`, владелец — пользователь службы; удалить после чтения |
 | systemd | `LoadCredential=asledger-password:/etc/asledger/asledger-password`; служба читает `$CREDENTIALS_DIRECTORY/asledger-password` | Нужен systemd с поддержкой credentials; исходный файл недоступен другим |
-| Windows-служба | DPAPI-защищённый файл или Credential Manager; путь/имя передаётся службе | DPAPI привязан к пользователю/машине; администратор может расшифровать |
-| Системное хранилище Electron | `safeStorage` (Keychain/DPAPI/Secret Service) хранит **ключ**, не пароль | Linux без keyring не годится; same-user malware может прочитать |
+| Windows-служба | DPAPI-защищённый файл или Credential Manager; путь/имя передаётся службе через `--password-file` | DPAPI привязан к пользователю/машине; администратор может расшифровать |
+| Системное хранилище Electron | `safeStorage` (Keychain/DPAPI/Secret Service) хранит **ключ**, не пароль; ключ передаётся через `--key-fd`/`--key-file` | Linux без keyring не годится; same-user malware может прочитать |
+
+Флаги и переменные:
+
+- `asledgerd` и `asledgerctl` принимают `-password-file`, `-password-fd`,
+  `-key-file`, `-key-fd`; `-password-fd=0`/`-key-fd=0` читают stdin.
+- `ASLEDGER_PASSWORD_FILE` и `ASLEDGER_KEY_FILE` задают только **пути** к
+  секретам. Сырой пароль/ключ в env не поддерживается.
+- `-allow-plaintext` и `ASLEDGER_ALLOW_PLAINTEXT=1` — только явный режим
+  миграции/тестов; обычный запуск его не включает.
+- systemd credentials автоматически читаются из
+  `$CREDENTIALS_DIRECTORY/asledger-password` или `asledger-key`, если другие
+  источники не заданы.
 
 Запрещено:
 

@@ -19,6 +19,7 @@ import (
 	"github.com/trefas/asledger/internal/api"
 	"github.com/trefas/asledger/internal/config"
 	"github.com/trefas/asledger/internal/httpui"
+	"github.com/trefas/asledger/internal/key"
 	"github.com/trefas/asledger/internal/logging"
 	"github.com/trefas/asledger/internal/version"
 	"github.com/trefas/asledger/pkg/core/store"
@@ -62,7 +63,18 @@ func runContext(ctx context.Context, args []string) error {
 	}
 	logger := logging.New(cfg.LogLevel, cfg.LogFormat)
 
-	db, err := store.Open(ctx, cfg.DBPath)
+	var openOpts []store.Option
+	if cfg.AllowPlaintext {
+		logger.Warn("книга открывается без шифрования: явный режим -allow-plaintext")
+	} else {
+		provider, err := key.NewProvider(cfg.DBPath, cfg.Key)
+		if err != nil {
+			return err
+		}
+		openOpts = append(openOpts, store.WithKeyProvider(provider))
+	}
+
+	db, err := store.Open(ctx, cfg.DBPath, openOpts...)
 	if err != nil {
 		return err
 	}
