@@ -101,6 +101,14 @@ test('запускает asledgerd, открывает книгу и корре�
     const window = await app.firstWindow()
     await window.waitForLoadState('domcontentloaded')
     await expect(window).toHaveTitle(/asledger/)
+
+    // Первый запуск: sidecar ещё нет, asledgerd ждёт пароль через stdin.
+    await expect(window.locator('#password-dialog')).toBeVisible({
+      timeout: 10_000,
+    })
+    await window.locator('#password').fill('e2e-password')
+    await window.locator('#password-submit').click()
+
     await expect(window.locator('#status')).toHaveText('Готово', {
       timeout: 20_000,
     })
@@ -127,8 +135,9 @@ test('запускает asledgerd, открывает книгу и корре�
     const book = await bookPromise
     await book.waitForLoadState('domcontentloaded')
     expect(book.url()).toContain(`:${webPort}`)
-    await book.close()
 
+    // Останавливаем сервер до закрытия окна книги: Playwright/Electron на
+    // Linux зависает на page.close() второго окна, а app.close() закроет всё.
     await window.locator('#stop').click()
     await expect(window.locator('#status')).toHaveText('Остановлен', {
       timeout: 15_000,

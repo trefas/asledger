@@ -10,6 +10,8 @@ export const IPC_CHANNELS = {
   backendLog: 'backend:log',
   backendReadLog: 'backend:read-log',
   backendOpenLog: 'backend:open-log',
+  authStatus: 'auth:status',
+  authForget: 'auth:forget',
   networkGet: 'network:get',
   networkAddresses: 'network:addresses',
   clipboardWrite: 'clipboard:write',
@@ -49,16 +51,36 @@ export interface NetworkApi {
   onAddresses(listener: (addresses: NetworkAddress[]) => void): () => void
 }
 
+/** Запрос на запуск с паролем или сохранённым ключом. */
+export interface BackendStartRequest {
+  password?: string
+  remember?: boolean
+  useRemembered?: boolean
+}
+
+/** Состояние системного хранилища ключа. */
+export interface KeyStorageStatus {
+  available: boolean
+  remembered: boolean
+  backend: string
+}
+
 /** API управления сервером, доступное renderer через preload. */
 export interface BackendApi {
   getState(): Promise<BackendState>
-  start(): Promise<BackendState>
+  start(request?: BackendStartRequest): Promise<BackendState>
   stop(): Promise<BackendState>
-  restart(): Promise<BackendState>
+  restart(request?: BackendStartRequest): Promise<BackendState>
   readLog(): Promise<string[]>
   openLog(): Promise<void>
   onState(listener: (state: BackendState) => void): () => void
   onLog(listener: (entry: BackendLogEntry) => void): () => void
+}
+
+/** API системного хранилища ключа. */
+export interface AuthApi {
+  status(): Promise<KeyStorageStatus>
+  forget(): Promise<void>
 }
 
 /** Сведения о приложении, безопасно передаваемые в renderer. */
@@ -75,6 +97,7 @@ export interface DesktopApi {
   getInfo(): Promise<DesktopInfo>
   openBook(): Promise<void>
   backend: BackendApi
+  auth: AuthApi
   network: NetworkApi
   copyText(text: string): Promise<void>
 }

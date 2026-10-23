@@ -5,7 +5,9 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 // Явные input'ы не задаём, чтобы не дублировать соглашение фреймворка.
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // @noble/hashes — ESM-зависимость для Argon2id в main; включаем её в
+    // бандл, чтобы не зависеть от require(esm) и состава node_modules.
+    plugins: [externalizeDepsPlugin({ exclude: ['@noble/hashes'] })],
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

@@ -1,14 +1,15 @@
 # asledger Desktop
 
-Desktop-клиент asledger на Electron. Отдельное приложение, не связанное с
-Android-клиентом: сервер `asledgerd` и Android остаются без изменений.
+Desktop-клиент asledger на Electron. Отдельное приложение; сервер `asledgerd`
+теперь шифрует книгу SQLCipher, а Android-клиент продолжает работать через API
+без изменения протокола.
 
 Сейчас в репозитории находятся **каркас** (#139), **менеджер процесса**
 (#140), portable-конфигурация (#141), адреса для телефона (#143), **журнал
 сервера** (#144) и **упаковка** (#145): окно Electron, безопасный preload-API,
 запуск `asledgerd`, healthcheck, статусы, журнал, кнопки старта/остановки,
-открытие книги в отдельном окне и готовые пакеты с `asledgerd`, ассетами и
-шаблонами.
+открытие книги в отдельном окне, ввод пароля книги, «Запомнить ключ» через
+`safeStorage` и готовые пакеты с `asledgerd`, ассетами и шаблонами.
 
 ## Требования
 
@@ -90,21 +91,29 @@ tests/          unit-тесты Vitest
 
 ## Сборка и упаковка
 
-Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.2.0`).
+Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.3.0`).
 `npm run build:backend` передаёт её в `asledgerd` через `-ldflags`, поэтому
 `asledgerd --version`, имя артефакта и `package.json` согласованы. При выпуске
 по тегу версия синхронизируется заранее:
 
 ```bash
-ASLEDGER_VERSION=v1.2.0 npm run sync-version
-ASLEDGER_VERSION=v1.2.0 npm run verify:version
+ASLEDGER_VERSION=v1.3.0 npm run sync-version
+ASLEDGER_VERSION=v1.3.0 npm run verify:version
 ```
+
+Перед упаковкой нужны Go, Node.js 22+, gcc и кросс-компилятор для выбранной
+цели. Windows CI ставит MinGW через MSYS2, Linux arm64 — пакет
+`gcc-aarch64-linux-gnu` и `libc6-dev-arm64-cross`.
 
 Порядок упаковки:
 
-1. `build:backend` собирает статический `asledgerd` (`CGO_ENABLED=0`) в
+1. `build:backend` собирает статический `asledgerd` с cgo и SQLCipher
+   (`CGO_ENABLED=1`, `-tags=netgo,osusergo,sqlite_omit_load_extension`,
+   `-linkmode external -extldflags=-static`) в
    `resources/backend/<os>-<arch>/`; цель можно задать явно:
-   `npm run build:backend -- --target=windows/amd64`.
+   `npm run build:backend -- --target=windows/amd64`. Для linux/arm64 нужен
+   `aarch64-linux-gnu-gcc`, для windows/amd64 — `x86_64-w64-mingw32-gcc`;
+   переопределить компилятор можно `ASLEDGER_CC=...`.
 2. `electron-builder` собирает renderer/main/preload в `out/` и кладёт их в
    `app.asar`.
 3. `afterPack` копирует нужный бинарь в `resources/bin/asledgerd[.exe]`.
@@ -114,14 +123,14 @@ ASLEDGER_VERSION=v1.2.0 npm run verify:version
 
 Артефакты:
 
-- Linux amd64: AppImage и deb (`asledger-1.2.0-linux-x86_64.AppImage`,
-  `asledger-1.2.0-linux-amd64.deb`).
-- Linux arm64: AppImage и deb (`asledger-1.2.0-linux-arm64.AppImage`,
-  `asledger-1.2.0-linux-arm64.deb`), `npm run package:linux:arm64`.
-- Windows amd64: NSIS, portable и ZIP (`asledger-1.2.0-win-x64.exe`,
-  `asledger-1.2.0-win-x64-portable.exe`, `asledger-1.2.0-win-x64.zip`); ZIP
+- Linux amd64: AppImage и deb (`asledger-1.3.0-linux-x86_64.AppImage`,
+  `asledger-1.3.0-linux-amd64.deb`).
+- Linux arm64: AppImage и deb (`asledger-1.3.0-linux-arm64.AppImage`,
+  `asledger-1.3.0-linux-arm64.deb`), `npm run package:linux:arm64`.
+- Windows amd64: NSIS, portable и ZIP (`asledger-1.3.0-win-x64.exe`,
+  `asledger-1.3.0-win-x64-portable.exe`, `asledger-1.3.0-win-x64.zip`); ZIP
   собирается `npm run package:win:zip`, в том числе локально без wine.
-- macOS: **не входит в MVP v1.2.0**. Нет сертификата и нотаризации; сборка и
+- macOS: **не входит в MVP v1.3.0**. Нет сертификата и нотаризации; сборка и
   публикация macOS станут отдельной задачей после проверки требований.
 
 Подпись Windows/macOS в MVP не выполняется: артефакты неподписанные, ОС может
@@ -163,9 +172,12 @@ npm run verify:package:win   # Windows: проверяет бинарь, асс�
 - Если порт занят, `asledgerd` завершается с сообщением вида
   `asledgerd: listen tcp :8777: bind: address already in use`; окно показывает
   его в статусе и журнале и переводит состояние в «Ошибка».
-- В `config.json` нет паролей, токенов и производных ключей. Секреты появятся
-  только в задачах шифрования (#138) и будут храниться через системное
-  хранилище, а не в `config.json` или `localStorage`.
+- В `config.json` нет паролей, токенов и производных ключей. Пароль и
+  raw-ключ в него не пишутся; sidecar `data/asledger.db.kdf.json` содержит
+  только соль и параметры Argon2id.
+- Пароль передаётся `asledgerd` через stdin (`-password-fd=0`), а не через
+  argv/env. «Запомнить ключ» сохраняет в `safeStorage` только 32-байтовый
+  raw-ключ; на Linux при `basic_text` или без keyring сохранение отключено.
 
 ## Журнал и ошибки
 
@@ -217,11 +229,18 @@ Loopback, link-local (`169.254.0.0/16`), multicast и зарезервирова
 
 - CSP ограничивает источники скриптов, стилей и соединений.
 - Новые окна и внешние ссылки обрабатываются через `shell.openExternal`.
-- В каркасе нет паролей, токенов и доступа к файловой системе из renderer.
-- Секреты появятся только в задачах шифрования (#138) и будут храниться через
-  системное хранилище, а не в `config.json` или `localStorage`.
+- Renderer не получает пароль, сохранённый ключ и доступ к файловой системе.
+- Пароль/ключ не попадают в `config.json`, `localStorage` и журнал; renderer
+  передаёт пароль в main по узкому IPC-каналу.
+- `safeStorage` используется только для raw-ключа; `basic_text` на Linux
+  считается недоступным хранилищем.
 
 ## Следующие шаги
 
-- #147 — документация, установка и релиз `v1.2.0`.
-- #138/#148 — шифрование книги и SQLCipher в `v1.3.0`.
+- #147 — документация, установка и релиз desktop (завершено).
+- #138/#148/#150/#151/#152/#154 — SQLCipher, миграция, пароль и desktop-ключ
+  (завершено).
+- #153 — совместимость Android с зашифрованным `asledgerd` (реализовано в
+  JVM-тесте и документации).
+- #155 — релиз `v1.3.0`: версии, release notes и публикация после отдельного
+  решения.

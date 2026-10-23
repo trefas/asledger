@@ -9,6 +9,8 @@ function value(name) {
 
 const mode = value('--mode') ?? 'ready'
 const port = Number(value('--port') ?? '0')
+const secretFd =
+  args.includes('-password-fd') || args.includes('-key-fd')
 
 if (mode === 'exit') {
   console.error('fake-asledgerd: ошибка запуска')
@@ -20,12 +22,7 @@ if (mode === 'port') {
   process.exit(1)
 }
 
-if (mode === 'sleep') {
-  console.log('fake-asledgerd: спит')
-  setInterval(() => {}, 1000)
-  process.on('SIGTERM', () => process.exit(0))
-  process.on('SIGINT', () => process.exit(0))
-} else {
+function startServer() {
   const server = createServer((request, response) => {
     if (request.url === '/api/v1/health') {
       response.writeHead(200, { 'content-type': 'application/json' })
@@ -47,4 +44,22 @@ if (mode === 'sleep') {
   }
   process.on('SIGTERM', stop)
   process.on('SIGINT', stop)
+}
+
+if (mode === 'sleep') {
+  console.log('fake-asledgerd: спит')
+  setInterval(() => {}, 1000)
+  process.on('SIGTERM', () => process.exit(0))
+  process.on('SIGINT', () => process.exit(0))
+} else if (secretFd) {
+  // Секрет приходит через stdin/fd; fake проверяет только факт получения,
+  // чтобы тест мог убедиться, что он не попал в argv или журнал.
+  process.stdin.on('data', () => {})
+  process.stdin.on('end', () => {
+    console.log('fake-asledgerd: secret received')
+    startServer()
+  })
+  process.stdin.resume()
+} else {
+  startServer()
 }

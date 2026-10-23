@@ -124,11 +124,49 @@
           </dl>
           <p class="muted">
             Книга открывается в отдельном окне Electron и работает через
-            локальный сервер. Пароль и шифрование появятся в следующих версиях.
+            локальный сервер. Пароль передаётся asledgerd через stdin и не
+            попадает в argv, env или журнал.
           </p>
         </section>
       </main>
     </div>
+
+    <dialog id="password-dialog" class="dialog" aria-labelledby="password-title">
+      <form id="password-form" method="dialog" class="dialog-form">
+        <p class="eyebrow">Шифрование</p>
+        <h2 id="password-title">Пароль книги</h2>
+        <p id="password-hint" class="muted">
+          Введите пароль книги. Он нужен для вывода ключа SQLCipher и не
+          сохраняется в конфигурации.
+        </p>
+        <label class="field">
+          <span>Пароль</span>
+          <input
+            id="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+        </label>
+        <label class="check">
+          <input id="remember" type="checkbox" />
+          <span>Запомнить ключ в системном хранилище</span>
+        </label>
+        <p id="remember-hint" class="muted small"></p>
+        <p id="password-error" class="error" hidden></p>
+        <div class="actions dialog-actions">
+          <button id="forget-key" class="btn btn-secondary" type="button" hidden>
+            Забыть ключ
+          </button>
+          <button id="password-cancel" class="btn btn-secondary" type="button">
+            Отмена
+          </button>
+          <button id="password-submit" class="btn" type="submit">
+            Открыть книгу
+          </button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

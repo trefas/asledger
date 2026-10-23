@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -83,6 +84,56 @@ describe('BackendProcess', () => {
       expect(log).not.toContain('abc123')
       expect(logs.some((entry) => entry.line.includes('готов'))).toBe(true)
       expect(logs.every((entry) => !entry.line.includes('hunter2'))).toBe(true)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('передаёт пароль через stdin и не светит его в argv/журнале', async () => {
+    const dir = await tempDir()
+    try {
+      const port = await freePort()
+      let seenArgs: string[] = []
+      const server = new BackendProcess({
+        command: process.execPath,
+        args: [fakeBinary, '--port', String(port), '--mode', 'ready'],
+        cwd: join(dir, 'data'),
+        logFile: join(dir, 'logs', 'asledgerd.log'),
+        healthUrl: healthUrl(port),
+        webUrl: webUrl(port),
+        apiUrl: apiUrl(port),
+        startupTimeoutMs: 2000,
+        stopTimeoutMs: 1000,
+        spawnImpl: ((command: string, args: string[], options: unknown) => {
+          seenArgs = args
+          return spawn(command, args, options as never)
+        }) as unknown as typeof spawn,
+      })
+
+      const state = await server.start({ kind: 'password', value: 'hunter2' })
+      expect(state.status).toBe('ready')
+      expect(seenArgs).toContain('-password-fd')
+      expect(seenArgs).not.toContain('hunter2')
+      const log = await readFile(join(dir, 'logs', 'asledgerd.log'), 'utf8')
+      expect(log).toContain('secret received')
+      expect(log).not.toContain('hunter2')
+      await server.stop()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('останавливает запуск, если stop пришёл до появления child', async () => {
+    const dir = await tempDir()
+    try {
+      const port = await freePort()
+      const server = makeProcess(port, dir, 'sleep', 5000)
+      const starting = server.start()
+      const stopped = await server.stop()
+      expect(stopped.status).toBe('stopped')
+      const state = await starting
+      expect(state.status).toBe('stopped')
+      expect(state.pid).toBeNull()
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

@@ -1,4 +1,8 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import {
+  spawn,
+  type ChildProcess,
+  type StdioOptions,
+} from 'node:child_process'
 import { createWriteStream, type WriteStream } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
@@ -10,6 +14,12 @@ import type {
 } from '../shared/ipc'
 import { waitForHealth } from './health'
 import { maskSecrets } from './log'
+
+/** Секрет, который передаётся asledgerd через stdin/fd, а не argv/env. */
+export interface BackendSecret {
+  kind: 'password' | 'key'
+  value: string
+}
 
 export interface BackendOptions {
   command: string
@@ -93,8 +103,17 @@ export class BackendProcess {
     }
   }
 
-  /** Запускает сервер и ждёт healthcheck. Повторный вызов безопасен. */
-  async start(): Promise<BackendState> {
+  /**
+   * Запускает сервер и ждёт healthcheck. Повторный вызов безопасен.
+   *
+   * Пароль или raw-ключ передаются через stdin с флагом -password-fd=0 /
+   * -key-fd=0; в argv и env секрета нет.
+   */
+  async start(secret?: BackendSecret): Promise<BackendState> {
+    if (secret && secret.value.length === 0) {
+      this.setState('error', 'Пустой пароль или ключ', null)
+      return this.getState()
+    }
     if (this.state.status === 'ready' || this.state.status === 'starting') {
       return this.startPromise ?? this.getState()
     }
@@ -106,7 +125,7 @@ export class BackendProcess {
     this.lastStderr = ''
     this.spawnError = null
     this.setState('starting', 'Запуск asledgerd')
-    this.startPromise = this.doStart()
+    this.startPromise = this.doStart(secret)
     try {
       return await this.startPromise
     } finally {
@@ -130,28 +149,46 @@ export class BackendProcess {
     return this.getState()
   }
 
-  /** Перезапускает сервер. */
-  async restart(): Promise<BackendState> {
+  /** Перезапускает сервер, при необходимости с новым секретом. */
+  async restart(secret?: BackendSecret): Promise<BackendState> {
     await this.stop()
-    return this.start()
+    return this.start(secret)
   }
 
-  private async doStart(): Promise<BackendState> {
+  private async doStart(secret?: BackendSecret): Promise<BackendState> {
     let child: ChildProcess | null = null
     try {
-      await mkdir(this.options.cwd, { recursive: true })
+      await mkdir(this.options.cwd, { recursive: true, mode: 0o700 })
       await this.openLog()
 
       const spawnImpl = this.options.spawnImpl ?? spawn
-      const spawned = spawnImpl(this.options.command, this.options.args, {
+      const args = [...this.options.args]
+      if (secret) {
+        args.push(secret.kind === 'password' ? '-password-fd' : '-key-fd', '0')
+      }
+      const stdio: StdioOptions = secret
+        ? ['pipe', 'pipe', 'pipe']
+        : ['ignore', 'pipe', 'pipe']
+      const spawned = spawnImpl(this.options.command, args, {
         cwd: this.options.cwd,
         env: { ...process.env },
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio,
         windowsHide: true,
       })
       child = spawned
       this.child = spawned
       this.attachOutput(spawned)
+      if (secret) {
+        // asledgerd читает секрет до EOF. Для ключа добавляем перевод строки,
+        // чтобы hex/base64 было удобно разбирать; пароль пишем как есть.
+        spawned.stdin?.on('error', (error) => {
+          this.appendLog('stderr', `stdin: ${errorText(error)}`)
+        })
+        spawned.stdin?.end(
+          secret.kind === 'key' ? `${secret.value}\n` : secret.value,
+          'utf8',
+        )
+      }
       spawned.once('error', (error) => {
         this.handleSpawnError(spawned, error)
       })
@@ -160,6 +197,13 @@ export class BackendProcess {
       })
 
       this.setState('starting', 'Ожидание healthcheck', spawned.pid ?? null)
+      if (this.stopping) {
+        // stop() мог прийти до появления child: не оставляем процесс-сироту.
+        await this.stopChild()
+        this.closeLog()
+        this.setState('stopped', 'Запуск отменён', null)
+        return this.getState()
+      }
       await waitForHealth({
         url: this.options.healthUrl,
         timeoutMs: this.options.startupTimeoutMs,
@@ -172,6 +216,8 @@ export class BackendProcess {
 
       if (this.stopping || this.child !== spawned) {
         if (this.stopping) {
+          await this.stopChild()
+          this.closeLog()
           this.setState('stopped', 'Запуск отменён', null)
         } else {
           this.setState(
@@ -237,7 +283,7 @@ export class BackendProcess {
   }
 
   private async openLog(): Promise<void> {
-    await mkdir(dirname(this.options.logFile), { recursive: true })
+    await mkdir(dirname(this.options.logFile), { recursive: true, mode: 0o700 })
     this.logStream = createWriteStream(this.options.logFile, { flags: 'a' })
     this.logStream.on('error', (error) => {
       this.logStream = null

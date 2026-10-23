@@ -350,3 +350,79 @@ h2 {
 .hint li + li {
   margin-top: 0.35rem;
 }
+
+.dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 12px 40px rgba(15, 61, 15, 0.2);
+}
+
+.dialog::backdrop {
+  background: rgba(28, 33, 28, 0.45);
+}
+
+.dialog-form {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1.25rem;
+}
+
+.dialog-form h2 {
+  margin-bottom: 0;
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.field input {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font: inherit;
+}
+
+.field input:focus {
+  border-color: var(--green-500);
+  outline: 2px solid var(--green-100);
+}
+
+.check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.check input {
+  margin-top: 0.2rem;
+}
+
+.small {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.error {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #e3b4b0;
+  border-radius: 7px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 0.88rem;
+}
+
+.dialog-actions {
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
