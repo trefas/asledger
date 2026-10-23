@@ -27,6 +27,18 @@ const archMap = {
   arm: 'arm',
 }
 
+// SQLCipher требует cgo и C-компилятор под каждую цель. На Linux amd64
+// достаточно системного gcc; arm64 и Windows собираются кросс-компиляторами
+// из GoReleaser-cross или установленных пакетов.
+const ccByTarget = {
+  'linux/amd64': 'gcc',
+  'linux/arm64': 'aarch64-linux-gnu-gcc',
+  'windows/amd64': 'x86_64-w64-mingw32-gcc',
+  'windows/arm64': 'aarch64-w64-mingw32-gcc',
+  'darwin/amd64': 'clang',
+  'darwin/arm64': 'clang',
+}
+
 function currentTarget() {
   const goos = platformMap[process.platform]
   const goarch = archMap[process.arch]
@@ -78,24 +90,48 @@ for (const target of parseTargets()) {
   )
   mkdirSync(dirname(output), { recursive: true })
 
+  const cc = process.env.ASLEDGER_CC ?? ccByTarget[target]
+  if (!cc) {
+    throw new Error(
+      `Не задан C-компилятор для ${target}; установите его или задайте ASLEDGER_CC`,
+    )
+  }
+
   const ldflags = [
     '-s',
     '-w',
+    '-linkmode external',
     `-X github.com/trefas/asledger/internal/version.Version=v${version}`,
     `-X github.com/trefas/asledger/internal/version.Commit=${commit}`,
     `-X github.com/trefas/asledger/internal/version.Date=${date}`,
-  ].join(' ')
+  ]
+  // macOS не входит в MVP и не поддерживает -static; для Linux/Windows
+  // бинарник должен быть самодостаточным.
+  if (goos !== 'darwin') {
+    ldflags.push('-extldflags=-static')
+  }
+  const ldflagsText = ldflags.join(' ')
 
   const result = spawnSync(
     'go',
-    ['build', '-trimpath', '-ldflags', ldflags, '-o', output, './cmd/asledgerd'],
+    [
+      'build',
+      '-trimpath',
+      '-tags=netgo,osusergo,sqlite_omit_load_extension',
+      '-ldflags',
+      ldflagsText,
+      '-o',
+      output,
+      './cmd/asledgerd',
+    ],
     {
       cwd: repoRoot,
       env: {
         ...process.env,
-        CGO_ENABLED: '0',
+        CGO_ENABLED: '1',
         GOOS: goos,
         GOARCH: goarch,
+        CC: cc,
       },
       stdio: 'inherit',
     },
@@ -103,5 +139,5 @@ for (const target of parseTargets()) {
   if (result.status !== 0) {
     throw new Error(`Не удалось собрать asledgerd для ${target}`)
   }
-  console.log(`asledgerd ${target} -> ${output}`)
+  console.log(`asledgerd ${target} (CC=${cc}) -> ${output}`)
 }

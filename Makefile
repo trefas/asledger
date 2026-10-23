@@ -6,6 +6,12 @@ GO      ?= go
 BIN_DIR ?= bin
 CMDS    := asledgerd asledgerctl web
 
+# SQLCipher собирается через cgo. Без CGO бинарники и тесты store не
+# соберутся; отключать CGO для релиза запрещено.
+CGO_ENABLED ?= 1
+export CGO_ENABLED
+BUILD_TAGS  ?= netgo osusergo sqlite_omit_load_extension
+
 VERSION ?= dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -22,7 +28,7 @@ build:
 	@mkdir -p $(BIN_DIR)
 	@for cmd in $(CMDS); do \
 		echo "сборка cmd/$$cmd"; \
-		$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$$cmd ./cmd/$$cmd || exit 1; \
+		$(GO) build -tags "$(BUILD_TAGS)" -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$$cmd ./cmd/$$cmd || exit 1; \
 	done
 
 ## test: запустить юнит-тесты

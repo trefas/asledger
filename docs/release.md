@@ -34,7 +34,8 @@ Makefile передаёт значения в линкер:
 
 Инструмент сборки — **GoReleaser** (`.goreleaser.yaml`): он даёт матрицу
 платформ, архивы, контрольные суммы и release notes без самописного
-пайплайна. Сборка статическая (`CGO_ENABLED=0`, `-trimpath`).
+пайплайна. SQLCipher требует cgo, поэтому сборка идёт с `CGO_ENABLED=1` и
+статической линковкой; матрица и компиляторы описаны ниже.
 
 | Платформа | Архив | Бинарники |
 | --- | --- | --- |
@@ -46,6 +47,27 @@ Makefile передаёт значения в линкер:
 В именах архивов версия печатается без префикса `v` (`asledger_1.0.0_…`), а в
 самих бинарниках — как в теге (`asledgerd v1.0.0`): GoReleaser подставляет в
 `-ldflags` значение `.Tag`.
+
+### Сборка с cgo
+
+SQLCipher встроен в драйвер `github.com/mutecomm/go-sqlcipher/v4`, поэтому
+`CGO_ENABLED=0` больше не используется. Для релиза задаются:
+
+```text
+CGO_ENABLED=1
+tags: netgo osusergo sqlite_omit_load_extension
+ldflags: -s -w -linkmode external -extldflags "-static"
+CC:
+  linux/amd64   gcc
+  linux/arm64   aarch64-linux-gnu-gcc
+  windows/amd64 x86_64-w64-mingw32-gcc
+```
+
+GoReleaser запускается в `ghcr.io/goreleaser/goreleaser-cross:v1.26.10`
+(Go 1.26.10, GoReleaser 2.18.3): образ содержит все три компилятора. Версия
+образа закреплена; при обновлении Go её нужно поднять вместе с `go.mod`.
+Локальный `make build` также требует cgo и gcc; `make check` на машине без
+C-компилятора не пройдёт.
 
 В каждый архив входят:
 
@@ -60,7 +82,7 @@ Makefile передаёт значения в линкер:
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.1.2.apk.sha256
+sha256sum -c asledger-1.3.0.apk.sha256
 ```
 
 ## Desktop-клиент (Electron)
@@ -78,28 +100,47 @@ npm run package:win           # Windows amd64: NSIS и portable
 npm run package:win:zip       # Windows amd64: ZIP без установки
 ```
 
-`package:win` и `package:win:zip` запускаются на Windows-раннере; локальная
-кросс-сборка ZIP возможна без wine. macOS в MVP `v1.2.0` не входит: нет
-сертификата и нотаризации. Windows-артефакты не подписываются; подпись —
-отдельная задача.
+`build-backend` собирает `asledgerd` с cgo и статической линковкой. На Linux
+для amd64 нужен `gcc`, для arm64 — `aarch64-linux-gnu-gcc` и
+`libc6-dev-arm64-cross`. На Windows нужен MinGW (`x86_64-w64-mingw32-gcc`);
+CI ставит его через MSYS2. `package:win` и `package:win:zip` запускаются на
+Windows-раннере; локальная кросс-сборка ZIP возможна без wine, но требует
+кросс-компилятор. macOS в MVP `v1.3.0` не входит: нет сертификата и
+нотаризации. Windows-артефакты не подписываются; подпись — отдельная задача.
 
-### Артефакты `v1.2.0`
+### Содержание `v1.3.0`
+
+- SQLCipher для книги, WAL и резервных копий; драйвер
+  `github.com/mutecomm/go-sqlcipher/v4`, cgo и статическая линковка.
+- Argon2id (64 МиБ, 3 прохода, 4 потока) и sidecar `<db>.kdf.json` без пароля
+  и производного ключа.
+- `asledgerctl migrate-encrypt` для plaintext-книг, `passwd` для смены пароля,
+  зашифрованный `backup`.
+- Пароль в desktop-клиенте, передача через stdin, «Запомнить ключ» только как
+  32-байтовый raw-ключ в `safeStorage`; на Linux `basic_text` отключён.
+- Android-клиент не меняет API и работает с зашифрованным `asledgerd` через
+  токен устройства; JVM-интеграционный тест запускает сервер с
+  `-password-file`.
+
+### Артефакты `v1.3.0`
 
 | Файл | Платформа | Установка |
 | --- | --- | --- |
-| `asledger-1.2.0-linux-x86_64.AppImage` | Linux amd64 | без установки |
-| `asledger-1.2.0-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
-| `asledger-1.2.0-linux-arm64.AppImage` | Linux arm64 | без установки |
-| `asledger-1.2.0-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
-| `asledger-1.2.0-win-x64.exe` | Windows x64 | NSIS, per-user |
-| `asledger-1.2.0-win-x64-portable.exe` | Windows x64 | portable |
-| `asledger-1.2.0-win-x64.zip` | Windows x64 | распаковать и запустить |
+| `asledger-1.3.0-linux-x86_64.AppImage` | Linux amd64 | без установки |
+| `asledger-1.3.0-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
+| `asledger-1.3.0-linux-arm64.AppImage` | Linux arm64 | без установки |
+| `asledger-1.3.0-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
+| `asledger-1.3.0-win-x64.exe` | Windows x64 | NSIS, per-user |
+| `asledger-1.3.0-win-x64-portable.exe` | Windows x64 | portable |
+| `asledger-1.3.0-win-x64.zip` | Windows x64 | распаковать и запустить |
+| `asledger-1.3.0.apk` | Android 12+ | установить APK |
+| `asledger-1.3.0.apk.sha256` | Android | SHA-256 APK |
 | `SHA256SUMS-linux` | Linux | контрольные суммы |
 | `SHA256SUMS-windows` | Windows | контрольные суммы |
 
 Ссылки на файлы релиза строятся по шаблону
-`https://github.com/trefas/asledger/releases/download/v1.2.0/<файл>`;
-страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.2.0`.
+`https://github.com/trefas/asledger/releases/download/v1.3.0/<файл>`;
+страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.3.0`.
 Конкретные SHA-256 появляются в `SHA256SUMS-linux` и `SHA256SUMS-windows`
 после сборки; они не хранятся в репозитории. Проверка:
 
@@ -109,7 +150,7 @@ sha256sum -c SHA256SUMS-linux
 sha256sum -c SHA256SUMS-windows
 
 # Windows PowerShell
-Get-FileHash .\asledger-1.2.0-win-x64.exe -Algorithm SHA256
+Get-FileHash .\asledger-1.3.0-win-x64.exe -Algorithm SHA256
 ```
 
 Перед публикацией workflow сверяет версию `package.json`, `package-lock.json`,
@@ -117,7 +158,7 @@ Get-FileHash .\asledger-1.2.0-win-x64.exe -Algorithm SHA256
 `sync-version` и `verify:version`; упакованный бинарь проверяется
 `verify:package`. Если версия не совпала, релиз не публикуется.
 
-### Проверка релиза `v1.2.0`
+### Проверка релиза `v1.3.0`
 
 1. Скачать `SHA256SUMS-linux` и `SHA256SUMS-windows`, проверить хэши скачанных
    файлов.
@@ -155,8 +196,9 @@ git push origin v1.0.0
 4. **Публикация** — job с
    `needs: [test, android, desktop-linux, desktop-windows]`, поэтому релиз не
    создаётся при падающих тестах, неподписанном APK или сломанной упаковке
-   desktop. GoReleaser собирает серверные артефакты и публикует GitHub Release,
-   после чего в него загружаются APK, desktop-пакеты и файлы контрольных сумм.
+   desktop. GoReleaser в `goreleaser-cross` собирает серверные артефакты и
+   публикует GitHub Release, после чего в него загружаются APK, desktop-пакеты
+   и файлы контрольных сумм.
 
 Секреты Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
 `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Ключ хранится вне репозитория;
@@ -265,6 +307,8 @@ Release notes собираются автоматически из истори�
 
 - версия Go фиксируется в `go.mod` и используется CI через
   `go-version-file`;
-- `CGO_ENABLED=0` и `-trimpath` убирают зависимость от окружения сборки;
+- `CGO_ENABLED=1`, фиксированные теги и `-trimpath` задают сборку SQLCipher;
+- версия `goreleaser-cross` закреплена и содержит Go 1.26.10 и нужные
+  кросс-компиляторы;
 - тесты и статические проверки выполняются тем же `make`, что и локально;
 - проверка соответствия версии тегу не даёт выпустить артефакт с чужой версией.

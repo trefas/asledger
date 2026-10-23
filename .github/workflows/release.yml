@@ -175,6 +175,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Установить кросс-компилятор arm64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -245,6 +250,17 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
+      - name: Установить MinGW для cgo
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gcc
+
+      - name: Добавить MinGW в PATH
+        shell: bash
+        run: echo "${{ steps.msys2.outputs.msys2-location }}/mingw64/bin" >> "$GITHUB_PATH"
+
       - name: Установить зависимости
         run: npm ci
 
@@ -300,19 +316,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
+      # SQLCipher требует cgo, поэтому GoReleaser запускается в
+      # goreleaser-cross: образ содержит gcc, aarch64-linux-gnu-gcc и
+      # x86_64-w64-mingw32-gcc. Версия образа привязана к Go 1.26.10.
+      - name: GoReleaser (cgo, cross)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm \
+            -e GITHUB_TOKEN \
+            -e CGO_ENABLED=1 \
+            -v "$PWD":/go/src/github.com/trefas/asledger \
+            -w /go/src/github.com/trefas/asledger \
+            ghcr.io/goreleaser/goreleaser-cross:v1.26.10 \
+            release --clean
 
       - uses: actions/download-artifact@v4
         with:
