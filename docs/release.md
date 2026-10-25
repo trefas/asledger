@@ -82,7 +82,7 @@ C-компилятора не пройдёт.
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.3.0.apk.sha256
+sha256sum -c asledger-1.3.1.apk.sha256
 ```
 
 ## Desktop-клиент (Electron)
@@ -106,8 +106,18 @@ npm run package:win:zip       # Windows amd64: ZIP без установки
 `libc6-dev-arm64-cross`. На Windows нужен MinGW (`x86_64-w64-mingw32-gcc`);
 CI ставит его через MSYS2. `package:win` и `package:win:zip` запускаются на
 Windows-раннере; локальная кросс-сборка ZIP возможна без wine, но требует
-кросс-компилятор. macOS в MVP `v1.3.0` не входит: нет сертификата и
+кросс-компилятор. macOS в MVP `v1.3.1` не входит: нет сертификата и
 нотаризации. Windows-артефакты не подписываются; подпись — отдельная задача.
+
+### Патч `v1.3.1`
+
+`v1.3.1` — патч к `v1.3.0`: desktop-клиент использует общий
+`assets/logo/asledger-logo.svg` в шапке и `icon-512.png` как иконку основного
+окна и окна книги. SQLCipher, формат книги, sidecar и API не менялись;
+обновление с `v1.3.0` не требует миграции данных.
+
+Изменения: #157, #158. Релиз `v1.3.0` остаётся точкой входа для шифрования;
+его содержание и миграция с `v1.2.0` описаны ниже.
 
 ### Содержание `v1.3.0`
 
@@ -128,7 +138,7 @@ Windows-раннере; локальная кросс-сборка ZIP возм�
 
 ### Обновление с `v1.2.0`
 
-Книга `v1.2.0` была незашифрованной. Перед первым запуском `v1.3.0`:
+Книга `v1.2.0` была незашифрованной. Перед первым запуском `v1.3.x`:
 
 1. Остановите службу/`asledgerd` и сделайте резервную копию книги.
 2. Выполните `asledgerctl migrate-encrypt -db /path/to/asledger.db` (пароль
@@ -144,25 +154,25 @@ Windows-раннере; локальная кросс-сборка ZIP возм�
 пароля используйте `asledgerctl passwd`; для резервной копии —
 `asledgerctl backup`.
 
-### Артефакты `v1.3.0`
+### Артефакты `v1.3.1`
 
 | Файл | Платформа | Установка |
 | --- | --- | --- |
-| `asledger-1.3.0-linux-x86_64.AppImage` | Linux amd64 | без установки |
-| `asledger-1.3.0-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
-| `asledger-1.3.0-linux-arm64.AppImage` | Linux arm64 | без установки |
-| `asledger-1.3.0-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
-| `asledger-1.3.0-win-x64.exe` | Windows x64 | NSIS, per-user |
-| `asledger-1.3.0-win-x64-portable.exe` | Windows x64 | portable |
-| `asledger-1.3.0-win-x64.zip` | Windows x64 | распаковать и запустить |
-| `asledger-1.3.0.apk` | Android 12+ | установить APK |
-| `asledger-1.3.0.apk.sha256` | Android | SHA-256 APK |
+| `asledger-1.3.1-linux-x86_64.AppImage` | Linux amd64 | без установки |
+| `asledger-1.3.1-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
+| `asledger-1.3.1-linux-arm64.AppImage` | Linux arm64 | без установки |
+| `asledger-1.3.1-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
+| `asledger-1.3.1-win-x64.exe` | Windows x64 | NSIS, per-user |
+| `asledger-1.3.1-win-x64-portable.exe` | Windows x64 | portable |
+| `asledger-1.3.1-win-x64.zip` | Windows x64 | распаковать и запустить |
+| `asledger-1.3.1.apk` | Android 12+ | установить APK |
+| `asledger-1.3.1.apk.sha256` | Android | SHA-256 APK |
 | `SHA256SUMS-linux` | Linux | контрольные суммы |
 | `SHA256SUMS-windows` | Windows | контрольные суммы |
 
 Ссылки на файлы релиза строятся по шаблону
-`https://github.com/trefas/asledger/releases/download/v1.3.0/<файл>`;
-страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.3.0`.
+`https://github.com/trefas/asledger/releases/download/v1.3.1/<файл>`;
+страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.3.1`.
 Конкретные SHA-256 появляются в `SHA256SUMS-linux` и `SHA256SUMS-windows`
 после сборки; они не хранятся в репозитории. Проверка:
 
@@ -172,7 +182,7 @@ sha256sum -c SHA256SUMS-linux
 sha256sum -c SHA256SUMS-windows
 
 # Windows PowerShell
-Get-FileHash .\asledger-1.3.0-win-x64.exe -Algorithm SHA256
+Get-FileHash .\asledger-1.3.1-win-x64.exe -Algorithm SHA256
 ```
 
 Перед публикацией workflow сверяет версию `package.json`, `package-lock.json`,
@@ -180,7 +190,7 @@ Get-FileHash .\asledger-1.3.0-win-x64.exe -Algorithm SHA256
 `sync-version` и `verify:version`; упакованный бинарь проверяется
 `verify:package`. Если версия не совпала, релиз не публикуется.
 
-### Проверка релиза `v1.3.0`
+### Проверка релиза `v1.3.1`
 
 1. Скачать `SHA256SUMS-linux` и `SHA256SUMS-windows`, проверить хэши скачанных
    файлов.

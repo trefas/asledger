@@ -98,15 +98,15 @@ renderer подключает его через `publicDir` electron-vite, а ma
 
 ## Сборка и упаковка
 
-Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.3.0`).
+Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.3.1`).
 `npm run build:backend` передаёт её в `asledgerd` и `asledgerctl` через
 `-ldflags`, поэтому версии бинарей, имя артефакта и `package.json` согласованы.
 При выпуске
 по тегу версия синхронизируется заранее:
 
 ```bash
-ASLEDGER_VERSION=v1.3.0 npm run sync-version
-ASLEDGER_VERSION=v1.3.0 npm run verify:version
+ASLEDGER_VERSION=v1.3.1 npm run sync-version
+ASLEDGER_VERSION=v1.3.1 npm run verify:version
 ```
 
 Перед упаковкой нужны Go, Node.js 22+, gcc и кросс-компилятор для выбранной
@@ -133,14 +133,14 @@ ASLEDGER_VERSION=v1.3.0 npm run verify:version
 
 Артефакты:
 
-- Linux amd64: AppImage и deb (`asledger-1.3.0-linux-x86_64.AppImage`,
-  `asledger-1.3.0-linux-amd64.deb`).
-- Linux arm64: AppImage и deb (`asledger-1.3.0-linux-arm64.AppImage`,
-  `asledger-1.3.0-linux-arm64.deb`), `npm run package:linux:arm64`.
-- Windows amd64: NSIS, portable и ZIP (`asledger-1.3.0-win-x64.exe`,
-  `asledger-1.3.0-win-x64-portable.exe`, `asledger-1.3.0-win-x64.zip`); ZIP
+- Linux amd64: AppImage и deb (`asledger-1.3.1-linux-x86_64.AppImage`,
+  `asledger-1.3.1-linux-amd64.deb`).
+- Linux arm64: AppImage и deb (`asledger-1.3.1-linux-arm64.AppImage`,
+  `asledger-1.3.1-linux-arm64.deb`), `npm run package:linux:arm64`.
+- Windows amd64: NSIS, portable и ZIP (`asledger-1.3.1-win-x64.exe`,
+  `asledger-1.3.1-win-x64-portable.exe`, `asledger-1.3.1-win-x64.zip`); ZIP
   собирается `npm run package:win:zip`, в том числе локально без wine.
-- macOS: **не входит в MVP v1.3.0**. Нет сертификата и нотаризации; сборка и
+- macOS: **не входит в MVP v1.3.1**. Нет сертификата и нотаризации; сборка и
   публикация macOS станут отдельной задачей после проверки требований.
 
 Подпись Windows/macOS в MVP не выполняется: артефакты неподписанные, ОС может
@@ -252,5 +252,6 @@ Loopback, link-local (`169.254.0.0/16`), multicast и зарезервирова
   (завершено).
 - #153 — совместимость Android с зашифрованным `asledgerd` (реализовано в
   JVM-тесте и документации).
-- #155 — релиз `v1.3.0`: версии, release notes и публикация после отдельного
-  решения.
+- #155 — релиз `v1.3.0`: версии, release notes и публикация (завершено).
+- #157/#158 — общий логотип desktop в шапке и окне (завершено, патч
+  `v1.3.1`).

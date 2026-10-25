@@ -188,7 +188,7 @@ jobs:
           path: desktop/release/*.exe
           if-no-files-found: error
 
-  # macOS не входит в MVP v1.3.0: нет сертификата и нотаризации (#145).
+  # macOS не входит в MVP v1.3.1: нет сертификата и нотаризации (#145).
 
   lint:
     name: golangci-lint
