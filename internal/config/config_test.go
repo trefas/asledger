@@ -88,3 +88,89 @@ func TestLoadMissingFile(t *testing.T) {
 		t.Fatal("Load с несуществующим файлом не вернул ошибку")
 	}
 }
+
+func TestLoadKeySources(t *testing.T) {
+	cfg, err := Load([]string{"-password-file", "/run/asledger/password"})
+	if err != nil {
+		t.Fatalf("Load с password-file: %v", err)
+	}
+	if cfg.Key.PasswordFile != "/run/asledger/password" {
+		t.Fatalf("PasswordFile = %q", cfg.Key.PasswordFile)
+	}
+
+	cfg, err = Load([]string{"-password-fd", "3"})
+	if err != nil {
+		t.Fatalf("Load с password-fd: %v", err)
+	}
+	if cfg.Key.PasswordFD == nil || *cfg.Key.PasswordFD != 3 {
+		t.Fatalf("PasswordFD = %v", cfg.Key.PasswordFD)
+	}
+
+	cfg, err = Load([]string{"-key-file", "/run/asledger/key"})
+	if err != nil {
+		t.Fatalf("Load с key-file: %v", err)
+	}
+	if cfg.Key.KeyFile != "/run/asledger/key" {
+		t.Fatalf("KeyFile = %q", cfg.Key.KeyFile)
+	}
+
+	cfg, err = Load([]string{"-key-fd", "0"})
+	if err != nil {
+		t.Fatalf("Load с key-fd: %v", err)
+	}
+	if cfg.Key.KeyFD == nil || *cfg.Key.KeyFD != 0 {
+		t.Fatalf("KeyFD = %v", cfg.Key.KeyFD)
+	}
+
+	cfg, err = Load([]string{"-allow-plaintext"})
+	if err != nil {
+		t.Fatalf("Load с allow-plaintext: %v", err)
+	}
+	if !cfg.AllowPlaintext {
+		t.Fatal("AllowPlaintext не включился")
+	}
+}
+
+func TestLoadKeySourceConflicts(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"два пароля", []string{"-password-file", "a", "-password-fd", "0"}},
+		{"два ключа", []string{"-key-file", "a", "-key-fd", "0"}},
+		{"пароль и ключ", []string{"-password-file", "a", "-key-file", "b"}},
+		{"plaintext и пароль", []string{"-allow-plaintext", "-password-file", "a"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := Load(tc.args); err == nil {
+				t.Fatalf("Load(%v) не вернул ошибку", tc.args)
+			}
+		})
+	}
+}
+
+func TestLoadKeySourcesFromEnv(t *testing.T) {
+	t.Setenv("ASLEDGER_PASSWORD_FILE", "/run/asledger/password")
+	t.Setenv("ASLEDGER_KEY_FILE", "")
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Key.PasswordFile != "/run/asledger/password" {
+		t.Fatalf("PasswordFile из env = %q", cfg.Key.PasswordFile)
+	}
+}
+
+func TestLoadAllowPlaintextFromEnv(t *testing.T) {
+	t.Setenv("ASLEDGER_PASSWORD_FILE", "")
+	t.Setenv("ASLEDGER_KEY_FILE", "")
+	t.Setenv("ASLEDGER_ALLOW_PLAINTEXT", "true")
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.AllowPlaintext {
+		t.Fatal("AllowPlaintext из env не включился")
+	}
+}

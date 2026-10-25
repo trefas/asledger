@@ -32,6 +32,8 @@ export ANDROID_HOME=/path/to/android-sdk
 ```bash
 # из корня репозитория
 make build                 # bin/asledgerd и bin/asledgerctl
+# В TTY asledgerd спросит пароль книги; для скриптов передайте
+# -password-file или -password-fd, но не пароль в argv.
 ./bin/asledgerd -db /tmp/asledger-dev.db
 
 # в другом терминале
@@ -106,8 +108,10 @@ query/transaction executors, чтобы suspend-запросы были дете
 ### Интеграционные тесты с сервером
 
 `com.trefas.asledger.integration.AndroidServerIntegrationTest` запускает
-настоящий `asledgerd` на случайных портах, настраивает книгу через web-форму и
-проходит сценарии двух клиентов, rebase, rejected и resync. Внешняя сеть не
+настоящий `asledgerd` на случайных портах, передаёт ему пароль через файл
+(книга шифруется SQLCipher), настраивает книгу через web-форму и проходит
+сценарии двух клиентов, rebase, rejected и resync. Android-клиент не получает
+пароль: он работает через API с токеном устройства. Внешняя сеть не
 используется.
 
 ```bash
@@ -141,7 +145,7 @@ keyPassword=…
 Без ключа release-сборка подписывается debug-ключом и печатает
 предупреждение — такой APK нельзя публиковать.
 
-`versionName` по умолчанию `1.0.0`, `versionCode` — `10000`. В CI они
+`versionName` по умолчанию `1.3.0`, `versionCode` — `10300`. В CI они
 переопределяются из тега: `ANDROID_VERSION_NAME`, `ANDROID_VERSION_CODE`.
 Release workflow проверяет подпись и версию через `apksigner`/`aapt`, публикует
 APK и `.sha256`.
@@ -149,7 +153,7 @@ APK и `.sha256`.
 ## Локальный сервер и сброс данных
 
 ```bash
-# сервер с отдельной книгой и портами
+# сервер с отдельной книгой и портами; в TTY он спросит пароль книги
 ./bin/asledgerd -db /tmp/asledger-dev.db \
   -api-addr 127.0.0.1:8778 -web-addr 127.0.0.1:8777
 

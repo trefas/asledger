@@ -9,6 +9,13 @@ import (
 	"github.com/trefas/asledger/pkg/core/store"
 )
 
+// TestMain включает явный plaintext-режим для старых тестов CLI. Тесты
+// зашифрованной книги появятся вместе с миграцией (#151).
+func TestMain(m *testing.M) {
+	_ = os.Setenv("ASLEDGER_ALLOW_PLAINTEXT", "1")
+	os.Exit(m.Run())
+}
+
 // writeFile создаёт файл с содержимым и завершает тест при ошибке.
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/trefas/asledger/internal/config"
 	"github.com/trefas/asledger/internal/httpui"
+	"github.com/trefas/asledger/internal/key"
 	"github.com/trefas/asledger/internal/logging"
 	"github.com/trefas/asledger/internal/version"
 	"github.com/trefas/asledger/pkg/core/store"
@@ -40,8 +42,19 @@ func run(args []string) error {
 	}
 	logger := logging.New(cfg.LogLevel, cfg.LogFormat)
 
-	db, err := store.Open(context.Background(), cfg.DBPath)
+	openOpts := make([]store.Option, 0, 1)
+	if cfg.AllowPlaintext {
+		logger.Warn("книга открывается без шифрования: явный режим -allow-plaintext")
+	} else {
+		provider, err := key.NewProvider(cfg.DBPath, cfg.Key)
+		if err != nil {
+			return err
+		}
+		openOpts = append(openOpts, store.WithKeyProvider(provider))
+	}
+	db, err := store.Open(context.Background(), cfg.DBPath, openOpts...)
 	if err != nil {
+		logKeyAttempt(logger, err)
 		return err
 	}
 	defer func() { _ = db.Close() }()
@@ -83,4 +96,17 @@ func run(args []string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// logKeyAttempt фиксирует неудачную попытку открыть книгу без секрета в
+// журнале. Пароль, ключ и DSN сюда не попадают.
+func logKeyAttempt(logger *slog.Logger, err error) {
+	switch {
+	case errors.Is(err, store.ErrWrongKey):
+		logger.Warn("книга не открыта: неверный пароль или ключ")
+	case errors.Is(err, store.ErrKeyRequired), errors.Is(err, store.ErrKeyNotFound),
+		errors.Is(err, key.ErrPasswordRequired), errors.Is(err, key.ErrPlaintextBook),
+		errors.Is(err, key.ErrParamsNotFound):
+		logger.Warn("книга не открыта: нет ключа, sidecar или книга не зашифрована")
+	}
 }

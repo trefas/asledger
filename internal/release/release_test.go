@@ -47,7 +47,11 @@ func TestASL_13_ReleaseConfig(t *testing.T) {
 		"windows",
 		"amd64",
 		"arm64",
-		"CGO_ENABLED=0",
+		"CGO_ENABLED=1",
+		"sqlite_omit_load_extension",
+		"-extldflags \"-static\"",
+		"aarch64-linux-gnu-gcc",
+		"x86_64-w64-mingw32-gcc",
 		"-X github.com/trefas/asledger/internal/version.Version={{ .Tag }}",
 		"checksums.txt",
 		"sha256",
@@ -67,6 +71,8 @@ func TestASL_13_ReleaseConfig(t *testing.T) {
 		"make check",
 		"make test-race",
 		"goreleaser",
+		"goreleaser-cross",
+		"CGO_ENABLED=1",
 		"GITHUB_TOKEN",
 		`grep -F "${GITHUB_REF_NAME}"`,
 	} {
@@ -98,6 +104,9 @@ func TestASL_13_SystemdUnit(t *testing.T) {
 		"-web-addr :8777",
 		"-api-addr :8778",
 		"Restart=on-failure",
+		"LoadCredential=asledger-password",
+		"LimitCORE=0",
+		"UMask=0077",
 		"NoNewPrivileges=yes",
 		"ProtectSystem=strict",
 		"ReadWritePaths=/var/lib/asledger",
@@ -116,17 +125,17 @@ func TestASL_13_SystemdUnit(t *testing.T) {
 // оба пути (systemd и Windows) и порты 8777/8778.
 func TestASL_13_InstallDocs(t *testing.T) {
 	linux := repoFile(t, "docs/install-linux.md")
-	for _, want := range []string{"systemd", "asledgerd", "8777", "8778", "asledgerctl backup", "systemctl enable"} {
+	for _, want := range []string{"systemd", "asledgerd", "8777", "8778", "SQLCipher", "migrate-encrypt", "asledgerctl backup", "systemctl enable"} {
 		requireContains(t, "docs/install-linux.md", linux, want)
 	}
 
 	windows := repoFile(t, "docs/install-windows.md")
-	for _, want := range []string{"asledgerd.exe", "asledgerctl.exe", "nssm", "sc.exe", "8777", "8778", "New-NetFirewallRule"} {
+	for _, want := range []string{"asledgerd.exe", "asledgerctl.exe", "nssm", "sc.exe", "8777", "8778", "SQLCipher", "migrate-encrypt", "-password-file", "New-NetFirewallRule"} {
 		requireContains(t, "docs/install-windows.md", windows, want)
 	}
 
 	release := repoFile(t, "docs/release.md")
-	for _, want := range []string{"v1.0.0", "checksums.txt", "SHA-256", "linux/arm64", "windows/amd64", "release notes"} {
+	for _, want := range []string{"v1.0.0", "checksums.txt", "SHA-256", "linux/arm64", "windows/amd64", "CGO_ENABLED=1", "goreleaser-cross", "release notes"} {
 		requireContains(t, "docs/release.md", release, want)
 	}
 }

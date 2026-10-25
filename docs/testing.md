@@ -76,3 +76,37 @@ GoReleaser (платформы, архивы, SHA-256, шаблоны и асс�
 workflow публикации по тегу (`needs: test`), systemd-юнит и инструкции по
 установке. Это даёт автотесты для критериев раздела 14, которые иначе
 проверялись бы только вручную.
+
+### Шифрование SQLCipher в `v1.3.0`
+
+Проверки, которые закрывают требования #148–#154:
+
+| Что проверяется | Тест/команда | Результат |
+| --- | --- | --- |
+| Книга не содержит plaintext-маркеров, заголовок не `SQLite format 3` | `pkg/core/store/store_test.go`, `TestOpenEncryptedRoundTrip` | проходит |
+| Зашифрованная книга без ключа даёт `ErrKeyRequired` | `TestOpenEncryptedRequiresKey` | проходит |
+| Неверный ключ не повреждает книгу | `TestOpenWrongKey` | проходит |
+| Перешифровка и `sqlcipher_export` | `pkg/core/store/export_test.go` | проходит |
+| Миграция plaintext → SQLCipher, backup, sidecar | `cmd/asledgerctl/encrypt_test.go`, `TestMigrateEncrypt*` | проходит |
+| Неудачная миграция не меняет исходную книгу и не создаёт sidecar | `TestMigrateEncryptBackupExists`, `TestMigrateEncryptBackupWriteFails` | проходит |
+| `migrate-encrypt -dry-run` не меняет схему и не оставляет WAL | `TestMigrateEncryptDryRun` | проходит |
+| Смена пароля, неверный старый пароль, зашифрованный backup | `cmd/asledgerctl/encrypt_test.go`, `TestPasswd*`, `TestBackupEncrypted` | проходит |
+| Argon2id, sidecar, источники пароля/fd/raw-ключа | `internal/key/key_test.go` | проходит |
+| Пароль не попадает в argv/env и журнал | `desktop/tests/backend.test.ts`, `desktop/tests/password-change.test.ts` | проходит |
+| Electron: первый запуск, смена пароля, старый пароль, backup | `desktop/tests/e2e/desktop.spec.ts` | проходит на Linux |
+
+Команды и результаты на 2026-10-25 (Linux amd64):
+
+```bash
+make check          # go vet, тесты, проверки денег и трассировки — успешно
+make test-race      # go test -race ./... — успешно
+make cover-check    # покрытие 74.3 % при пороге 70 %
+cd desktop
+npm run check       # typecheck, 59 unit-тестов, production-сборка — успешно
+npm run test:e2e    # Electron smoke + смена пароля — 1 тест, успешно
+```
+
+Ограничения: Windows runtime SQLCipher и desktop-пакет локально не проверялись;
+Android JVM-тест обновлён, но в среде разработки нет JDK/Android SDK, поэтому
+локальный прогон не выполнялся. Эти проверки остаются в CI и в ручном
+чек-листе релиза.

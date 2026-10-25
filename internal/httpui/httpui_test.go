@@ -16,6 +16,7 @@ import (
 	"github.com/trefas/asledger/pkg/core/auth"
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/store"
+	"github.com/trefas/asledger/pkg/core/store/storetest"
 )
 
 // testChart — минимальный план счетов для тестов web-интерфейса.
@@ -41,16 +42,8 @@ type testWeb struct {
 // newTestWeb поднимает web-интерфейс с пустой книгой.
 func newTestWeb(t *testing.T) *testWeb {
 	t.Helper()
-	ctx := context.Background()
 
-	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "book.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := db.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
+	db := storetest.OpenTemp(t)
 
 	chartsDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(chartsDir, "test.json"), []byte(testChart), 0o600); err != nil {

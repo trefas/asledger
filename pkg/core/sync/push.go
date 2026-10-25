@@ -244,7 +244,7 @@ func (s *Service) Duplicates(ctx context.Context, tr *model.Transaction) ([]Dupl
 // возможны только при полном совпадении подписи в пределах одного дня, поэтому
 // обычные операции разных дней не помечаются.
 func (s *Service) duplicateUUIDs(ctx context.Context, tr *model.Transaction) ([]string, error) {
-	dayStart := time.Date(tr.Date.Year(), tr.Date.Month(), tr.Date.Day(), 0, 0, 0, 0, time.UTC)
+	dayStart := time.Date(tr.Date.Year(), tr.Date.Month(), tr.Date.Day(), 0, 0, 0, 0, tr.Date.Location())
 	existing, err := s.db.ListTransactions(ctx, store.TransactionFilter{
 		From: dayStart.Unix(),
 		To:   dayStart.AddDate(0, 0, 1).Unix() - 1,

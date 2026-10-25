@@ -1,6 +1,7 @@
 // Команда asledgerctl — утилита администратора asledger.
 //
-// Подкоманды: migrate (привести книгу к актуальной схеме), backup (создать
+// Подкоманды: migrate (привести книгу к актуальной схеме), migrate-encrypt
+// (зашифровать plaintext-книгу), passwd (сменить пароль), backup (создать
 // консистентную резервную копию), charts list|import (шаблонные планы счетов),
 // import hledger (импорт книги hledger), export hledger|csv|json (выгрузка
 // книги) и version. Конфигурация — та же, что у asledgerd: файл JSON,
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/trefas/asledger/internal/config"
+	"github.com/trefas/asledger/internal/key"
 	"github.com/trefas/asledger/internal/version"
 	"github.com/trefas/asledger/pkg/core/store"
 )
@@ -33,6 +35,8 @@ const usageText = `asledgerctl — утилита администратора a
 
 Подкоманды:
   migrate                привести книгу к актуальной схеме
+  migrate-encrypt        зашифровать незашифрованную книгу SQLCipher
+  passwd                 сменить пароль зашифрованной книги
   backup                 создать консистентную резервную копию книги
   charts list            показать доступные шаблоны планов счетов
   charts import <файл>   импортировать план счетов из JSON
@@ -44,9 +48,18 @@ const usageText = `asledgerctl — утилита администратора a
   help                   показать эту справку
 
 Общие флаги:
-  -config <путь>   файл конфигурации JSON (или ASLEDGER_CONFIG)
-  -db <путь>       путь к книге SQLite (или ASLEDGER_DB_PATH)
-  -out <путь>      файл выгрузки (у export; по умолчанию — стандартный вывод)
+  -config <путь>        файл конфигурации JSON (или ASLEDGER_CONFIG)
+  -db <путь>            путь к книге SQLite (или ASLEDGER_DB_PATH)
+  -password-file <путь> файл с паролем книги
+  -password-fd <n>      fd с паролем книги (0 — stdin)
+  -key-file <путь>      файл с raw-ключом (32 байта, hex или base64)
+  -key-fd <n>           fd с raw-ключом (0 — stdin)
+  -allow-plaintext      явно открыть незашифрованную книгу (миграция/тесты)
+  -new-password-file <путь>  новый пароль для passwd
+  -new-password-fd <n>       fd с новым паролем (0 — stdin)
+  -backup <путь>             путь к резервной копии (migrate-encrypt/passwd)
+  -dry-run                   проверить без изменений (migrate-encrypt/passwd)
+  -out <путь>           файл выгрузки (у export; по умолчанию — стандартный вывод)
 
 Коды выхода:
   0 — успех
@@ -74,6 +87,10 @@ func run(args []string) int {
 		return 0
 	case "migrate":
 		return runMigrate(args[1:])
+	case "migrate-encrypt":
+		return runMigrateEncrypt(args[1:])
+	case "passwd":
+		return runPasswd(args[1:])
 	case "backup":
 		return runBackup(args[1:])
 	case "charts":
@@ -92,17 +109,17 @@ func run(args []string) int {
 // runMigrate применяет миграции к книге.
 func runMigrate(args []string) int {
 	fs := newFlagSet("asledgerctl migrate")
-	configPath, dbPath := commonFlags(fs)
+	opts := commonFlags(fs)
 	if err := parseFlags(fs, args); err != nil {
 		return 2
 	}
-	cfg, err := loadConfig(*configPath, *dbPath)
+	cfg, err := loadConfig(*opts.configPath, *opts.dbPath)
 	if err != nil {
 		return fail(err)
 	}
 
 	ctx := context.Background()
-	db, err := store.Open(ctx, cfg.DBPath)
+	db, err := opts.open(cfg)
 	if err != nil {
 		return fail(err)
 	}
@@ -118,12 +135,12 @@ func runMigrate(args []string) int {
 // runBackup создаёт консистентную копию книги с учётом режима WAL.
 func runBackup(args []string) int {
 	fs := newFlagSet("asledgerctl backup")
-	configPath, dbPath := commonFlags(fs)
+	opts := commonFlags(fs)
 	out := fs.String("out", "", "путь к файлу резервной копии (по умолчанию рядом с книгой)")
 	if err := parseFlags(fs, args); err != nil {
 		return 2
 	}
-	cfg, err := loadConfig(*configPath, *dbPath)
+	cfg, err := loadConfig(*opts.configPath, *opts.dbPath)
 	if err != nil {
 		return fail(err)
 	}
@@ -142,7 +159,7 @@ func runBackup(args []string) int {
 	}
 
 	ctx := context.Background()
-	db, err := store.Open(ctx, cfg.DBPath)
+	db, err := opts.open(cfg)
 	if err != nil {
 		return fail(err)
 	}
@@ -151,6 +168,20 @@ func runBackup(args []string) int {
 	// VACUUM INTO создаёт консистентную копию даже при активном WAL.
 	if _, err := db.ExecContext(ctx, `VACUUM INTO ?`, target); err != nil {
 		return fail(fmt.Errorf("backup: не удалось создать копию: %w", err))
+	}
+	if err := os.Chmod(target, 0o600); err != nil {
+		return fail(fmt.Errorf("backup: права копии: %w", err))
+	}
+	if db.Encrypted() {
+		sidecar := key.ParamsPath(cfg.DBPath)
+		if _, err := os.Stat(sidecar); err != nil {
+			_ = os.Remove(target)
+			return fail(fmt.Errorf("backup: sidecar %q недоступен: %w", sidecar, err))
+		}
+		if err := copyFile(sidecar, key.ParamsPath(target)); err != nil {
+			_ = os.Remove(target)
+			return fail(fmt.Errorf("backup: sidecar копии: %w", err))
+		}
 	}
 	fmt.Printf("резервная копия: %s\n", target)
 	return 0
@@ -200,7 +231,7 @@ func runChartsList(args []string) int {
 // runChartsImport импортирует план счетов из файла.
 func runChartsImport(args []string) int {
 	fs := newFlagSet("asledgerctl charts import")
-	configPath, dbPath := commonFlags(fs)
+	opts := commonFlags(fs)
 	if err := parseFlags(fs, args); err != nil {
 		return 2
 	}
@@ -210,7 +241,7 @@ func runChartsImport(args []string) int {
 	}
 	file := fs.Arg(0)
 
-	cfg, err := loadConfig(*configPath, *dbPath)
+	cfg, err := loadConfig(*opts.configPath, *opts.dbPath)
 	if err != nil {
 		return fail(err)
 	}
@@ -225,7 +256,7 @@ func runChartsImport(args []string) int {
 	}
 
 	ctx := context.Background()
-	db, err := store.Open(ctx, cfg.DBPath)
+	db, err := opts.open(cfg)
 	if err != nil {
 		return fail(err)
 	}
@@ -285,12 +316,63 @@ func newFlagSet(name string) *flag.FlagSet {
 	return fs
 }
 
-// commonFlags объявляет общие флаги -config и -db, общие для всех подкоманд,
-// работающих с книгой (единая конфигурация с asledgerd).
-func commonFlags(fs *flag.FlagSet) (configPath, dbPath *string) {
-	configPath = fs.String("config", "", "путь к файлу конфигурации JSON")
-	dbPath = fs.String("db", "", "путь к файлу книги SQLite")
-	return configPath, dbPath
+// bookFlags — общие флаги подкоманд, работающих с книгой.
+type bookFlags struct {
+	configPath     *string
+	dbPath         *string
+	passwordFile   *string
+	passwordFD     *int
+	keyFile        *string
+	keyFD          *int
+	allowPlaintext *bool
+}
+
+// commonFlags объявляет общие флаги -config, -db и источники ключа.
+func commonFlags(fs *flag.FlagSet) *bookFlags {
+	return &bookFlags{
+		configPath:     fs.String("config", "", "путь к файлу конфигурации JSON"),
+		dbPath:         fs.String("db", "", "путь к файлу книги SQLite"),
+		passwordFile:   fs.String("password-file", "", "файл с паролем книги"),
+		passwordFD:     fs.Int("password-fd", -1, "fd с паролем книги (0 — stdin)"),
+		keyFile:        fs.String("key-file", "", "файл с raw-ключом книги"),
+		keyFD:          fs.Int("key-fd", -1, "fd с raw-ключом книги (0 — stdin)"),
+		allowPlaintext: fs.Bool("allow-plaintext", false, "явно открыть незашифрованную книгу"),
+	}
+}
+
+// source собирает источники секрета из флагов.
+func (b *bookFlags) source() key.Source {
+	source := key.Source{PasswordFile: *b.passwordFile, KeyFile: *b.keyFile}
+	if *b.passwordFD >= 0 {
+		source.PasswordFD = b.passwordFD
+	}
+	if *b.keyFD >= 0 {
+		source.KeyFD = b.keyFD
+	}
+	return source
+}
+
+// open открывает книгу с ключом или в явном plaintext-режиме.
+func (b *bookFlags) open(cfg *config.Config) (*store.DB, error) {
+	ctx := context.Background()
+	source := b.source()
+	if source.Any() && cfg.Key.Any() {
+		return nil, errors.New("источники ключа заданы и флагами, и окружением")
+	}
+	if !source.Any() {
+		source = cfg.Key
+	}
+	if *b.allowPlaintext || cfg.AllowPlaintext {
+		if source.Any() {
+			return nil, errors.New("-allow-plaintext нельзя сочетать с паролем или ключом")
+		}
+		return store.Open(ctx, cfg.DBPath)
+	}
+	provider, err := key.NewProvider(cfg.DBPath, source)
+	if err != nil {
+		return nil, err
+	}
+	return store.Open(ctx, cfg.DBPath, store.WithKeyProvider(provider))
 }
 
 // parseFlags разбирает аргументы, считая -h/--help успешным завершением.

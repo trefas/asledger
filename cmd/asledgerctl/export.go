@@ -38,13 +38,13 @@ func runExport(args []string) int {
 // runExportHledger выгружает книгу в plaintext-формат hledger.
 func runExportHledger(args []string) int {
 	fs := newFlagSet("asledgerctl export hledger")
-	configPath, dbPath := commonFlags(fs)
+	opts := commonFlags(fs)
 	out := fs.String("out", "", "файл выгрузки (по умолчанию — стандартный вывод)")
 	archived := fs.Bool("archived", false, "включить архивные счета")
 	if err := parseFlags(fs, args); err != nil {
 		return 2
 	}
-	db, err := openBook(*configPath, *dbPath)
+	db, err := openBook(opts)
 	if err != nil {
 		return fail(err)
 	}
@@ -78,7 +78,7 @@ func runExportHledger(args []string) int {
 // runExportCSV выгружает журнал или отчёт в CSV.
 func runExportCSV(args []string) int {
 	fs := newFlagSet("asledgerctl export csv")
-	configPath, dbPath := commonFlags(fs)
+	opts := commonFlags(fs)
 	report := fs.String("report", "journal", "отчёт: journal, balances или turnover")
 	from := fs.String("from", "", "начало периода оборота (ГГГГ-ММ-ДД)")
 	to := fs.String("to", "", "конец периода оборота (ГГГГ-ММ-ДД)")
@@ -86,7 +86,7 @@ func runExportCSV(args []string) int {
 	if err := parseFlags(fs, args); err != nil {
 		return 2
 	}
-	db, err := openBook(*configPath, *dbPath)
+	db, err := openBook(opts)
 	if err != nil {
 		return fail(err)
 	}
@@ -155,12 +155,12 @@ func runExportCSV(args []string) int {
 // runExportJSON выгружает полный снапшот книги.
 func runExportJSON(args []string) int {
 	fs := newFlagSet("asledgerctl export json")
-	configPath, dbPath := commonFlags(fs)
+	opts := commonFlags(fs)
 	out := fs.String("out", "", "файл выгрузки (по умолчанию — стандартный вывод)")
 	if err := parseFlags(fs, args); err != nil {
 		return 2
 	}
-	db, err := openBook(*configPath, *dbPath)
+	db, err := openBook(opts)
 	if err != nil {
 		return fail(err)
 	}
@@ -190,16 +190,12 @@ func runExportJSON(args []string) int {
 }
 
 // openBook читает конфигурацию и открывает книгу.
-func openBook(configPath, dbPath string) (*store.DB, error) {
-	cfg, err := loadConfig(configPath, dbPath)
+func openBook(opts *bookFlags) (*store.DB, error) {
+	cfg, err := loadConfig(*opts.configPath, *opts.dbPath)
 	if err != nil {
 		return nil, err
 	}
-	db, err := store.Open(context.Background(), cfg.DBPath)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
+	return opts.open(cfg)
 }
 
 // parseBound разбирает границу периода оборота.

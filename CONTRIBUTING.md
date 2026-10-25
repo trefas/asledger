@@ -7,7 +7,10 @@
 
 - **Go** — версия из `go.mod` (инструментальная цепочка ставится автоматически).
 - **make** — команды сборки и проверок.
-- Компилятор C не нужен: SQLite-драйвер `modernc.org/sqlite` на чистом Go.
+- **C-компилятор и cgo** — SQLCipher собирается через cgo. На Linux нужен
+  `gcc` (например, `build-essential`); для arm64 — `gcc-aarch64-linux-gnu` и
+  `libc6-dev-arm64-cross`, для Windows — MinGW (`x86_64-w64-mingw32-gcc`).
+  Без CGO проект и тесты `store` не собираются.
 - По желанию: `golangci-lint` (линтер) и `goreleaser` (проверка конфигурации
   релиза). Если их нет, соответствующие шаги `make check` пропускаются.
 
@@ -22,14 +25,19 @@ make build        # бинарники в bin/
 make run          # демон: web :8777, API :8778
 ```
 
-Книга создаётся в рабочем каталоге (`asledger.db`). Путь и адреса меняются
-флагами `-db`, `-web-addr`, `-api-addr` или файлом конфигурации.
+Книга создаётся в рабочем каталоге (`asledger.db`) и шифруется SQLCipher.
+При первом запуске `asledgerd` спрашивает пароль в TTY и создаёт sidecar
+`asledger.db.kdf.json`; пароль в конфигурации и argv не хранится. Путь и
+адреса меняются флагами `-db`, `-web-addr`, `-api-addr` или файлом
+конфигурации. Для старой незашифрованной книги выполните
+`asledgerctl migrate-encrypt -db asledger.db` (интерактивно) или передайте
+пароль через `-password-file`/`-password-fd`.
 
 ## Структура репозитория
 
 ```
 cmd/asledgerd/       демон: web + REST API
-cmd/asledgerctl/     обслуживание книги (migrate, backup, import, export)
+cmd/asledgerctl/     обслуживание книги (migrate-encrypt, passwd, backup, import, export)
 cmd/web/             отдельный запуск только web-интерфейса
 pkg/core/            доменное ядро: store, engine, sync, hledger, report, reconcile
 internal/api/        REST API (раздел 10 эпика)

@@ -3,13 +3,13 @@ package reconcile
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
 	"github.com/trefas/asledger/pkg/core/store"
+	"github.com/trefas/asledger/pkg/core/store/storetest"
 )
 
 // testBook — книга с одним активом, доходом и проводкой на 500,00 ₽.
@@ -26,14 +26,7 @@ func newTestBook(t *testing.T) *testBook {
 	t.Helper()
 	ctx := context.Background()
 
-	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "book.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := db.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
+	db := storetest.OpenTemp(t)
 	user, err := db.CreateUser(ctx, "Андрей", "секрет")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)

@@ -32,7 +32,7 @@ func runImport(args []string) int {
 // runImportHledger импортирует книгу в формате hledger plaintext.
 func runImportHledger(args []string) int {
 	fs := newFlagSet("asledgerctl import hledger")
-	configPath, dbPath := commonFlags(fs)
+	opts := commonFlags(fs)
 	mode := fs.String("mode", "гибкий", "режим импорта: «гибкий» или «строгий»")
 	actor := fs.String("actor", "", "автор проводок: идентификатор или имя (по умолчанию единственный пользователь книги)")
 	if err := parseFlags(fs, args); err != nil {
@@ -48,7 +48,7 @@ func runImportHledger(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	cfg, err := loadConfig(*configPath, *dbPath)
+	cfg, err := loadConfig(*opts.configPath, *opts.dbPath)
 	if err != nil {
 		return fail(err)
 	}
@@ -58,7 +58,7 @@ func runImportHledger(args []string) int {
 	}
 
 	ctx := context.Background()
-	db, err := store.Open(ctx, cfg.DBPath)
+	db, err := opts.open(cfg)
 	if err != nil {
 		return fail(err)
 	}

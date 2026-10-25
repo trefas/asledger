@@ -3,7 +3,6 @@ package sync
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
 	"github.com/trefas/asledger/pkg/core/store"
+	"github.com/trefas/asledger/pkg/core/store/storetest"
 )
 
 // nowTime возвращает текущее время — допустимую дату операции.
@@ -29,14 +29,7 @@ const chartJSON = `{"accounts":[
 func newTestService(t *testing.T) (*Service, int64, int64, int64) {
 	t.Helper()
 	ctx := context.Background()
-	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "book.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := db.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
+	db := storetest.OpenTemp(t)
 	user, err := db.CreateUser(ctx, "Андрей", "секрет")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)

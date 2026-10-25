@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/trefas/asledger/pkg/core/store"
+	"github.com/trefas/asledger/pkg/core/store/storetest"
 )
 
 // enrollBody собирает тело запроса привязки устройства.
@@ -156,15 +156,7 @@ func TestASL_10_EnrollPublicNetwork(t *testing.T) {
 // TestASL_10_EnrollNoUsers проверяет подсказку создать пользователя в пустой
 // книге.
 func TestASL_10_EnrollNoUsers(t *testing.T) {
-	ctx := context.Background()
-	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "book.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := db.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
+	db := storetest.OpenTemp(t)
 	server := New(db, Config{Version: "test"})
 
 	body := strings.NewReader(`{"client_id":"телефон-6"}`)

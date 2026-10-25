@@ -9,6 +9,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +20,7 @@ import (
 	"github.com/trefas/asledger/internal/api"
 	"github.com/trefas/asledger/internal/config"
 	"github.com/trefas/asledger/internal/httpui"
+	"github.com/trefas/asledger/internal/key"
 	"github.com/trefas/asledger/internal/logging"
 	"github.com/trefas/asledger/internal/version"
 	"github.com/trefas/asledger/pkg/core/store"
@@ -42,6 +45,14 @@ func main() {
 }
 
 func run(args []string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return runContext(ctx, args)
+}
+
+// runContext выполняет запуск с переданным контекстом. Отдельная функция
+// позволяет тестировать сервер и корректную остановку без сигналов процесса.
+func runContext(ctx context.Context, args []string) error {
 	if hasVersionFlag(args) {
 		fmt.Println("asledgerd", version.String())
 		return nil
@@ -53,11 +64,20 @@ func run(args []string) error {
 	}
 	logger := logging.New(cfg.LogLevel, cfg.LogFormat)
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	var openOpts []store.Option
+	if cfg.AllowPlaintext {
+		logger.Warn("книга открывается без шифрования: явный режим -allow-plaintext")
+	} else {
+		provider, err := key.NewProvider(cfg.DBPath, cfg.Key)
+		if err != nil {
+			return err
+		}
+		openOpts = append(openOpts, store.WithKeyProvider(provider))
+	}
 
-	db, err := store.Open(ctx, cfg.DBPath)
+	db, err := store.Open(ctx, cfg.DBPath, openOpts...)
 	if err != nil {
+		logKeyAttempt(logger, err)
 		return err
 	}
 	defer func() { _ = db.Close() }()
@@ -82,31 +102,46 @@ func run(args []string) error {
 		return err
 	}
 
-	servers := []*http.Server{
+	servers := []namedServer{
 		{
-			Addr:              cfg.WebAddr,
-			Handler:           webServer.Handler(),
-			ReadHeaderTimeout: readHeaderTimeout,
-			ReadTimeout:       readTimeout,
-			WriteTimeout:      writeTimeout,
-			IdleTimeout:       idleTimeout,
+			name: "web",
+			srv: &http.Server{
+				Addr:              cfg.WebAddr,
+				Handler:           webServer.Handler(),
+				ReadHeaderTimeout: readHeaderTimeout,
+				ReadTimeout:       readTimeout,
+				WriteTimeout:      writeTimeout,
+				IdleTimeout:       idleTimeout,
+			},
 		},
 		{
-			Addr:              cfg.APIAddr,
-			Handler:           apiServer.Handler(),
-			ReadHeaderTimeout: readHeaderTimeout,
-			ReadTimeout:       readTimeout,
-			WriteTimeout:      writeTimeout,
-			IdleTimeout:       idleTimeout,
+			name: "api",
+			srv: &http.Server{
+				Addr:              cfg.APIAddr,
+				Handler:           apiServer.Handler(),
+				ReadHeaderTimeout: readHeaderTimeout,
+				ReadTimeout:       readTimeout,
+				WriteTimeout:      writeTimeout,
+				IdleTimeout:       idleTimeout,
+			},
 		},
 	}
 
 	errc := make(chan error, len(servers))
-	for _, srv := range servers {
-		go func(srv *http.Server) {
-			logger.Info("сервер запущен", "addr", srv.Addr)
-			errc <- srv.ListenAndServe()
-		}(srv)
+	for _, item := range servers {
+		go func(item namedServer) {
+			listener, err := net.Listen("tcp", item.srv.Addr)
+			if err != nil {
+				errc <- fmt.Errorf("%s: %w", item.name, err)
+				return
+			}
+			logger.Info("сервер запущен", "name", item.name, "addr", listener.Addr())
+			if err := item.srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errc <- fmt.Errorf("%s: %w", item.name, err)
+				return
+			}
+			errc <- nil
+		}(item)
 	}
 	logger.Info("asledgerd запущен",
 		"version", version.String(),
@@ -115,24 +150,29 @@ func run(args []string) error {
 		"db", cfg.DBPath,
 	)
 
+	var runErr error
 	select {
 	case err := <-errc:
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return err
-		}
+		runErr = err
 	case <-ctx.Done():
 		logger.Info("получен сигнал завершения, останавливаем серверы")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	for _, srv := range servers {
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.Warn("ошибка остановки сервера", "addr", srv.Addr, "err", err)
+	for _, item := range servers {
+		if err := item.srv.Shutdown(shutdownCtx); err != nil {
+			logger.Warn("ошибка остановки сервера", "name", item.name, "addr", item.srv.Addr, "err", err)
 		}
 	}
 	logger.Info("asledgerd остановлен")
-	return nil
+	return runErr
+}
+
+// namedServer связывает HTTP-сервер с понятным именем для диагностики.
+type namedServer struct {
+	name string
+	srv  *http.Server
 }
 
 // hasVersionFlag сообщает, запрошен ли вывод версии.
@@ -144,4 +184,17 @@ func hasVersionFlag(args []string) bool {
 		}
 	}
 	return false
+}
+
+// logKeyAttempt фиксирует неудачную попытку открыть книгу без секрета в
+// журнале. Пароль, ключ и DSN сюда не попадают.
+func logKeyAttempt(logger *slog.Logger, err error) {
+	switch {
+	case errors.Is(err, store.ErrWrongKey):
+		logger.Warn("книга не открыта: неверный пароль или ключ")
+	case errors.Is(err, store.ErrKeyRequired), errors.Is(err, store.ErrKeyNotFound),
+		errors.Is(err, key.ErrPasswordRequired), errors.Is(err, key.ErrPlaintextBook),
+		errors.Is(err, key.ErrParamsNotFound):
+		logger.Warn("книга не открыта: нет ключа, sidecar или книга не зашифрована")
+	}
 }

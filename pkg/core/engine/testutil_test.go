@@ -2,27 +2,19 @@ package engine
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
 	"github.com/trefas/asledger/pkg/core/store"
+	"github.com/trefas/asledger/pkg/core/store/storetest"
 )
 
 // newTestEngine открывает временную книгу с миграциями и создаёт движок.
 func newTestEngine(t *testing.T) (*Engine, *store.DB) {
 	t.Helper()
-	ctx := context.Background()
-	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "book.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := db.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
+	db := storetest.OpenTemp(t)
 	return New(db), db
 }
 

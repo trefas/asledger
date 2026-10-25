@@ -2,6 +2,7 @@ name: CI
 
 # Сборка, тесты и статические проверки на каждый push и pull request.
 # Тесты выполняются на обеих целевых платформах: Linux и Windows.
+# Desktop-джобы отдельно проверяют Electron, smoke под xvfb и упаковку.
 
 on:
   push:
@@ -50,6 +51,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      CGO_ENABLED: "1"
+      CC: x86_64-w64-mingw32-gcc
     steps:
       - uses: actions/checkout@v4
 
@@ -57,6 +61,19 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      # SQLCipher требует cgo. GitHub-раннер не держит MinGW в PATH,
+      # поэтому ставим его через MSYS2 и добавляем mingw64/bin.
+      - name: Установить MinGW для cgo
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gcc
+
+      - name: Добавить MinGW в PATH
+        shell: bash
+        run: echo "${{ steps.msys2.outputs.msys2-location }}/mingw64/bin" >> "$GITHUB_PATH"
 
       - name: go vet
         run: go vet ./...
@@ -66,6 +83,112 @@ jobs:
 
       - name: Сборка команд
         run: go build ./...
+
+  desktop-linux:
+    name: Desktop (Linux, smoke и пакет)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Проверки (typecheck, unit-тесты, сборка)
+        run: npm run check
+
+      - name: Собрать asledgerd для smoke-теста
+        run: npm run build:backend
+
+      - name: Установить xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      # Окно Electron запускается в виртуальном X-сервере; тест проверяет
+      # healthcheck, журнал и остановку asledgerd.
+      - name: Smoke-тест Electron
+        run: xvfb-run -a npm run test:e2e
+
+      - name: Собрать Linux-пакет
+        run: npm run package:dist
+
+      - name: Проверить пакет
+        run: npm run verify:package
+
+      - name: Приложить Linux-артефакты
+        uses: actions/upload-artifact@v4
+        with:
+          name: asledger-desktop-linux
+          path: |
+            desktop/release/*.AppImage
+            desktop/release/*.deb
+          if-no-files-found: error
+
+  desktop-windows:
+    name: Desktop (Windows, сборка и пакет)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Установить MinGW для cgo
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gcc
+
+      - name: Добавить MinGW в PATH
+        shell: bash
+        run: echo "${{ steps.msys2.outputs.msys2-location }}/mingw64/bin" >> "$GITHUB_PATH"
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Проверки (typecheck, unit-тесты, сборка)
+        run: npm run check
+
+      - name: Собрать Windows-пакет
+        run: npm run package:win
+
+      - name: Проверить пакет
+        run: npm run verify:package:win
+
+      - name: Приложить Windows-артефакты
+        uses: actions/upload-artifact@v4
+        with:
+          name: asledger-desktop-windows
+          path: desktop/release/*.exe
+          if-no-files-found: error
+
+  # macOS не входит в MVP v1.3.0: нет сертификата и нотаризации (#145).
 
   lint:
     name: golangci-lint
