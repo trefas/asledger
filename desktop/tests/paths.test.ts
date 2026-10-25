@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   apiUrl,
   backendBinaryName,
+  brandIconPath,
   buildBackendArgs,
   ctlBinaryName,
   healthUrl,
@@ -26,6 +27,13 @@ describe('пути desktop-клиента', () => {
     expect(paths.backendBinary).toBe(join(appPath, '..', 'bin', 'asledgerd'))
     expect(paths.ctlBinary).toBe(join(appPath, '..', 'bin', 'asledgerctl'))
     expect(paths.assetsDir).toBe(join(appPath, '..', 'assets', 'logo'))
+    expect(
+      brandIconPath({
+        isPackaged: false,
+        appPath,
+        resourcesPath: join('/unused'),
+      }),
+    ).toBe(join(appPath, '..', 'assets', 'logo', 'icon-512.png'))
     expect(paths.chartsDir).toBe(join(appPath, '..', 'templates', 'charts'))
     expect(paths.dbPath).toBe(join(userDataPath, 'data', 'asledger.db'))
     expect(paths.logFile).toBe(join(userDataPath, 'logs', 'asledgerd.log'))
@@ -49,6 +57,13 @@ describe('пути desktop-клиента', () => {
       join(resourcesPath, 'bin', 'asledgerctl.exe'),
     )
     expect(paths.assetsDir).toBe(join(resourcesPath, 'assets', 'logo'))
+    expect(
+      brandIconPath({
+        isPackaged: true,
+        appPath: join(resourcesPath, 'app.asar'),
+        resourcesPath,
+      }),
+    ).toBe(join(resourcesPath, 'assets', 'logo', 'icon-512.png'))
     expect(paths.chartsDir).toBe(join(resourcesPath, 'templates', 'charts'))
   })
 

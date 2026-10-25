@@ -108,6 +108,23 @@ test('запускает asledgerd, открывает книгу и корре�
     const window = await app.firstWindow()
     await window.waitForLoadState('domcontentloaded')
     await expect(window).toHaveTitle(/asledger/)
+    await expect(window.locator('#brand-logo')).toBeVisible()
+    await expect(window.locator('#brand-logo')).toHaveAttribute(
+      'src',
+      './asledger-logo.svg',
+    )
+    await expect
+      .poll(
+        () =>
+          window
+            .locator('#brand-logo')
+            .evaluate(
+              (image: HTMLImageElement) =>
+                image.complete && image.naturalWidth > 0,
+            ),
+        { timeout: 10_000 },
+      )
+      .toBe(true)
     await expect(window.locator('#security')).toContainText('Безопасность')
     await expect(window.locator('#cloud-warning')).toContainText('облачной')
 
