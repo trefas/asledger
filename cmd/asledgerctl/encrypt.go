@@ -280,13 +280,13 @@ func runPasswd(args []string) int {
 		// копию: пользователь не должен остаться с новым файлом и старым
 		// ключом.
 		if restoreErr := restoreFile(backupPath, cfg.DBPath); restoreErr != nil {
-			return fail(fmt.Errorf("passwd: не удалось записать sidecar: %w; не удалось восстановить книгу из %s: %v",
-				err, backupPath, restoreErr))
+			return fail(fmt.Errorf("passwd: не удалось записать sidecar: %w; не удалось восстановить книгу из %s: %s",
+				err, backupPath, restoreErr.Error()))
 		}
 		_ = os.Remove(key.ParamsPath(cfg.DBPath))
 		if copyErr := copyFile(key.ParamsPath(backupPath), key.ParamsPath(cfg.DBPath)); copyErr != nil {
-			return fail(fmt.Errorf("passwd: не удалось записать sidecar: %w; книга восстановлена из %s, восстановите sidecar %s вручную: %v",
-				err, backupPath, key.ParamsPath(backupPath), copyErr))
+			return fail(fmt.Errorf("passwd: не удалось записать sidecar: %w; книга восстановлена из %s, восстановите sidecar %s вручную: %s",
+				err, backupPath, key.ParamsPath(backupPath), copyErr.Error()))
 		}
 		return fail(fmt.Errorf("passwd: не удалось записать sidecar: %w", err))
 	}

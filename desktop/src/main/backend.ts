@@ -414,7 +414,9 @@ export class BackendProcess {
         resolve()
       }
 
-      child.once('exit', done)
+      // Ждём close, а не exit: на Windows к этому моменту закрыты stdio и
+      // отпущены дескрипторы каталога, иначе тесты/очистка получают EBUSY.
+      child.once('close', done)
       this.killChild(child, false)
       timer = setTimeout(() => {
         this.killChild(child, true)

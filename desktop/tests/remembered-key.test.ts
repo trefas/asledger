@@ -34,12 +34,13 @@ import {
 } from '../src/main/remembered-key'
 
 const key = Buffer.from('ab'.repeat(32), 'hex')
+const expectedBackend = process.platform === 'linux' ? 'gnome_libsecret' : 'os'
 
 describe('remembered-key', () => {
   beforeEach(async () => {
     state.dir = await mkdtemp(join(tmpdir(), 'asledger-remembered-'))
     state.available = true
-    state.backend = 'gnome_libsecret'
+    state.backend = expectedBackend
   })
 
   afterEach(async () => {
@@ -53,7 +54,7 @@ describe('remembered-key', () => {
     await expect(keyStorageStatus()).resolves.toEqual({
       available: true,
       remembered: true,
-      backend: 'gnome_libsecret',
+      backend: expectedBackend,
     })
     if (process.platform !== 'win32') {
       const info = await stat(join(state.dir, 'book-key.bin'))
@@ -75,11 +76,14 @@ describe('remembered-key', () => {
     await expect(keyStorageStatus()).resolves.toMatchObject({ remembered: false })
   })
 
-  it('не сохраняет ключ при basic_text', async () => {
-    state.backend = 'basic_text'
-    await expect(keyStorageAvailable()).resolves.toBe(false)
-    await expect(saveRememberedKey(key)).rejects.toThrow(/недоступно/)
-  })
+  it.skipIf(process.platform !== 'linux')(
+    'не сохраняет ключ при basic_text',
+    async () => {
+      state.backend = 'basic_text'
+      await expect(keyStorageAvailable()).resolves.toBe(false)
+      await expect(saveRememberedKey(key)).rejects.toThrow(/недоступно/)
+    },
+  )
 
   it('не сохраняет ключ без шифрования', async () => {
     state.available = false

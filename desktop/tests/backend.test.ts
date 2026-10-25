@@ -36,6 +36,19 @@ async function tempDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'asledger-desktop-test-'))
 }
 
+/**
+ * На Windows дочерний процесс и журнал могут отпускать файлы с задержкой,
+ * поэтому удаление каталога повторяем.
+ */
+async function removeDir(dir: string): Promise<void> {
+  await rm(dir, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100,
+  })
+}
+
 function makeProcess(
   port: number,
   dir: string,
@@ -85,7 +98,7 @@ describe('BackendProcess', () => {
       expect(logs.some((entry) => entry.line.includes('готов'))).toBe(true)
       expect(logs.every((entry) => !entry.line.includes('hunter2'))).toBe(true)
     } finally {
-      await rm(dir, { recursive: true, force: true })
+      await removeDir(dir)
     }
   })
 
@@ -119,7 +132,7 @@ describe('BackendProcess', () => {
       expect(log).not.toContain('hunter2')
       await server.stop()
     } finally {
-      await rm(dir, { recursive: true, force: true })
+      await removeDir(dir)
     }
   })
 
@@ -135,7 +148,7 @@ describe('BackendProcess', () => {
       expect(state.status).toBe('stopped')
       expect(state.pid).toBeNull()
     } finally {
-      await rm(dir, { recursive: true, force: true })
+      await removeDir(dir)
     }
   })
 
@@ -148,7 +161,7 @@ describe('BackendProcess', () => {
       expect(state.status).toBe('error')
       expect(state.detail).toMatch(/ошибка|завершился|не ответил/)
     } finally {
-      await rm(dir, { recursive: true, force: true })
+      await removeDir(dir)
     }
   })
 
@@ -162,7 +175,7 @@ describe('BackendProcess', () => {
       expect(state.detail).toContain('address already in use')
       expect(state.logPath).toContain('asledgerd.log')
     } finally {
-      await rm(dir, { recursive: true, force: true })
+      await removeDir(dir)
     }
   })
 
@@ -185,7 +198,7 @@ describe('BackendProcess', () => {
       expect(state.status).toBe('error')
       expect(state.detail).toContain('Не найден asledgerd')
     } finally {
-      await rm(dir, { recursive: true, force: true })
+      await removeDir(dir)
     }
   })
 
@@ -199,7 +212,7 @@ describe('BackendProcess', () => {
       expect(state.detail).toMatch(/не ответил|завершился/)
       expect(server.getState().pid).toBeNull()
     } finally {
-      await rm(dir, { recursive: true, force: true })
+      await removeDir(dir)
     }
   })
 })

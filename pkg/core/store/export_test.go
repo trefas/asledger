@@ -74,8 +74,12 @@ func TestExportEncryptedRekey(t *testing.T) {
 	if _, err := Open(ctx, targetPath, WithKey(oldKey)); !errors.Is(err, ErrWrongKey) {
 		t.Fatalf("старый ключ открыл target: %v", err)
 	}
-	if _, err := Open(ctx, sourcePath, WithKey(oldKey)); err != nil {
+	reopened, err := Open(ctx, sourcePath, WithKey(oldKey))
+	if err != nil {
 		t.Fatalf("исходная книга перестала открываться старым ключом: %v", err)
+	}
+	if err := reopened.Close(); err != nil {
+		t.Fatalf("Close reopened: %v", err)
 	}
 }
 

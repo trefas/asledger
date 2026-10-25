@@ -312,7 +312,7 @@ func classifyOpenError(path string, err error, encrypted bool) error {
 		case strings.Contains(msg, "file is not a database"):
 			return fmt.Errorf("%w: %s", ErrWrongKey, path)
 		case strings.Contains(msg, "malformed"), strings.Contains(msg, "corrupt"):
-			return fmt.Errorf("%w: %s: %v", ErrCorrupt, path, err)
+			return fmt.Errorf("%w: %s: %s", ErrCorrupt, path, err.Error())
 		}
 	}
 	return fmt.Errorf("store: книга %q недоступна: %w", path, err)

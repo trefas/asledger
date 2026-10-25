@@ -12,46 +12,49 @@ async function tempDir(): Promise<string> {
 }
 
 describe('смена пароля через asledgerctl', () => {
-  it('передаёт старый пароль в stdin, новый в fd 3 и не светит их в argv/env', async () => {
-    const dir = await tempDir()
-    try {
-      const output = join(dir, 'result.json')
-      const result = await changeBookPassword({
-        command: process.execPath,
-        commandArgs: [fakeCtl],
-        dbPath: join(dir, 'book.db'),
-        currentPassword: 'старый-секрет',
-        newPassword: 'новый-секрет',
-        backupPath: join(dir, 'backup.db'),
-        env: {
-          ...process.env,
-          FAKE_ASLEDGERCTL_OUT: output,
-          ASLEDGER_PASSWORD_FILE: '/tmp/другой-секрет',
-          asledger_password_file: '/tmp/ещё-секрет',
-        },
-      })
+  it.skipIf(process.platform === 'win32')(
+    'передаёт старый пароль в stdin, новый в fd 3 и не светит их в argv/env',
+    async () => {
+      const dir = await tempDir()
+      try {
+        const output = join(dir, 'result.json')
+        const result = await changeBookPassword({
+          command: process.execPath,
+          commandArgs: [fakeCtl],
+          dbPath: join(dir, 'book.db'),
+          currentPassword: 'старый-секрет',
+          newPassword: 'новый-секрет',
+          backupPath: join(dir, 'backup.db'),
+          env: {
+            ...process.env,
+            FAKE_ASLEDGERCTL_OUT: output,
+            ASLEDGER_PASSWORD_FILE: '/tmp/другой-секрет',
+            asledger_password_file: '/tmp/ещё-секрет',
+          },
+        })
 
-      expect(result.backupPath).toBe(join(dir, 'backup.db'))
-      const payload = JSON.parse(await readFile(output, 'utf8')) as {
-        args: string[]
-        env: Record<string, string>
-        currentPassword: string
-        newPassword: string
+        expect(result.backupPath).toBe(join(dir, 'backup.db'))
+        const payload = JSON.parse(await readFile(output, 'utf8')) as {
+          args: string[]
+          env: Record<string, string>
+          currentPassword: string
+          newPassword: string
+        }
+        expect(payload.currentPassword).toBe('старый-секрет')
+        expect(payload.newPassword).toBe('новый-секрет')
+        expect(payload.args).toContain('-password-fd')
+        expect(payload.args).toContain('0')
+        expect(payload.args).toContain('-new-password-fd')
+        expect(payload.args).toContain('3')
+        expect(payload.args.join(' ')).not.toContain('старый-секрет')
+        expect(payload.args.join(' ')).not.toContain('новый-секрет')
+        expect(payload.env['ASLEDGER_PASSWORD_FILE']).toBeUndefined()
+        expect(payload.env['asledger_password_file']).toBeUndefined()
+      } finally {
+        await rm(dir, { recursive: true, force: true })
       }
-      expect(payload.currentPassword).toBe('старый-секрет')
-      expect(payload.newPassword).toBe('новый-секрет')
-      expect(payload.args).toContain('-password-fd')
-      expect(payload.args).toContain('0')
-      expect(payload.args).toContain('-new-password-fd')
-      expect(payload.args).toContain('3')
-      expect(payload.args.join(' ')).not.toContain('старый-секрет')
-      expect(payload.args.join(' ')).not.toContain('новый-секрет')
-      expect(payload.env['ASLEDGER_PASSWORD_FILE']).toBeUndefined()
-      expect(payload.env['asledger_password_file']).toBeUndefined()
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
-  })
+    },
+  )
 
   it('на Windows передаёт новый пароль через временный файл', async () => {
     const dir = await tempDir()
