@@ -100,19 +100,24 @@ func Balances(ctx context.Context, db *store.DB, opts Options) (*BalancesReport,
 	sort.Slice(roots, func(i, j int) bool { return roots[i].Name < roots[j].Name })
 
 	report := &BalancesReport{}
-	// total считает остаток счёта вместе со всем поддеревом (по префиксу пути).
+	// Итоги поддеревьев считаются один раз в post-order: сумма счёта — это его
+	// собственный остаток плюс уже посчитанные итоги детей.
+	subtree := make(map[int64]money.Kop, len(accounts))
 	var total func(account model.Account) money.Kop
 	total = func(account model.Account) money.Kop {
 		sum := balances[account.ID]
 		for _, child := range children[account.ID] {
 			sum += total(child)
 		}
+		subtree[account.ID] = sum
 		return sum
+	}
+	for _, root := range roots {
+		total(root)
 	}
 
 	var walk func(account model.Account, depth int)
 	walk = func(account model.Account, depth int) {
-		subtree := total(account)
 		row := BalanceRow{
 			AccountID: account.ID,
 			Path:      account.FullPath,
@@ -120,11 +125,11 @@ func Balances(ctx context.Context, db *store.DB, opts Options) (*BalancesReport,
 			Type:      account.Type,
 			Depth:     depth,
 			Own:       balances[account.ID],
-			Total:     subtree,
+			Total:     subtree[account.ID],
 			Leaf:      account.IsLeaf,
 			Archived:  account.IsArchived,
 		}
-		if opts.IncludeEmpty || subtree != 0 || account.IsLeaf {
+		if opts.IncludeEmpty || row.Total != 0 || account.IsLeaf {
 			report.Rows = append(report.Rows, row)
 		}
 		for _, child := range children[account.ID] {

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -210,6 +211,14 @@ func TestASL_5_ListTransactions(t *testing.T) {
 	if len(byAccount) != 2 {
 		t.Fatalf("по счёту: %d транзакций, ожидалось 2", len(byAccount))
 	}
+	for _, tr := range byAccount {
+		if len(tr.Lines) != 2 {
+			t.Fatalf("у транзакции %s %d строк, ожидалось 2", tr.UUID, len(tr.Lines))
+		}
+		if tr.Lines[0].ID >= tr.Lines[1].ID {
+			t.Fatalf("строки транзакции %s не упорядочены по id", tr.UUID)
+		}
+	}
 
 	limited, err := db.ListTransactions(ctx, TransactionFilter{Limit: 1})
 	if err != nil {
@@ -362,5 +371,67 @@ func TestASL_5_TransactionByUUID(t *testing.T) {
 	}
 	if tr.ID != id || len(tr.Lines) != 2 {
 		t.Fatalf("проводка по uuid: id=%d строк=%d", tr.ID, len(tr.Lines))
+	}
+}
+
+// BenchmarkListTransactionsPage фиксирует стоимость страницы журнала:
+// 50 проводок из 2 000, по две строки в каждой.
+func BenchmarkListTransactionsPage(b *testing.B) {
+	db := openTestDB(b)
+	ctx := context.Background()
+
+	user, err := db.CreateUser(ctx, "Андрей", "секрет")
+	if err != nil {
+		b.Fatalf("CreateUser: %v", err)
+	}
+	asset, err := db.CreateAccount(ctx, AccountInput{Name: "Кошелёк", Type: model.TypeAsset})
+	if err != nil {
+		b.Fatalf("CreateAccount(актив): %v", err)
+	}
+	expense, err := db.CreateAccount(ctx, AccountInput{Name: "Продукты", Type: model.TypeExpense})
+	if err != nil {
+		b.Fatalf("CreateAccount(расход): %v", err)
+	}
+
+	const volume = 2_000
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		b.Fatalf("BeginTx: %v", err)
+	}
+	for i := 0; i < volume; i++ {
+		res, err := tx.ExecContext(ctx,
+			`INSERT INTO transactions(uuid, op_type, date, actor_id, created_at, commit_id)
+			 VALUES(?, 'трата', ?, ?, 0, 0)`, fmt.Sprintf("bench-list-%d", i), i, user.ID)
+		if err != nil {
+			b.Fatalf("insert transactions: %v", err)
+		}
+		txID, err := res.LastInsertId()
+		if err != nil {
+			b.Fatalf("LastInsertId: %v", err)
+		}
+		for _, line := range []struct {
+			account int64
+			side    string
+		}{{expense.ID, "DEBIT"}, {asset.ID, "CREDIT"}} {
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO transaction_lines(transaction_id, account_id, amount_kop, side)
+				 VALUES(?, ?, 100, ?)`, txID, line.account, line.side); err != nil {
+				b.Fatalf("insert lines: %v", err)
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		b.Fatalf("Commit: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		list, err := db.ListTransactions(ctx, TransactionFilter{Limit: 50})
+		if err != nil {
+			b.Fatalf("ListTransactions: %v", err)
+		}
+		if len(list) != 50 {
+			b.Fatalf("получено %d транзакций, ожидалось 50", len(list))
+		}
 	}
 }

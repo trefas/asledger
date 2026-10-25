@@ -29,6 +29,7 @@ func TestSchemaContainsIndexes(t *testing.T) {
 		"idx_accounts_name", "idx_accounts_parent",
 		"idx_transactions_date", "idx_transactions_uuid", "idx_transactions_actor",
 		"idx_lines_tx", "idx_lines_account", "idx_lines_tx_account_side",
+		"idx_lines_account_side_amount", "idx_commits_result_seq", "idx_accounts_type",
 		"idx_changelog_entity", "idx_commits_client",
 	}
 	for _, index := range want {

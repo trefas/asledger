@@ -19,22 +19,24 @@ import (
 //
 // Отрицательное значение означает остаток, противоположный природе счёта.
 func (db *DB) Balance(ctx context.Context, accountID int64) (money.Kop, error) {
-	var accountType string
-	err := db.QueryRowContext(ctx, `SELECT type FROM accounts WHERE id = ?`, accountID).Scan(&accountType)
+	var (
+		accountType   string
+		debit, credit int64
+	)
+	// Тип счёта и обороты читаются одним запросом: для пустого счёта LEFT JOIN
+	// даёт одну строку с нулевыми суммами, а отсутствие счёта — sql.ErrNoRows.
+	err := db.QueryRowContext(ctx, `
+		SELECT a.type,
+			COALESCE(SUM(CASE WHEN l.side = 'DEBIT'  THEN l.amount_kop ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN l.side = 'CREDIT' THEN l.amount_kop ELSE 0 END), 0)
+		  FROM accounts a
+		  LEFT JOIN transaction_lines l ON l.account_id = a.id
+		 WHERE a.id = ?
+		 GROUP BY a.id, a.type`, accountID).Scan(&accountType, &debit, &credit)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, fmt.Errorf("%w: счёт %d", ErrNotFound, accountID)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("store: не удалось прочитать тип счёта: %w", err)
-	}
-
-	var debit, credit int64
-	if err := db.QueryRowContext(ctx, `
-		SELECT
-			COALESCE(SUM(CASE WHEN side = 'DEBIT'  THEN amount_kop ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN side = 'CREDIT' THEN amount_kop ELSE 0 END), 0)
-		  FROM transaction_lines
-		 WHERE account_id = ?`, accountID).Scan(&debit, &credit); err != nil {
 		return 0, fmt.Errorf("store: не удалось посчитать остаток счёта: %w", err)
 	}
 	return balanceFor(model.AccountType(accountType), money.FromKopecks(debit), money.FromKopecks(credit)), nil

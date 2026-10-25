@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
@@ -187,10 +188,8 @@ func (db *DB) ListTransactions(ctx context.Context, f TransactionFilter) ([]mode
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: ошибка чтения транзакций: %w", err)
 	}
-	for i := range transactions {
-		if err := db.loadLines(ctx, &transactions[i]); err != nil {
-			return nil, err
-		}
+	if err := db.loadLinesForTransactions(ctx, transactions); err != nil {
+		return nil, err
 	}
 	return transactions, nil
 }
@@ -260,6 +259,10 @@ func transactionWhere(f TransactionFilter) (string, []any) {
 	return query, args
 }
 
+// transactionLinesChunkSize ограничивает число ID в одном IN-запросе:
+// старые сборки SQLite допускают не более 999 параметров.
+const transactionLinesChunkSize = 500
+
 // loadLines дополняет транзакцию строками проводки.
 func (db *DB) loadLines(ctx context.Context, tr *model.Transaction) error {
 	rows, err := db.QueryContext(ctx,
@@ -271,22 +274,90 @@ func (db *DB) loadLines(ctx context.Context, tr *model.Transaction) error {
 	defer rows.Close()
 
 	for rows.Next() {
-		var (
-			line   model.TransactionLine
-			amount int64
-			side   string
-		)
-		if err := rows.Scan(&line.ID, &line.TransactionID, &line.AccountID, &amount, &side); err != nil {
-			return fmt.Errorf("store: не удалось разобрать строку проводки: %w", err)
+		line, err := scanTransactionLine(rows)
+		if err != nil {
+			return err
 		}
-		line.Amount = money.FromKopecks(amount)
-		line.Side = model.Side(side)
 		tr.Lines = append(tr.Lines, line)
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("store: ошибка чтения строк проводки: %w", err)
 	}
 	return nil
+}
+
+// loadLinesForTransactions дополняет строки проводок для набора транзакций
+// одним запросом на чанк, чтобы не делать N+1 запросов при чтении журнала.
+func (db *DB) loadLinesForTransactions(ctx context.Context, transactions []model.Transaction) error {
+	if len(transactions) == 0 {
+		return nil
+	}
+
+	index := make(map[int64]int, len(transactions))
+	ids := make([]int64, 0, len(transactions))
+	for i := range transactions {
+		index[transactions[i].ID] = i
+		ids = append(ids, transactions[i].ID)
+	}
+
+	for start := 0; start < len(ids); start += transactionLinesChunkSize {
+		end := min(start+transactionLinesChunkSize, len(ids))
+		if err := db.loadLinesChunk(ctx, ids[start:end], index, transactions); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// loadLinesChunk читает строки проводок для одной порции идентификаторов.
+// Порядок строк внутри транзакции сохраняется по возрастанию id.
+func (db *DB) loadLinesChunk(ctx context.Context, ids []int64, index map[int64]int, transactions []model.Transaction) error {
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, transaction_id, account_id, amount_kop, side
+		   FROM transaction_lines
+		  WHERE transaction_id IN (`+placeholders+`)
+		  ORDER BY transaction_id, id`, args...)
+	if err != nil {
+		return fmt.Errorf("store: не удалось прочитать строки проводок: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		line, err := scanTransactionLine(rows)
+		if err != nil {
+			return err
+		}
+		i, ok := index[line.TransactionID]
+		if !ok {
+			continue
+		}
+		transactions[i].Lines = append(transactions[i].Lines, line)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("store: ошибка чтения строк проводок: %w", err)
+	}
+	return nil
+}
+
+// scanTransactionLine разбирает одну строку выборки проводки.
+func scanTransactionLine(rows *sql.Rows) (model.TransactionLine, error) {
+	var (
+		line   model.TransactionLine
+		amount int64
+		side   string
+	)
+	if err := rows.Scan(&line.ID, &line.TransactionID, &line.AccountID, &amount, &side); err != nil {
+		return model.TransactionLine{}, fmt.Errorf("store: не удалось разобрать строку проводки: %w", err)
+	}
+	line.Amount = money.FromKopecks(amount)
+	line.Side = model.Side(side)
+	return line, nil
 }
 
 // validateTransaction проверяет сквозные инварианты проводки.

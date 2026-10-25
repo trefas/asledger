@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -49,6 +50,18 @@ func TestASL_5_BalanceByNature(t *testing.T) {
 	}
 	if after != 0 {
 		t.Fatalf("остаток после удаления строк = %s, ожидался 0", after)
+	}
+
+	// Счёт без проводок даёт нулевой остаток, отсутствующий — ErrNotFound.
+	empty, err := db.AccountByPath(ctx, "Активы:Дебиторка")
+	if err != nil {
+		t.Fatalf("AccountByPath: %v", err)
+	}
+	if got, err := db.Balance(ctx, empty.ID); err != nil || got != 0 {
+		t.Fatalf("Balance(пустой счёт) = %s, err=%v", got, err)
+	}
+	if _, err := db.Balance(ctx, 999999); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Balance(отсутствующий счёт): err=%v, ожидалась ErrNotFound", err)
 	}
 }
 
