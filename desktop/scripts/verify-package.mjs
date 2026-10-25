@@ -38,12 +38,15 @@ const resourcesDir =
     : join(unpackedDir, 'resources')
 
 const binaryName = platform === 'win32' ? 'asledgerd.exe' : 'asledgerd'
+const ctlName = platform === 'win32' ? 'asledgerctl.exe' : 'asledgerctl'
 const binaryPath = join(resourcesDir, 'bin', binaryName)
+const ctlPath = join(resourcesDir, 'bin', ctlName)
 
 const appAsar = join(resourcesDir, 'app.asar')
 const required = [
   appAsar,
   binaryPath,
+  ctlPath,
   join(resourcesDir, 'assets', 'logo', 'asledger-logo.svg'),
   join(resourcesDir, 'templates', 'charts', 'personal.json'),
   join(resourcesDir, 'LICENSE'),
@@ -74,26 +77,36 @@ for (const absolute of [desktopDir, resolve(desktopDir, '..')]) {
 const expected = `v${packageJson.version}`
 const canExecute = platform === process.platform && arch === process.arch
 if (platform === 'win32' || !canExecute) {
-  const binary = readFileSync(binaryPath)
-  if (!binary.includes(Buffer.from(expected))) {
-    throw new Error(
-      `Версия ${binaryName} не совпадает с package.json: не найдено ${expected}`,
-    )
+  for (const [name, path] of [
+    [binaryName, binaryPath],
+    [ctlName, ctlPath],
+  ]) {
+    const binary = readFileSync(path)
+    if (!binary.includes(Buffer.from(expected))) {
+      throw new Error(
+        `Версия ${name} не совпадает с package.json: не найдено ${expected}`,
+      )
+    }
   }
-  console.log(`Пакет ${unpackedDir} содержит бинарь, ассеты и шаблоны.`)
-  console.log(`Версия ${binaryName}: ${expected} найдена в бинаре.`)
+  console.log(`Пакет ${unpackedDir} содержит бинари, ассеты и шаблоны.`)
+  console.log(`Версия ${binaryName} и ${ctlName}: ${expected} найдена в бинарях.`)
 } else {
-  const result = spawnSync(binaryPath, ['--version'], { encoding: 'utf8' })
-  if (result.status !== 0) {
-    throw new Error(
-      `asledgerd --version завершился с кодом ${result.status}: ${result.stderr}`,
-    )
+  for (const [name, path] of [
+    [binaryName, binaryPath],
+    [ctlName, ctlPath],
+  ]) {
+    const result = spawnSync(path, ['--version'], { encoding: 'utf8' })
+    if (result.status !== 0) {
+      throw new Error(
+        `${name} --version завершился с кодом ${result.status}: ${result.stderr}`,
+      )
+    }
+    if (!result.stdout.includes(expected)) {
+      throw new Error(
+        `Версия ${name} не совпадает с package.json: ожидалось ${expected}, получено ${result.stdout.trim()}`,
+      )
+    }
+    console.log(`Версия ${name}: ${result.stdout.trim()}`)
   }
-  if (!result.stdout.includes(expected)) {
-    throw new Error(
-      `Версия asledgerd не совпадает с package.json: ожидалось ${expected}, получено ${result.stdout.trim()}`,
-    )
-  }
-  console.log(`Пакет ${unpackedDir} содержит бинарь, ассеты и шаблоны.`)
-  console.log(`Версия asledgerd: ${result.stdout.trim()}`)
+  console.log(`Пакет ${unpackedDir} содержит бинари, ассеты и шаблоны.`)
 }

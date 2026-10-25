@@ -6,6 +6,7 @@ import {
   ipcMain,
   shell,
 } from 'electron'
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { APP_NAME } from '../shared/app'
 import {
@@ -16,11 +17,14 @@ import {
   type DesktopInfo,
   type KeyStorageStatus,
   type NetworkAddress,
+  type PasswordChangeRequest,
+  type PasswordChangeResult,
 } from '../shared/ipc'
 import { deriveBookKey } from './book-key'
 import { BackendProcess, type BackendSecret } from './backend'
 import { loadOrCreateConfig, type DesktopConfig } from './config'
 import { readLogTail } from './log'
+import { changeBookPassword } from './password-change'
 import { NetworkMonitor, currentLocalIPv4 } from './network'
 import {
   forgetRememberedKey,
@@ -44,6 +48,7 @@ let backend: BackendProcess | null = null
 let networkMonitor: NetworkMonitor | null = null
 let backendStopped = false
 let backendDbPath = ''
+let backendCtlBinary = ''
 
 function broadcast(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -81,6 +86,7 @@ function createBackend(config: DesktopConfig): BackendProcess {
   })
 
   backendDbPath = paths.dbPath
+  backendCtlBinary = paths.ctlBinary
   return server
 }
 
@@ -113,6 +119,101 @@ function parseStartRequest(raw: unknown): BackendStartRequest {
     password: password as string | undefined,
     remember: remember === true,
     useRemembered: useRemembered === true,
+  }
+}
+
+function parsePasswordChangeRequest(raw: unknown): PasswordChangeRequest {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('auth: ожидался объект запроса смены пароля')
+  }
+  const value = raw as Record<string, unknown>
+  const currentPassword = value['currentPassword']
+  const newPassword = value['newPassword']
+  if (typeof currentPassword !== 'string' || currentPassword.length === 0) {
+    throw new Error('auth: введите текущий пароль книги')
+  }
+  if (typeof newPassword !== 'string' || newPassword.length === 0) {
+    throw new Error('auth: введите новый пароль книги')
+  }
+  if (newPassword === currentPassword) {
+    throw new Error('auth: новый пароль должен отличаться от текущего')
+  }
+  const remember = value['remember']
+  if (remember !== undefined && typeof remember !== 'boolean') {
+    throw new Error('auth: remember должен быть boolean')
+  }
+  return { currentPassword, newPassword, remember: remember === true }
+}
+
+/** Меняет пароль книги, останавливая сервер на время перешифровки. */
+async function changePassword(
+  server: BackendProcess,
+  raw: unknown,
+): Promise<PasswordChangeResult> {
+  const request = parsePasswordChangeRequest(raw)
+  if (server.getState().status !== 'ready') {
+    throw new Error('Сначала запустите сервер и откройте книгу')
+  }
+  if (backendCtlBinary === '') {
+    throw new Error('Не найден путь к asledgerctl')
+  }
+
+  const stopped = await server.stop()
+  if (stopped.status !== 'stopped') {
+    throw new Error(stopped.detail || 'Не удалось остановить сервер перед сменой пароля')
+  }
+
+  let changed = false
+  try {
+    const result = await changeBookPassword({
+      command: backendCtlBinary,
+      dbPath: backendDbPath,
+      currentPassword: request.currentPassword,
+      newPassword: request.newPassword,
+    })
+    changed = true
+
+    // Ключ в системном хранилище обновляем только после успешной
+    // перешифровки. Ошибка keychain не должна отменять смену пароля.
+    try {
+      const status = await keyStorageStatus()
+      if (status.available && request.remember) {
+        const key = await deriveBookKey(request.newPassword, backendDbPath)
+        await saveRememberedKey(key)
+        key.fill(0)
+      } else {
+        await forgetRememberedKey()
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn('desktop: не удалось обновить сохранённый ключ:', message)
+      await forgetRememberedKey().catch(() => undefined)
+    }
+
+    const state = await server.start({
+      kind: 'password',
+      value: request.newPassword,
+    })
+    if (state.status !== 'ready') {
+      throw new Error(
+        `Пароль изменён, но сервер не запустился: ${state.detail || 'неизвестная ошибка'}`,
+      )
+    }
+    return { backupPath: result.backupPath, state }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Если перешифровка не началась, возвращаем сервер со старым паролем.
+    // Если началась — старый пароль уже не подходит, пробуем новый.
+    await server
+      .start({
+        kind: 'password',
+        value: changed ? request.newPassword : request.currentPassword,
+      })
+      .catch(() => undefined)
+    if (changed && message.startsWith('Пароль изменён')) {
+      throw new Error(message)
+    }
+    throw new Error(`Не удалось сменить пароль: ${message}`)
   }
 }
 
@@ -263,6 +364,7 @@ function registerIpc(
       platform: process.platform,
       electron: process.versions.electron ?? 'unknown',
       chrome: process.versions.chrome ?? 'unknown',
+      bookExists: backendDbPath !== '' && existsSync(backendDbPath),
     }
   })
 
@@ -296,6 +398,12 @@ function registerIpc(
   ipcMain.handle(IPC_CHANNELS.authForget, async (): Promise<void> => {
     await forgetRememberedKey()
   })
+  ipcMain.handle(
+    IPC_CHANNELS.authChangePassword,
+    async (_event, request: unknown): Promise<PasswordChangeResult> => {
+      return changePassword(server, request)
+    },
+  )
   ipcMain.handle(IPC_CHANNELS.backendReadLog, async (): Promise<string[]> => {
     return readLogTail(server.getState().logPath)
   })

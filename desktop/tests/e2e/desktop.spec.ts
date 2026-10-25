@@ -31,7 +31,7 @@ function isAlive(pid: number): boolean {
   }
 }
 
-function backendBinary(): string {
+function binaryPath(name: 'asledgerd' | 'asledgerctl'): string {
   const goos =
     process.platform === 'win32'
       ? 'windows'
@@ -44,20 +44,26 @@ function backendBinary(): string {
       : process.arch === 'arm64'
         ? 'arm64'
         : process.arch
-  const binary = process.platform === 'win32' ? 'asledgerd.exe' : 'asledgerd'
+  const binary =
+    process.platform === 'win32' ? `${name}.exe` : name
+  const override =
+    name === 'asledgerd' ? process.env.ASLEDGERD_BIN : process.env.ASLEDGERCTL_BIN
   return (
-    process.env.ASLEDGERD_BIN?.trim() ||
+    override?.trim() ||
     join(process.cwd(), 'resources', 'backend', `${goos}-${goarch}`, binary)
   )
 }
 
 test('запускает asledgerd, открывает книгу и корректно останавливает', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'asledger-desktop-e2e-'))
-  const binary = backendBinary()
-  if (!existsSync(binary)) {
-    throw new Error(
-      `Не найден ${binary}. Соберите бинарь: npm run build:backend`,
-    )
+  const binary = binaryPath('asledgerd')
+  const ctl = binaryPath('asledgerctl')
+  for (const path of [binary, ctl]) {
+    if (!existsSync(path)) {
+      throw new Error(
+        `Не найден ${path}. Соберите бинарь: npm run build:backend`,
+      )
+    }
   }
 
   const webPort = await freePort()
@@ -93,6 +99,7 @@ test('запускает asledgerd, открывает книгу и корре�
       ...process.env,
       ASLEDGER_DESKTOP_CONFIG: configPath,
       ASLEDGERD_BIN: binary,
+      ASLEDGERCTL_BIN: ctl,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
     },
   })
@@ -108,7 +115,11 @@ test('запускает asledgerd, открывает книгу и корре�
     await expect(window.locator('#password-dialog')).toBeVisible({
       timeout: 10_000,
     })
+    await expect(window.locator('#password-title')).toHaveText('Новый пароль книги')
+    await expect(window.locator('#password-confirm-field')).toBeVisible()
     await window.locator('#password').fill('e2e-password')
+    await window.locator('#password-confirm').fill('e2e-password')
+    await expect(window.locator('#password-strength')).toContainText('Сложность')
     await window.locator('#password-submit').click()
 
     await expect(window.locator('#status')).toHaveText('Готово', {
@@ -125,6 +136,45 @@ test('запускает asledgerd, открывает книгу и корре�
     const pid = Number(pidText)
     expect(isAlive(pid)).toBe(true)
 
+    // Смена пароля из UI: сервер останавливается, asledgerctl создаёт
+    // резервную копию и перешифровывает книгу, затем сервер стартует заново.
+    await window.locator('#change-password').click()
+    await expect(window.locator('#change-password-dialog')).toBeVisible()
+    await window.locator('#current-password').fill('e2e-password')
+    await window.locator('#new-password').fill('e2e-password-new')
+    await window.locator('#new-password-confirm').fill('e2e-password-new')
+    await window.locator('#change-password-submit').click()
+    await expect(window.locator('#password-change-result')).toContainText(
+      'Пароль изменён',
+      { timeout: 30_000 },
+    )
+    await expect(window.locator('#status')).toHaveText('Готово', {
+      timeout: 20_000,
+    })
+    const backupText = await window.locator('#password-change-result').innerText()
+    const backupPath = backupText.split('Резервная копия: ')[1]?.trim()
+    expect(backupPath).toBeTruthy()
+    expect(existsSync(backupPath as string)).toBe(true)
+
+    // После остановки старый пароль не должен открывать книгу, новый — должен.
+    await window.locator('#stop').click()
+    await expect(window.locator('#status')).toHaveText('Остановлен', {
+      timeout: 15_000,
+    })
+    await window.locator('#start').click()
+    await expect(window.locator('#password-dialog')).toBeVisible()
+    await expect(window.locator('#password-confirm-field')).toBeHidden()
+    await window.locator('#password').fill('e2e-password')
+    await window.locator('#password-submit').click()
+    await expect(window.locator('#password-error')).toBeVisible({
+      timeout: 20_000,
+    })
+    await window.locator('#password').fill('e2e-password-new')
+    await window.locator('#password-submit').click()
+    await expect(window.locator('#status')).toHaveText('Готово', {
+      timeout: 20_000,
+    })
+
     await window.locator('#copy-log').click()
     await expect(window.locator('#copy-log')).toHaveText('Скопировано')
     const clipboard = await app.evaluate(({ clipboard }) =>
@@ -140,12 +190,15 @@ test('запускает asledgerd, открывает книгу и корре�
 
     // Останавливаем сервер до закрытия окна книги: Playwright/Electron на
     // Linux зависает на page.close() второго окна, а app.close() закроет всё.
+    const restartedPidText = (await window.locator('#pid').innerText()).trim()
+    expect(restartedPidText).toMatch(/^\d+$/)
+    const restartedPid = Number(restartedPidText)
     await window.locator('#stop').click()
     await expect(window.locator('#status')).toHaveText('Остановлен', {
       timeout: 15_000,
     })
     await expect(window.locator('#pid')).toHaveText('—')
-    await expect.poll(() => isAlive(pid), { timeout: 10_000 }).toBe(false)
+    await expect.poll(() => isAlive(restartedPid), { timeout: 10_000 }).toBe(false)
 
     await expect
       .poll(

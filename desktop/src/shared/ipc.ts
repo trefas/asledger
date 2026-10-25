@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
   backendOpenLog: 'backend:open-log',
   authStatus: 'auth:status',
   authForget: 'auth:forget',
+  authChangePassword: 'auth:change-password',
   networkGet: 'network:get',
   networkAddresses: 'network:addresses',
   clipboardWrite: 'clipboard:write',
@@ -77,10 +78,24 @@ export interface BackendApi {
   onLog(listener: (entry: BackendLogEntry) => void): () => void
 }
 
+/** Запрос на смену пароля книги из desktop-клиента. */
+export interface PasswordChangeRequest {
+  currentPassword: string
+  newPassword: string
+  remember?: boolean
+}
+
+/** Результат смены пароля: путь к резервной копии и новое состояние сервера. */
+export interface PasswordChangeResult {
+  backupPath: string
+  state: BackendState
+}
+
 /** API системного хранилища ключа. */
 export interface AuthApi {
   status(): Promise<KeyStorageStatus>
   forget(): Promise<void>
+  changePassword(request: PasswordChangeRequest): Promise<PasswordChangeResult>
 }
 
 /** Сведения о приложении, безопасно передаваемые в renderer. */
@@ -90,6 +105,8 @@ export interface DesktopInfo {
   platform: string
   electron: string
   chrome: string
+  /** Существует ли файл книги до первого запуска. */
+  bookExists: boolean
 }
 
 /** Узкий API, который preload выставляет в window.asledger. */

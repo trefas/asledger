@@ -4,6 +4,7 @@ import {
   apiUrl,
   backendBinaryName,
   buildBackendArgs,
+  ctlBinaryName,
   healthUrl,
   resolveDesktopPaths,
   webUrl,
@@ -23,6 +24,7 @@ describe('пути desktop-клиента', () => {
     })
 
     expect(paths.backendBinary).toBe(join(appPath, '..', 'bin', 'asledgerd'))
+    expect(paths.ctlBinary).toBe(join(appPath, '..', 'bin', 'asledgerctl'))
     expect(paths.assetsDir).toBe(join(appPath, '..', 'assets', 'logo'))
     expect(paths.chartsDir).toBe(join(appPath, '..', 'templates', 'charts'))
     expect(paths.dbPath).toBe(join(userDataPath, 'data', 'asledger.db'))
@@ -43,6 +45,9 @@ describe('пути desktop-клиента', () => {
     expect(paths.backendBinary).toBe(
       join(resourcesPath, 'bin', 'asledgerd.exe'),
     )
+    expect(paths.ctlBinary).toBe(
+      join(resourcesPath, 'bin', 'asledgerctl.exe'),
+    )
     expect(paths.assetsDir).toBe(join(resourcesPath, 'assets', 'logo'))
     expect(paths.chartsDir).toBe(join(resourcesPath, 'templates', 'charts'))
   })
@@ -55,6 +60,7 @@ describe('пути desktop-клиента', () => {
       userDataPath: join('/home', 'user', '.config', 'asledger'),
       env: {
         ASLEDGERD_BIN: '/tmp/asledgerd-test',
+        ASLEDGERCTL_BIN: '/tmp/asledgerctl-test',
         ASLEDGER_DESKTOP_DATA_DIR: '/tmp/asledger-data',
         ASLEDGER_DESKTOP_LOG_DIR: '/tmp/asledger-logs',
       },
@@ -62,6 +68,7 @@ describe('пути desktop-клиента', () => {
     })
 
     expect(paths.backendBinary).toBe(resolve('/tmp/asledgerd-test'))
+    expect(paths.ctlBinary).toBe(resolve('/tmp/asledgerctl-test'))
     expect(paths.dataDir).toBe(resolve('/tmp/asledger-data'))
     expect(paths.logDir).toBe(resolve('/tmp/asledger-logs'))
   })
@@ -76,6 +83,7 @@ describe('пути desktop-клиента', () => {
         assetsDir: '/assets',
         chartsDir: '/charts',
         backendBinary: '/bin/asledgerd',
+        ctlBinary: '/bin/asledgerctl',
       },
       8777,
       8778,
@@ -91,6 +99,8 @@ describe('пути desktop-клиента', () => {
   it('строит URL и имя бинаря', () => {
     expect(backendBinaryName('linux')).toBe('asledgerd')
     expect(backendBinaryName('win32')).toBe('asledgerd.exe')
+    expect(ctlBinaryName('linux')).toBe('asledgerctl')
+    expect(ctlBinaryName('win32')).toBe('asledgerctl.exe')
     expect(webUrl(9000)).toBe('http://127.0.0.1:9000')
     expect(apiUrl(9001)).toBe('http://127.0.0.1:9001')
     expect(healthUrl(9001)).toBe('http://127.0.0.1:9001/api/v1/health')

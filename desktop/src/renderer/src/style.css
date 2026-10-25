@@ -23,6 +23,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -444,4 +448,51 @@ h2 {
   border-radius: 6px;
   background: var(--green-100);
   color: var(--green-900);
+}
+
+.security-checks {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.security-checks label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.security-checks input {
+  margin-top: 0.2rem;
+}
+
+.password-strength {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.password-strength[data-level="low"] {
+  color: var(--danger);
+}
+
+.password-strength[data-level="medium"] {
+  color: #8a5a00;
+}
+
+.password-strength[data-level="high"] {
+  color: var(--ok);
+}
+
+.success {
+  margin: 0.9rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #b7d8bc;
+  border-radius: 7px;
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
 }

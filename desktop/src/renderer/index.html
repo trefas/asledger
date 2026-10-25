@@ -61,6 +61,9 @@
             <button id="restart" class="btn btn-secondary" type="button">
               Перезапустить
             </button>
+            <button id="change-password" class="btn btn-secondary" type="button" disabled>
+              Сменить пароль
+            </button>
           </div>
         </section>
 
@@ -103,14 +106,30 @@
               системное хранилище; на Linux без keyring сохранение отключено.
             </li>
             <li>
-              Восстановления забытого пароля нет. Сохраните пароль и sidecar
-              <code>&lt;книга&gt;.kdf.json</code> в надёжном месте.
+              Восстановления забытого пароля нет. Сохраните пароль, sidecar
+              <code>&lt;книга&gt;.kdf.json</code> и резервную копию книги в
+              надёжном месте.
             </li>
             <li>
               Android-клиент хранит локальную реплику в Room без SQLCipher;
               защищайте телефон блокировкой экрана.
             </li>
           </ul>
+          <div class="security-checks" aria-label="Чек-лист безопасности">
+            <label>
+              <input type="checkbox" data-security-check="folder" />
+              <span>Папка с книгой не является общей сетевой папкой.</span>
+            </label>
+            <label>
+              <input type="checkbox" data-security-check="password" />
+              <span>Пароль книги сложный и хранится отдельно от книги.</span>
+            </label>
+            <label>
+              <input type="checkbox" data-security-check="backup" />
+              <span>Есть резервная копия книги и sidecar в надёжном месте.</span>
+            </label>
+          </div>
+          <p id="password-change-result" class="success" hidden></p>
           <p id="cloud-warning" class="notice">
             Если книга или sidecar лежат в облачной папке, содержимое остаётся
             зашифрованным, но синхронизация может создать конфликт или
@@ -182,21 +201,87 @@
             required
           />
         </label>
+        <label id="password-confirm-field" class="field" hidden>
+          <span>Повторите пароль</span>
+          <input
+            id="password-confirm"
+            type="password"
+            autocomplete="new-password"
+          />
+        </label>
+        <p id="password-strength" class="password-strength" hidden></p>
         <label class="check">
           <input id="remember" type="checkbox" />
           <span>Запомнить ключ в системном хранилище</span>
         </label>
         <p id="remember-hint" class="muted small"></p>
+        <p class="muted small">
+          «Забыть сохранённый ключ» удаляет только запись в системном хранилище.
+          Пароль и книгу это не удаляет; без пароля нужна резервная копия.
+        </p>
         <p id="password-error" class="error" hidden></p>
         <div class="actions dialog-actions">
           <button id="forget-key" class="btn btn-secondary" type="button" hidden>
-            Забыть ключ
+            Забыть сохранённый ключ
           </button>
           <button id="password-cancel" class="btn btn-secondary" type="button">
             Отмена
           </button>
           <button id="password-submit" class="btn" type="submit">
             Открыть книгу
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="change-password-dialog" class="dialog" aria-labelledby="change-password-title">
+      <form id="change-password-form" method="dialog" class="dialog-form">
+        <p class="eyebrow">Смена пароля</p>
+        <h2 id="change-password-title">Новый пароль книги</h2>
+        <p class="muted">
+          Сервер будет остановлен. Перед сменой пароля создаётся зашифрованная
+          резервная копия книги и sidecar. Старый пароль понадобится для
+          подтверждения.
+        </p>
+        <label class="field">
+          <span>Текущий пароль</span>
+          <input
+            id="current-password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+        </label>
+        <label class="field">
+          <span>Новый пароль</span>
+          <input
+            id="new-password"
+            type="password"
+            autocomplete="new-password"
+            required
+          />
+        </label>
+        <p id="new-password-strength" class="password-strength" hidden></p>
+        <label class="field">
+          <span>Повторите новый пароль</span>
+          <input
+            id="new-password-confirm"
+            type="password"
+            autocomplete="new-password"
+            required
+          />
+        </label>
+        <label class="check">
+          <input id="change-remember" type="checkbox" />
+          <span>Сохранить новый ключ в системном хранилище</span>
+        </label>
+        <p id="change-password-error" class="error" hidden></p>
+        <div class="actions dialog-actions">
+          <button id="change-password-cancel" class="btn btn-secondary" type="button">
+            Отмена
+          </button>
+          <button id="change-password-submit" class="btn" type="submit">
+            Сменить пароль
           </button>
         </div>
       </form>

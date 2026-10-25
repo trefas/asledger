@@ -34,28 +34,31 @@ module.exports = async function afterPack(context) {
     )
   }
 
-  const binary = goos === 'windows' ? 'asledgerd.exe' : 'asledgerd'
-  const source = join(
-    __dirname,
-    '..',
-    'resources',
-    'backend',
-    `${goos}-${goarch}`,
-    binary,
-  )
-  if (!existsSync(source)) {
-    throw new Error(
-      `Не найден ${source}. Соберите бинарь: npm run build:backend -- --target=${goos}/${goarch}`,
-    )
-  }
-
   const resourcesDir = context.packager.getResourcesDir(context.appOutDir)
   const targetDir = join(resourcesDir, 'bin')
-  const target = join(targetDir, binary)
   mkdirSync(targetDir, { recursive: true })
-  copyFileSync(source, target)
-  if (goos !== 'windows') {
-    chmodSync(target, 0o755)
+
+  // asledgerd запускает сервер, asledgerctl меняет пароль из desktop-клиента.
+  for (const command of ['asledgerd', 'asledgerctl']) {
+    const binary = goos === 'windows' ? `${command}.exe` : command
+    const source = join(
+      __dirname,
+      '..',
+      'resources',
+      'backend',
+      `${goos}-${goarch}`,
+      binary,
+    )
+    if (!existsSync(source)) {
+      throw new Error(
+        `Не найден ${source}. Соберите бинарь: npm run build:backend -- --target=${goos}/${goarch}`,
+      )
+    }
+    const target = join(targetDir, binary)
+    copyFileSync(source, target)
+    if (goos !== 'windows') {
+      chmodSync(target, 0o755)
+    }
+    console.log(`afterPack: ${binary} (${goos}/${goarch}) -> ${target}`)
   }
-  console.log(`afterPack: ${binary} (${goos}/${goarch}) -> ${target}`)
 }

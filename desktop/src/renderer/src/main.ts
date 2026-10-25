@@ -10,6 +10,7 @@ import type {
   KeyStorageStatus,
   NetworkAddress,
 } from '../../shared/ipc'
+import { passwordStrength } from './password-strength'
 import './style.css'
 
 function requireElement<T extends Element>(selector: string): T {
@@ -37,6 +38,8 @@ const startButton = requireElement<HTMLButtonElement>('#start')
 const openBookButton = requireElement<HTMLButtonElement>('#open-book')
 const stopButton = requireElement<HTMLButtonElement>('#stop')
 const restartButton = requireElement<HTMLButtonElement>('#restart')
+const changePasswordButton =
+  requireElement<HTMLButtonElement>('#change-password')
 const clearLogButton = requireElement<HTMLButtonElement>('#clear-log')
 const copyLogButton = requireElement<HTMLButtonElement>('#copy-log')
 const openLogButton = requireElement<HTMLButtonElement>('#open-log')
@@ -49,6 +52,12 @@ const passwordForm = requireElement<HTMLFormElement>('#password-form')
 const passwordTitle = requireElement<HTMLElement>('#password-title')
 const passwordHint = requireElement<HTMLElement>('#password-hint')
 const passwordInput = requireElement<HTMLInputElement>('#password')
+const passwordConfirmField =
+  requireElement<HTMLElement>('#password-confirm-field')
+const passwordConfirmInput =
+  requireElement<HTMLInputElement>('#password-confirm')
+const passwordStrengthElement =
+  requireElement<HTMLElement>('#password-strength')
 const rememberCheckbox = requireElement<HTMLInputElement>('#remember')
 const rememberHint = requireElement<HTMLElement>('#remember-hint')
 const passwordError = requireElement<HTMLElement>('#password-error')
@@ -58,8 +67,32 @@ const passwordCancelButton =
   requireElement<HTMLButtonElement>('#password-cancel')
 const forgetKeyButton = requireElement<HTMLButtonElement>('#forget-key')
 
+const changePasswordDialog =
+  requireElement<HTMLDialogElement>('#change-password-dialog')
+const changePasswordForm =
+  requireElement<HTMLFormElement>('#change-password-form')
+const currentPasswordInput =
+  requireElement<HTMLInputElement>('#current-password')
+const newPasswordInput = requireElement<HTMLInputElement>('#new-password')
+const newPasswordStrengthElement =
+  requireElement<HTMLElement>('#new-password-strength')
+const newPasswordConfirmInput =
+  requireElement<HTMLInputElement>('#new-password-confirm')
+const changeRememberCheckbox =
+  requireElement<HTMLInputElement>('#change-remember')
+const changePasswordError =
+  requireElement<HTMLElement>('#change-password-error')
+const changePasswordSubmitButton =
+  requireElement<HTMLButtonElement>('#change-password-submit')
+const changePasswordCancelButton =
+  requireElement<HTMLButtonElement>('#change-password-cancel')
+const passwordChangeResult =
+  requireElement<HTMLElement>('#password-change-result')
+
 const logLines: string[] = []
 const MAX_LOG_LINES = 200
+
+let bookExists = true
 
 function setStatus(status: AppStatus): void {
   statusElement.textContent = statusLabel(status)
@@ -96,6 +129,10 @@ function applyState(state: BackendState): void {
   stopButton.disabled =
     state.status !== 'ready' && state.status !== 'starting'
   restartButton.disabled = busy
+  changePasswordButton.disabled = state.status !== 'ready'
+  if (state.status === 'ready') {
+    bookExists = true
+  }
 }
 
 function logLine(entry: BackendLogEntry): string {
@@ -230,6 +267,7 @@ async function openBook(): Promise<void> {
 async function loadInfo(): Promise<void> {
   try {
     const info = await window.asledger.getInfo()
+    bookExists = info.bookExists
     setText(versionElement, info.version)
     setText(platformElement, info.platform)
     setText(electronElement, info.electron)
@@ -255,6 +293,7 @@ function setAuthError(message: string | null): void {
 
 function renderAuthStatus(status: KeyStorageStatus): void {
   rememberCheckbox.disabled = !status.available
+  changeRememberCheckbox.disabled = !status.available
   forgetKeyButton.hidden = !status.remembered
   if (!status.available) {
     rememberHint.textContent =
@@ -286,22 +325,54 @@ async function refreshAuthStatus(): Promise<KeyStorageStatus | null> {
   }
 }
 
+function renderPasswordStrength(
+  input: HTMLInputElement,
+  element: HTMLElement,
+): void {
+  const value = input.value
+  if (value.length === 0) {
+    element.hidden = true
+    element.textContent = ''
+    return
+  }
+  const strength = passwordStrength(value)
+  element.hidden = false
+  element.dataset['level'] = strength.level
+  element.textContent = `Сложность пароля: ${strength.label}. Это подсказка, а не гарантия стойкости.`
+}
+
 function openPasswordDialog(
   action: 'start' | 'restart',
   message?: string,
 ): void {
   authAction = action
+  const creating = action === 'start' && !bookExists
   passwordInput.value = ''
+  passwordConfirmInput.value = ''
+  passwordConfirmField.hidden = !creating
+  passwordConfirmInput.required = creating
+  passwordStrengthElement.hidden = true
+  passwordStrengthElement.textContent = ''
   rememberCheckbox.checked = false
   passwordSubmitButton.disabled = false
   passwordSubmitButton.textContent =
-    action === 'restart' ? 'Перезапустить' : 'Открыть книгу'
+    action === 'restart'
+      ? 'Перезапустить'
+      : creating
+        ? 'Создать книгу'
+        : 'Открыть книгу'
   passwordTitle.textContent =
-    action === 'restart' ? 'Перезапуск книги' : 'Пароль книги'
+    action === 'restart'
+      ? 'Перезапуск книги'
+      : creating
+        ? 'Новый пароль книги'
+        : 'Пароль книги'
   passwordHint.textContent =
     action === 'restart'
       ? 'Введите пароль книги, чтобы перезапустить asledgerd.'
-      : 'Введите пароль книги. Он нужен для вывода ключа SQLCipher и не сохраняется в конфигурации.'
+      : creating
+        ? 'Книги ещё нет. Придумайте пароль и повторите его: он создаст ключ SQLCipher. Восстановить забытый пароль нельзя, сохраните резервную копию.'
+        : 'Введите пароль книги. Он нужен для вывода ключа SQLCipher и не сохраняется в конфигурации.'
   setAuthError(message ?? null)
   if (!passwordDialog.open) {
     passwordDialog.showModal()
@@ -326,6 +397,36 @@ async function runAction(
     onError?.(message)
     return null
   }
+}
+
+function setChangePasswordError(message: string | null): void {
+  if (!message) {
+    changePasswordError.hidden = true
+    changePasswordError.textContent = ''
+    return
+  }
+  changePasswordError.textContent = message
+  changePasswordError.hidden = false
+}
+
+async function openChangePasswordDialog(): Promise<void> {
+  currentPasswordInput.value = ''
+  newPasswordInput.value = ''
+  newPasswordConfirmInput.value = ''
+  newPasswordStrengthElement.hidden = true
+  newPasswordStrengthElement.textContent = ''
+  changePasswordSubmitButton.disabled = false
+  changePasswordSubmitButton.textContent = 'Сменить пароль'
+  setChangePasswordError(null)
+  passwordChangeResult.hidden = true
+  passwordChangeResult.textContent = ''
+  if (!changePasswordDialog.open) {
+    changePasswordDialog.showModal()
+  }
+  window.setTimeout(() => currentPasswordInput.focus(), 0)
+  const status = await refreshAuthStatus()
+  changeRememberCheckbox.disabled = !status?.available
+  changeRememberCheckbox.checked = status?.remembered ?? false
 }
 
 async function startWithRemembered(
@@ -374,6 +475,9 @@ stopButton.addEventListener('click', () => {
 restartButton.addEventListener('click', () => {
   void requestStart('restart')
 })
+changePasswordButton.addEventListener('click', () => {
+  void openChangePasswordDialog()
+})
 openBookButton.addEventListener('click', () => {
   void openBook()
 })
@@ -391,12 +495,24 @@ refreshNetworkButton.addEventListener('click', () => {
   void refreshNetwork()
 })
 
+passwordInput.addEventListener('input', () => {
+  renderPasswordStrength(passwordInput, passwordStrengthElement)
+})
+newPasswordInput.addEventListener('input', () => {
+  renderPasswordStrength(newPasswordInput, newPasswordStrengthElement)
+})
+
 passwordForm.addEventListener('submit', (event) => {
   event.preventDefault()
   const password = passwordInput.value
   if (password.length === 0) {
     setAuthError('Введите пароль книги')
     passwordInput.focus()
+    return
+  }
+  if (!bookExists && passwordConfirmInput.value !== password) {
+    setAuthError('Пароли не совпадают')
+    passwordConfirmInput.focus()
     return
   }
   const request: BackendStartRequest = {
@@ -414,6 +530,7 @@ passwordForm.addEventListener('submit', (event) => {
     )
     passwordSubmitButton.disabled = false
     passwordInput.value = ''
+    passwordConfirmInput.value = ''
     if (state?.status === 'ready') {
       passwordDialog.close()
       setAuthError(null)
@@ -428,6 +545,74 @@ passwordForm.addEventListener('submit', (event) => {
 
 passwordCancelButton.addEventListener('click', () => {
   passwordDialog.close()
+})
+
+changePasswordForm.addEventListener('submit', (event) => {
+  event.preventDefault()
+  const currentPassword = currentPasswordInput.value
+  const newPassword = newPasswordInput.value
+  if (currentPassword.length === 0) {
+    setChangePasswordError('Введите текущий пароль книги')
+    currentPasswordInput.focus()
+    return
+  }
+  if (newPassword.length === 0) {
+    setChangePasswordError('Введите новый пароль книги')
+    newPasswordInput.focus()
+    return
+  }
+  if (newPassword === currentPassword) {
+    setChangePasswordError('Новый пароль должен отличаться от текущего')
+    newPasswordInput.focus()
+    return
+  }
+  if (newPasswordConfirmInput.value !== newPassword) {
+    setChangePasswordError('Новые пароли не совпадают')
+    newPasswordConfirmInput.focus()
+    return
+  }
+
+  setChangePasswordError(null)
+  changePasswordSubmitButton.disabled = true
+  changePasswordSubmitButton.textContent = 'Меняем пароль…'
+  void (async () => {
+    try {
+      const result = await window.asledger.auth.changePassword({
+        currentPassword,
+        newPassword,
+        remember: changeRememberCheckbox.checked,
+      })
+      applyState(result.state)
+      bookExists = true
+      changePasswordDialog.close()
+      passwordChangeResult.hidden = false
+      passwordChangeResult.textContent = `Пароль изменён. Резервная копия: ${result.backupPath}`
+      currentPasswordInput.value = ''
+      newPasswordInput.value = ''
+      newPasswordConfirmInput.value = ''
+      newPasswordStrengthElement.hidden = true
+      await refreshAuthStatus()
+    } catch (error) {
+      setChangePasswordError(
+        error instanceof Error
+          ? error.message
+          : 'Не удалось сменить пароль книги',
+      )
+      await refreshAuthStatus()
+    } finally {
+      changePasswordSubmitButton.disabled = false
+      changePasswordSubmitButton.textContent = 'Сменить пароль'
+    }
+  })()
+})
+
+changePasswordCancelButton.addEventListener('click', () => {
+  changePasswordDialog.close()
+  currentPasswordInput.value = ''
+  newPasswordInput.value = ''
+  newPasswordConfirmInput.value = ''
+  newPasswordStrengthElement.hidden = true
+  setChangePasswordError(null)
 })
 
 forgetKeyButton.addEventListener('click', () => {
@@ -450,8 +635,8 @@ window.asledger.backend.onState(applyState)
 window.asledger.backend.onLog(appendLog)
 window.asledger.network.onAddresses(renderAddresses)
 
-void loadInfo()
 void (async () => {
+  await loadInfo()
   const state = await window.asledger.backend.getState().catch(() => null)
   if (state) {
     applyState(state)

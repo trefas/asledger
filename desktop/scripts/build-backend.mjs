@@ -80,15 +80,13 @@ for (const target of parseTargets()) {
   if (!goos || !goarch) {
     throw new Error(`Ожидался target вида linux/amd64, получено: ${target}`)
   }
-  const binary = goos === 'windows' ? 'asledgerd.exe' : 'asledgerd'
-  const output = join(
+  const outputDir = join(
     desktopDir,
     'resources',
     'backend',
     `${goos}-${goarch}`,
-    binary,
   )
-  mkdirSync(dirname(output), { recursive: true })
+  mkdirSync(outputDir, { recursive: true })
 
   const cc = process.env.ASLEDGER_CC ?? ccByTarget[target]
   if (!cc) {
@@ -112,32 +110,37 @@ for (const target of parseTargets()) {
   }
   const ldflagsText = ldflags.join(' ')
 
-  const result = spawnSync(
-    'go',
-    [
-      'build',
-      '-trimpath',
-      '-tags=netgo,osusergo,sqlite_omit_load_extension',
-      '-ldflags',
-      ldflagsText,
-      '-o',
-      output,
-      './cmd/asledgerd',
-    ],
-    {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        CGO_ENABLED: '1',
-        GOOS: goos,
-        GOARCH: goarch,
-        CC: cc,
+  // Desktop использует asledgerd для работы и asledgerctl для смены пароля.
+  for (const command of ['asledgerd', 'asledgerctl']) {
+    const binary = goos === 'windows' ? `${command}.exe` : command
+    const output = join(outputDir, binary)
+    const result = spawnSync(
+      'go',
+      [
+        'build',
+        '-trimpath',
+        '-tags=netgo,osusergo,sqlite_omit_load_extension',
+        '-ldflags',
+        ldflagsText,
+        '-o',
+        output,
+        `./cmd/${command}`,
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          CGO_ENABLED: '1',
+          GOOS: goos,
+          GOARCH: goarch,
+          CC: cc,
+        },
+        stdio: 'inherit',
       },
-      stdio: 'inherit',
-    },
-  )
-  if (result.status !== 0) {
-    throw new Error(`Не удалось собрать asledgerd для ${target}`)
+    )
+    if (result.status !== 0) {
+      throw new Error(`Не удалось собрать ${command} для ${target}`)
+    }
+    console.log(`${command} ${target} (CC=${cc}) -> ${output}`)
   }
-  console.log(`asledgerd ${target} (CC=${cc}) -> ${output}`)
 }

@@ -15,6 +15,8 @@ import {
   type KeyStorageStatus,
   type NetworkAddress,
   type NetworkApi,
+  type PasswordChangeRequest,
+  type PasswordChangeResult,
 } from '../shared/ipc'
 
 function subscribe<T>(
@@ -59,6 +61,11 @@ const auth: AuthApi = {
   status: () =>
     ipcRenderer.invoke(IPC_CHANNELS.authStatus) as Promise<KeyStorageStatus>,
   forget: () => ipcRenderer.invoke(IPC_CHANNELS.authForget) as Promise<void>,
+  changePassword: (request: PasswordChangeRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.authChangePassword,
+      request,
+    ) as Promise<PasswordChangeResult>,
 }
 
 const network: NetworkApi = {

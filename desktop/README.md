@@ -37,8 +37,9 @@ npm run verify:package   # проверить бинарь, ассеты и ве
 ```
 
 `npm run package` создаёт каталог в `desktop/release/` и не требует прав
-администратора. Перед упаковкой `build:backend` собирает `asledgerd` для
-текущей ОС/архитектуры, а `afterPack` кладёт его в `resources/bin`. Для
+администратора. Перед упаковкой `build:backend` собирает `asledgerd` и
+`asledgerctl` для текущей ОС/архитектуры, а `afterPack` кладёт оба бинаря в
+`resources/bin`. `asledgerctl` нужен для смены пароля из окна приложения. Для
 разработки используйте `npm run dev` или `npm start`.
 
 ### Те же проверки, что в CI
@@ -68,11 +69,12 @@ Smoke-тест Playwright запускает Electron, ждёт healthcheck, п�
 корректную остановку `asledgerd`; он не входит в `npm run check`, чтобы
 обычные тесты работали без графического сеанса.
 
-В dev-режиме менеджер ищет `asledgerd` в `../bin/`. Соберите его командой
-`make build` в корне репозитория. Данные и журналы лежат рядом с `config.json`
-(portable) либо в `app.getPath('userData')`, если portable-режим недоступен.
-Для изоляции можно задать `ASLEDGER_DESKTOP_CONFIG`,
-`ASLEDGER_DESKTOP_DATA_DIR`, `ASLEDGER_DESKTOP_LOG_DIR` и `ASLEDGERD_BIN`.
+В dev-режиме менеджер ищет `asledgerd` и `asledgerctl` в `../bin/`. Соберите
+их командой `make build` в корне репозитория. Данные и журналы лежат рядом с
+`config.json` (portable) либо в `app.getPath('userData')`, если portable-режим
+недоступен. Для изоляции можно задать `ASLEDGER_DESKTOP_CONFIG`,
+`ASLEDGER_DESKTOP_DATA_DIR`, `ASLEDGER_DESKTOP_LOG_DIR`, `ASLEDGERD_BIN` и
+`ASLEDGERCTL_BIN`.
 
 ## Структура
 
@@ -92,8 +94,9 @@ tests/          unit-тесты Vitest
 ## Сборка и упаковка
 
 Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.3.0`).
-`npm run build:backend` передаёт её в `asledgerd` через `-ldflags`, поэтому
-`asledgerd --version`, имя артефакта и `package.json` согласованы. При выпуске
+`npm run build:backend` передаёт её в `asledgerd` и `asledgerctl` через
+`-ldflags`, поэтому версии бинарей, имя артефакта и `package.json` согласованы.
+При выпуске
 по тегу версия синхронизируется заранее:
 
 ```bash
@@ -107,8 +110,9 @@ ASLEDGER_VERSION=v1.3.0 npm run verify:version
 
 Порядок упаковки:
 
-1. `build:backend` собирает статический `asledgerd` с cgo и SQLCipher
-   (`CGO_ENABLED=1`, `-tags=netgo,osusergo,sqlite_omit_load_extension`,
+1. `build:backend` собирает статические `asledgerd` и `asledgerctl` с cgo и
+   SQLCipher (`CGO_ENABLED=1`,
+   `-tags=netgo,osusergo,sqlite_omit_load_extension`,
    `-linkmode external -extldflags=-static`) в
    `resources/backend/<os>-<arch>/`; цель можно задать явно:
    `npm run build:backend -- --target=windows/amd64`. Для linux/arm64 нужен
@@ -116,7 +120,8 @@ ASLEDGER_VERSION=v1.3.0 npm run verify:version
    переопределить компилятор можно `ASLEDGER_CC=...`.
 2. `electron-builder` собирает renderer/main/preload в `out/` и кладёт их в
    `app.asar`.
-3. `afterPack` копирует нужный бинарь в `resources/bin/asledgerd[.exe]`.
+3. `afterPack` копирует `asledgerd[.exe]` и `asledgerctl[.exe]` в
+   `resources/bin`.
 4. `extraResources` добавляет `assets/logo`, `templates/charts`, `LICENSE` и
    `README.md`. Пути в приложении считаются от `process.resourcesPath`, а не от
    текущего каталога запуска.

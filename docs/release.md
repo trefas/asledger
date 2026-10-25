@@ -88,7 +88,7 @@ sha256sum -c asledger-1.3.0.apk.sha256
 ## Desktop-клиент (Electron)
 
 Desktop-клиент собирается отдельно из `desktop/` и кладёт в пакет свой
-`asledgerd`, ассеты и шаблоны. Версия синхронизируется с тегом:
+`asledgerd`, `asledgerctl`, ассеты и шаблоны. Версия синхронизируется с тегом:
 
 ```bash
 cd desktop
@@ -100,7 +100,8 @@ npm run package:win           # Windows amd64: NSIS и portable
 npm run package:win:zip       # Windows amd64: ZIP без установки
 ```
 
-`build-backend` собирает `asledgerd` с cgo и статической линковкой. На Linux
+`build-backend` собирает `asledgerd` и `asledgerctl` с cgo и статической
+линковкой. На Linux
 для amd64 нужен `gcc`, для arm64 — `aarch64-linux-gnu-gcc` и
 `libc6-dev-arm64-cross`. На Windows нужен MinGW (`x86_64-w64-mingw32-gcc`);
 CI ставит его через MSYS2. `package:win` и `package:win:zip` запускаются на
@@ -118,6 +119,9 @@ Windows-раннере; локальная кросс-сборка ZIP возм�
   зашифрованный `backup`.
 - Пароль в desktop-клиенте, передача через stdin, «Запомнить ключ» только как
   32-байтовый raw-ключ в `safeStorage`; на Linux `basic_text` отключён.
+- Первый запуск с подтверждением пароля и индикатором сложности, экран
+  «Безопасность» с чек-листом и предупреждением об облачной папке, смена
+  пароля из UI через встроенный `asledgerctl` с резервной копией.
 - Android-клиент не меняет API и работает с зашифрованным `asledgerd` через
   токен устройства; JVM-интеграционный тест запускает сервер с
   `-password-file`.
@@ -186,7 +190,11 @@ Get-FileHash .\asledger-1.3.0-win-x64.exe -Algorithm SHA256
 3. На чистой Windows-машине проверить NSIS, portable и ZIP: установка без
    администратора (NSIS/portable), запуск, healthcheck, открытие книги,
    остановка процесса.
-4. Проверить, что Go-сервер и Android-клиент из того же тега не
+4. В desktop-клиенте сменить пароль: старый пароль перестаёт открывать книгу,
+   новый открывает, резервная копия `<книга>.pre-rekey-*.db` и sidecar
+   существуют. Проверить, что при выключенном «Запомнить» сохранённый ключ
+   удалён, а при включённом — заменён.
+5. Проверить, что Go-сервер и Android-клиент из того же тега не
    регрессировали: `make check`, `make android-check` и APK из релиза.
 
 ## Публикация по тегу

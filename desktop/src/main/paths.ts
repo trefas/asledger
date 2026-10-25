@@ -13,6 +13,7 @@ export interface DesktopPaths {
   assetsDir: string
   chartsDir: string
   backendBinary: string
+  ctlBinary: string
 }
 
 export interface PathOptions {
@@ -34,6 +35,11 @@ function envPath(env: NodeJS.ProcessEnv, key: string): string | null {
 /** Возвращает имя бинаря asledgerd для платформы. */
 export function backendBinaryName(platform: NodeJS.Platform): string {
   return platform === 'win32' ? 'asledgerd.exe' : 'asledgerd'
+}
+
+/** Возвращает имя утилиты asledgerctl для платформы. */
+export function ctlBinaryName(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? 'asledgerctl.exe' : 'asledgerctl'
 }
 
 /**
@@ -59,6 +65,11 @@ export function resolveDesktopPaths(options: PathOptions): DesktopPaths {
     (options.isPackaged
       ? join(options.resourcesPath, 'bin', backendBinaryName(platform))
       : join(options.appPath, '..', 'bin', backendBinaryName(platform)))
+  const ctlBinary =
+    envPath(env, 'ASLEDGERCTL_BIN') ??
+    (options.isPackaged
+      ? join(options.resourcesPath, 'bin', ctlBinaryName(platform))
+      : join(options.appPath, '..', 'bin', ctlBinaryName(platform)))
   const assetsDir = options.isPackaged
     ? join(options.resourcesPath, 'assets', 'logo')
     : join(options.appPath, '..', 'assets', 'logo')
@@ -74,6 +85,7 @@ export function resolveDesktopPaths(options: PathOptions): DesktopPaths {
     assetsDir,
     chartsDir,
     backendBinary,
+    ctlBinary,
   }
 }
 
