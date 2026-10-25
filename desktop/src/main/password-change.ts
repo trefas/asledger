@@ -221,7 +221,12 @@ export async function changeBookPassword(
     return await runCtl(options, args, useExtraFD, backupPath)
   } finally {
     if (tempDir !== null) {
-      await rm(tempDir, { recursive: true, force: true }).catch(() => undefined)
+      await rm(tempDir, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 100,
+      }).catch(() => undefined)
     }
   }
 }
