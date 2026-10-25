@@ -77,7 +77,7 @@ workflow публикации по тегу (`needs: test`), systemd-юнит и
 установке. Это даёт автотесты для критериев раздела 14, которые иначе
 проверялись бы только вручную.
 
-### Шифрование SQLCipher в `v1.3.0`
+### Шифрование SQLCipher в `v1.3.0`–`v1.3.1`
 
 Проверки, которые закрывают требования #148–#154:
 
@@ -102,7 +102,7 @@ make check          # go vet, тесты, проверки денег и тра�
 make test-race      # go test -race ./... — успешно
 make cover-check    # покрытие 74.3 % при пороге 70 %
 cd desktop
-npm run check       # typecheck, 59 unit-тестов, production-сборка — успешно
+npm run check       # typecheck, 61 unit-тест, production-сборка — успешно
 npm run test:e2e    # Electron smoke + смена пароля — 1 тест, успешно
 ```
 
@@ -110,3 +110,37 @@ npm run test:e2e    # Electron smoke + смена пароля — 1 тест, �
 Android JVM-тест обновлён, но в среде разработки нет JDK/Android SDK, поэтому
 локальный прогон не выполнялся. Эти проверки остаются в CI и в ручном
 чек-листе релиза.
+
+### Обновление SQLCipher в S24 (#160)
+
+Проверки нового драйвера `github.com/meow-io/go-sqlcipher v1.1.2`
+(SQLCipher 4.19.0, SQLite 3.53.4):
+
+| Что проверяется | Тест/команда | Результат |
+| --- | --- | --- |
+| Книга, созданная SQLCipher 4.4.2, открывается, читается, мигрирует и экспортируется | `pkg/core/store/compat_test.go`, `TestOpenBookFromSQLCipher442` | проходит |
+| Книга 4.19.0 открывается драйвером 4.4.2 с тем же raw-key | ручная проверка `sqlcipher-compat` | проходит |
+| Версии и параметры книги | `PRAGMA cipher_version`, `select sqlite_version()`, `PRAGMA cipher_page_size`, `kdf_iter` | 4.19.0 / 3.53.4 / 4096 / 256000 |
+| Полный набор тестов проекта | `CGO_ENABLED=1 go test ./...` | проходит |
+| Кросс-сборка Linux amd64/arm64 и Windows amd64 | `goreleaser-cross:v1.26.10`, `-extldflags=-static` | проходит |
+| Отсутствие динамического OpenSSL/libcrypto | `ldd` и `objdump -p` | Linux статический; Windows: ADVAPI32/KERNEL32/msvcrt |
+
+Команды на 2026-10-25 (Linux amd64):
+
+```bash
+CGO_ENABLED=1 go test -count=1 -run TestOpenBookFromSQLCipher442 -v ./pkg/core/store
+make check
+make test-race
+make cover-check
+cd desktop
+npm run check
+npm run test:e2e
+npm run package:dist
+npm run verify:package
+```
+
+Результаты на Linux amd64: `make check` и `make test-race` успешно,
+покрытие 74.3 %, desktop — 61 unit-тест, E2E — 1 тест, пакет и
+`verify:package` успешно. Ограничение: Windows runtime по-прежнему
+проверяется только в CI; локального Windows/Wine окружения нет.
+Android-клиент не менялся, его JVM-тест остаётся за CI.
