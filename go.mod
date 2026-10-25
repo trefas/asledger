@@ -3,9 +3,11 @@ module github.com/trefas/asledger
 go 1.26.0
 
 require (
-	github.com/mutecomm/go-sqlcipher/v4 v4.4.2
 	golang.org/x/crypto v0.58.0
 	golang.org/x/term v0.47.0
 )
 
-require golang.org/x/sys v0.49.0 // indirect
+require (
+	github.com/meow-io/go-sqlcipher v1.1.2
+	golang.org/x/sys v0.49.0 // indirect
+)

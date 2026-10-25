@@ -12,6 +12,9 @@
 *.sqlite
 *.sqlite3
 
+# Тестовые фикстуры SQLCipher
+!pkg/core/store/testdata/*.db
+
 # Артефакты тестов и покрытия
 coverage.out
 coverage.html
