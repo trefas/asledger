@@ -101,6 +101,8 @@ test('запускает asledgerd, открывает книгу и корре�
     const window = await app.firstWindow()
     await window.waitForLoadState('domcontentloaded')
     await expect(window).toHaveTitle(/asledger/)
+    await expect(window.locator('#security')).toContainText('Безопасность')
+    await expect(window.locator('#cloud-warning')).toContainText('облачной')
 
     // Первый запуск: sidecar ещё нет, asledgerd ждёт пароль через stdin.
     await expect(window.locator('#password-dialog')).toBeVisible({

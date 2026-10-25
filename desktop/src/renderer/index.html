@@ -85,6 +85,40 @@
           </p>
         </section>
 
+        <section id="security" class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Безопасность</p>
+              <h2>Книга, пароль и резервные копии</h2>
+            </div>
+          </div>
+          <ul class="security-list">
+            <li>
+              Книга, WAL и резервные копии, созданные asledger, шифруются
+              SQLCipher (AES-256).
+            </li>
+            <li>
+              Пароль не хранится в <code>config.json</code>, argv, env или
+              журнале. «Запомнить ключ» кладёт только 32-байтовый raw-ключ в
+              системное хранилище; на Linux без keyring сохранение отключено.
+            </li>
+            <li>
+              Восстановления забытого пароля нет. Сохраните пароль и sidecar
+              <code>&lt;книга&gt;.kdf.json</code> в надёжном месте.
+            </li>
+            <li>
+              Android-клиент хранит локальную реплику в Room без SQLCipher;
+              защищайте телефон блокировкой экрана.
+            </li>
+          </ul>
+          <p id="cloud-warning" class="notice">
+            Если книга или sidecar лежат в облачной папке, содержимое остаётся
+            зашифрованным, но синхронизация может создать конфликт или
+            откатить файл. Не полагайтесь на облако как на единственную копию:
+            делайте резервные копии.
+          </p>
+        </section>
+
         <section class="card">
           <div class="card-head">
             <div>

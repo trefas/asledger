@@ -426,3 +426,22 @@ h2 {
   justify-content: flex-end;
   margin-top: 0.25rem;
 }
+
+.security-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--muted);
+}
+
+.security-list li {
+  margin: 0.35rem 0;
+}
+
+.notice {
+  margin: 0.9rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border-left: 3px solid var(--green-500);
+  border-radius: 6px;
+  background: var(--green-100);
+  color: var(--green-900);
+}
