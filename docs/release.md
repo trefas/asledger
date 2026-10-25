@@ -84,7 +84,7 @@ C-компилятора не пройдёт.
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.3.1.apk.sha256
+sha256sum -c asledger-1.3.2.apk.sha256
 ```
 
 ## Desktop-клиент (Electron)
@@ -108,10 +108,29 @@ npm run package:win:zip       # Windows amd64: ZIP без установки
 `libc6-dev-arm64-cross`. На Windows нужен MinGW (`x86_64-w64-mingw32-gcc`);
 CI ставит его через MSYS2. `package:win` и `package:win:zip` запускаются на
 Windows-раннере; локальная кросс-сборка ZIP возможна без wine, но требует
-кросс-компилятор. macOS в MVP `v1.3.1` не входит: нет сертификата и
+кросс-компилятор. macOS в MVP `v1.3.2` не входит: нет сертификата и
 нотаризации. Windows-артефакты не подписываются; подпись — отдельная задача.
 
-### Патч `v1.3.1`
+### Патч `v1.3.2`
+
+`v1.3.2` — патч к `v1.3.1`: драйвер SQLCipher заменён на
+`github.com/meow-io/go-sqlcipher v1.1.2` (SQLCipher 4.19.0, SQLite 3.53.4).
+Закрыты CVE-2021-3119, CVE-2026-51936 и FTS5 CVE-2026-11822/11824; формат
+книги, DSN, KDF, sidecar и Android API не меняются. Книги, созданные
+`v1.3.0`/`v1.3.1`, открываются без миграции; обратная совместимость с
+SQLCipher 4.4.2 проверена `TestOpenBookFromSQLCipher442` и фикстурой
+`pkg/core/store/testdata/sqlcipher-4.4.2.db`.
+
+Изменения: #160, #161. Android-клиент не меняется, кроме версии релиза;
+desktop использует тот же общий логотип. Матрица платформ, артефакты и
+требования к cgo/статической линковке не меняются.
+
+Ручные проверки миграции `1.2.0 → 1.3.x`, отката и Windows runtime из
+[#155](https://github.com/trefas/asledger/issues/155) остаются открытыми;
+этот релиз их не закрывает. Автоматические проверки и CI перечислены в
+[docs/testing.md](testing.md).
+
+### Патч `v1.3.1` (предыдущий)
 
 `v1.3.1` — патч к `v1.3.0`: desktop-клиент использует общий
 `assets/logo/asledger-logo.svg` в шапке и `icon-512.png` как иконку основного
@@ -123,14 +142,13 @@ Windows-раннере; локальная кросс-сборка ZIP возм�
 
 ### Обновление S24 (#160)
 
-В следующем релизе после `v1.3.1` драйвер SQLCipher заменяется на
+S24 вошло в `v1.3.2`: драйвер SQLCipher заменён на
 `github.com/meow-io/go-sqlcipher v1.1.2` (SQLCipher 4.19.0, SQLite 3.53.4).
 Это закрывает CVE-2021-3119, CVE-2026-51936 и CVE-2026-11822/11824, не меняя
 формат книги, DSN, KDF и Android-совместимость. Книги, созданные `v1.3.0`/
 `v1.3.1`, открываются без миграции; регрессия проверяется
 `TestOpenBookFromSQLCipher442`. Матрица платформ, артефакты и требования к
-cgo/статической линковке не меняются. Конкретная версия и тег объявляются
-отдельно после зелёного CI и проверки пакетов.
+cgo/статической линковке не меняются.
 
 ### Содержание `v1.3.0`
 
@@ -167,25 +185,25 @@ cgo/статической линковке не меняются. Конкре�
 пароля используйте `asledgerctl passwd`; для резервной копии —
 `asledgerctl backup`.
 
-### Артефакты `v1.3.1`
+### Артефакты `v1.3.2`
 
 | Файл | Платформа | Установка |
 | --- | --- | --- |
-| `asledger-1.3.1-linux-x86_64.AppImage` | Linux amd64 | без установки |
-| `asledger-1.3.1-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
-| `asledger-1.3.1-linux-arm64.AppImage` | Linux arm64 | без установки |
-| `asledger-1.3.1-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
-| `asledger-1.3.1-win-x64.exe` | Windows x64 | NSIS, per-user |
-| `asledger-1.3.1-win-x64-portable.exe` | Windows x64 | portable |
-| `asledger-1.3.1-win-x64.zip` | Windows x64 | распаковать и запустить |
-| `asledger-1.3.1.apk` | Android 12+ | установить APK |
-| `asledger-1.3.1.apk.sha256` | Android | SHA-256 APK |
+| `asledger-1.3.2-linux-x86_64.AppImage` | Linux amd64 | без установки |
+| `asledger-1.3.2-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
+| `asledger-1.3.2-linux-arm64.AppImage` | Linux arm64 | без установки |
+| `asledger-1.3.2-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
+| `asledger-1.3.2-win-x64.exe` | Windows x64 | NSIS, per-user |
+| `asledger-1.3.2-win-x64-portable.exe` | Windows x64 | portable |
+| `asledger-1.3.2-win-x64.zip` | Windows x64 | распаковать и запустить |
+| `asledger-1.3.2.apk` | Android 12+ | установить APK |
+| `asledger-1.3.2.apk.sha256` | Android | SHA-256 APK |
 | `SHA256SUMS-linux` | Linux | контрольные суммы |
 | `SHA256SUMS-windows` | Windows | контрольные суммы |
 
 Ссылки на файлы релиза строятся по шаблону
-`https://github.com/trefas/asledger/releases/download/v1.3.1/<файл>`;
-страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.3.1`.
+`https://github.com/trefas/asledger/releases/download/v1.3.2/<файл>`;
+страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.3.2`.
 Конкретные SHA-256 появляются в `SHA256SUMS-linux` и `SHA256SUMS-windows`
 после сборки; они не хранятся в репозитории. Проверка:
 
@@ -195,7 +213,7 @@ sha256sum -c SHA256SUMS-linux
 sha256sum -c SHA256SUMS-windows
 
 # Windows PowerShell
-Get-FileHash .\asledger-1.3.1-win-x64.exe -Algorithm SHA256
+Get-FileHash .\asledger-1.3.2-win-x64.exe -Algorithm SHA256
 ```
 
 Перед публикацией workflow сверяет версию `package.json`, `package-lock.json`,
@@ -203,7 +221,7 @@ Get-FileHash .\asledger-1.3.1-win-x64.exe -Algorithm SHA256
 `sync-version` и `verify:version`; упакованный бинарь проверяется
 `verify:package`. Если версия не совпала, релиз не публикуется.
 
-### Проверка релиза `v1.3.1`
+### Проверка релиза `v1.3.2`
 
 1. Скачать `SHA256SUMS-linux` и `SHA256SUMS-windows`, проверить хэши скачанных
    файлов.
@@ -219,6 +237,9 @@ Get-FileHash .\asledger-1.3.1-win-x64.exe -Algorithm SHA256
    удалён, а при включённом — заменён.
 5. Проверить, что Go-сервер и Android-клиент из того же тега не
    регрессировали: `make check`, `make android-check` и APK из релиза.
+6. Учесть открытые ручные проверки [#155](https://github.com/trefas/asledger/issues/155):
+   миграция `1.2.0 → 1.3.x`, откат и Windows runtime. Релиз `v1.3.2` их не
+   закрывает; до выполнения проверок #155 остаётся открытым.
 
 ## Публикация по тегу
 

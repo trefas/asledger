@@ -55,14 +55,14 @@ android {
         // штатно устанавливает APK с targetSdk 34 и применяет совместимое
         // поведение. Оставляем 34 как целевую платформу Android 14.
         targetSdk = 34
-        // Тег v1.3.1 даёт versionName 1.3.1 и versionCode 10301.
+        // Тег v1.3.2 даёт versionName 1.3.2 и versionCode 10302.
         // minSdk 31 сам по себе не требует JAR-подписи (v1). Она оставлена
         // как совместимостная мера для нестандартных установщиков EMUI/HMS;
         // основной причиной ошибки #135 был minSdk 34 на устройстве API 31.
-        versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_301
+        versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 10_302
         versionName = System.getenv("ANDROID_VERSION_NAME")
             ?.takeIf { it.isNotBlank() }
-            ?: "1.3.1"
+            ?: "1.3.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

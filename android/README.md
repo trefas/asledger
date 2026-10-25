@@ -145,7 +145,7 @@ keyPassword=…
 Без ключа release-сборка подписывается debug-ключом и печатает
 предупреждение — такой APK нельзя публиковать.
 
-`versionName` по умолчанию `1.3.1`, `versionCode` — `10301`. В CI они
+`versionName` по умолчанию `1.3.2`, `versionCode` — `10302`. В CI они
 переопределяются из тега: `ANDROID_VERSION_NAME`, `ANDROID_VERSION_CODE`.
 Release workflow проверяет подпись и версию через `apksigner`/`aapt`, публикует
 APK и `.sha256`.
