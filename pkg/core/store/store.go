@@ -25,9 +25,9 @@ import (
 	"sync"
 	"time"
 
-	// Драйвер SQLite с SQLCipher. Требует cgo; сборка описана в
-	// docs/security.md.
-	_ "github.com/mutecomm/go-sqlcipher/v4"
+	// Драйвер SQLite с SQLCipher. Требует cgo; версии SQLCipher/SQLite и
+	// обоснование выбора описаны в docs/security.md (S24/#160).
+	_ "github.com/meow-io/go-sqlcipher"
 )
 
 // Параметры подключения.
