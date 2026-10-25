@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/trefas/asledger/internal/key"
@@ -141,6 +142,9 @@ func TestMigrateEncryptDryRun(t *testing.T) {
 	writeFile(t, passwordPath, "пароль\n")
 	createPlaintextBook(t, dbPath)
 
+	before := readBookSchema(t, dbPath)
+	beforeJournal := readJournalMode(t, dbPath)
+
 	if code := run([]string{
 		"migrate-encrypt", "-db", dbPath, "-password-file", passwordPath, "-dry-run",
 	}); code != 0 {
@@ -149,8 +153,150 @@ func TestMigrateEncryptDryRun(t *testing.T) {
 	if _, err := os.Stat(key.ParamsPath(dbPath)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dry-run создал sidecar: %v", err)
 	}
-	if _, err := store.Open(context.Background(), dbPath); err != nil {
-		t.Fatalf("dry-run изменил книгу: %v", err)
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if _, err := os.Stat(dbPath + suffix); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("dry-run оставил %s: %v", suffix, err)
+		}
+	}
+	if after := readBookSchema(t, dbPath); !equalStrings(before, after) {
+		t.Fatalf("dry-run изменил схему:\nдо: %v\nпосле: %v", before, after)
+	}
+	if after := readJournalMode(t, dbPath); after != beforeJournal {
+		t.Fatalf("dry-run изменил journal_mode: %q -> %q", beforeJournal, after)
+	}
+}
+
+func readBookSchema(t *testing.T, dbPath string) []string {
+	t.Helper()
+	db, err := store.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	}()
+	rows, err := db.Query(`SELECT type, name, tbl_name, COALESCE(sql, '')
+		FROM sqlite_master ORDER BY type, name`)
+	if err != nil {
+		t.Fatalf("sqlite_master: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var schema []string
+	for rows.Next() {
+		var typ, name, table, sql string
+		if err := rows.Scan(&typ, &name, &table, &sql); err != nil {
+			t.Fatalf("Scan sqlite_master: %v", err)
+		}
+		schema = append(schema, typ+"|"+name+"|"+table+"|"+sql)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("sqlite_master rows: %v", err)
+	}
+	return schema
+}
+
+func readJournalMode(t *testing.T, dbPath string) string {
+	t.Helper()
+	db, err := store.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	var mode string
+	if err := db.QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil {
+		t.Fatalf("journal_mode: %v", err)
+	}
+	return mode
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestMigrateEncryptBackupExists(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "book.db")
+	passwordPath := filepath.Join(dir, "password")
+	backupPath := filepath.Join(dir, "backup.db")
+	writeFile(t, passwordPath, "пароль\n")
+	writeFile(t, backupPath, "уже существует\n")
+	createPlaintextBook(t, dbPath)
+
+	if code := run([]string{
+		"migrate-encrypt", "-db", dbPath,
+		"-password-file", passwordPath,
+		"-backup", backupPath,
+	}); code != 1 {
+		t.Fatalf("migrate-encrypt с существующим backup: код %d, ожидался 1", code)
+	}
+	if _, err := os.Stat(key.ParamsPath(dbPath)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("неудачная миграция создала sidecar: %v", err)
+	}
+	db, err := store.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("исходная книга повреждена: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	var value string
+	if err := db.QueryRow(`SELECT value FROM settings WHERE key = 'тест'`).Scan(&value); err != nil {
+		t.Fatalf("чтение исходной книги: %v", err)
+	}
+	if value != "до миграции" {
+		t.Fatalf("значение = %q", value)
+	}
+}
+
+func TestMigrateEncryptBackupWriteFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("на Windows chmod не ограничивает запись")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root игнорирует права каталога")
+	}
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "book.db")
+	passwordPath := filepath.Join(dir, "password")
+	writeFile(t, passwordPath, "пароль\n")
+	createPlaintextBook(t, dbPath)
+
+	readonly := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(readonly, 0o500); err != nil {
+		t.Fatalf("Mkdir readonly: %v", err)
+	}
+	defer func() { _ = os.Chmod(readonly, 0o700) }()
+	backupPath := filepath.Join(readonly, "backup.db")
+
+	if code := run([]string{
+		"migrate-encrypt", "-db", dbPath,
+		"-password-file", passwordPath,
+		"-backup", backupPath,
+	}); code != 1 {
+		t.Fatalf("migrate-encrypt с недоступным backup: код %d, ожидался 1", code)
+	}
+	if _, err := os.Stat(key.ParamsPath(dbPath)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("неудачная миграция создала sidecar: %v", err)
+	}
+	db, err := store.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("исходная книга повреждена: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	var value string
+	if err := db.QueryRow(`SELECT value FROM settings WHERE key = 'тест'`).Scan(&value); err != nil {
+		t.Fatalf("чтение исходной книги: %v", err)
+	}
+	if value != "до миграции" {
+		t.Fatalf("значение = %q", value)
 	}
 }
 
