@@ -38,6 +38,14 @@ Renderer не получает доступ к Node.js: включены `contex
 и `nodeIntegration: false`. В renderer доступен только узкий API из
 `src/shared/ipc.ts`. Пароли, токены и ключи в `config.json` не хранятся.
 
+## Оформление
+
+В шапке окна управления используется общий `assets/logo/asledger-logo.svg` —
+тот же логотип, что в webUI сервера и Android-клиенте. Renderer получает его
+через `publicDir` electron-vite, поэтому копии в `desktop/` нет. Иконка
+основного окна и окна книги берётся из `assets/logo/icon-512.png`; при
+неполной сборке без ассетов Electron использует иконку по умолчанию.
+
 ## Установка
 
 ### Linux

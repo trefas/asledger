@@ -34,6 +34,7 @@ import {
 } from './remembered-key'
 import {
   apiUrl,
+  brandIconPath,
   buildBackendArgs,
   healthUrl,
   resolveDesktopPaths,
@@ -272,6 +273,16 @@ async function startBackend(
   return state
 }
 
+/** Иконка окна из общего assets/logo; при неполной сборке — без иконки. */
+function windowIconPath(): string | undefined {
+  const path = brandIconPath({
+    isPackaged: app.isPackaged,
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath,
+  })
+  return existsSync(path) ? path : undefined
+}
+
 function createWindow(): void {
   const window = new BrowserWindow({
     width: 960,
@@ -280,6 +291,7 @@ function createWindow(): void {
     minHeight: 560,
     show: false,
     title: APP_NAME,
+    icon: windowIconPath(),
     backgroundColor: '#f7f8f5',
     autoHideMenuBar: true,
     webPreferences: {
@@ -325,6 +337,7 @@ function createBookWindow(url: string): void {
     minHeight: 600,
     show: false,
     title: `${APP_NAME} — книга`,
+    icon: windowIconPath(),
     backgroundColor: '#ffffff',
     autoHideMenuBar: true,
     webPreferences: {

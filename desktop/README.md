@@ -91,6 +91,11 @@ tests/          unit-тесты Vitest
 `contextIsolation`, `sandbox` и отключён `nodeIntegration`. Renderer получает
 только методы из `window.asledger`, описанные в `src/shared/ipc.ts`.
 
+Логотип в шапке и иконка окна берутся из общего каталога `../assets/logo`:
+renderer подключает его через `publicDir` electron-vite, а main использует
+`icon-512.png`. Отдельной копии логотипа в `desktop/` нет — источник остаётся
+один для webUI, Android и desktop.
+
 ## Сборка и упаковка
 
 Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.3.0`).

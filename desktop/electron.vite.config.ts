@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 
 // Структура по умолчанию electron-vite:
@@ -12,5 +13,10 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
   },
-  renderer: {},
+  renderer: {
+    // Логотип и favicon берём из единого assets/logo, чтобы desktop
+    // использовал тот же бренд, что webUI и Android. Vite копирует каталог
+    // в out/renderer при сборке и отдаёт его в dev-режиме.
+    publicDir: resolve(__dirname, '..', 'assets', 'logo'),
+  },
 })

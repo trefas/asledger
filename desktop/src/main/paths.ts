@@ -43,6 +43,21 @@ export function ctlBinaryName(platform: NodeJS.Platform): string {
 }
 
 /**
+ * Путь к иконке окна из общего набора бренд-ассетов.
+ *
+ * В dev-режиме иконка лежит в корне репозитория, в упакованном приложении —
+ * в resources/assets/logo. Файл может отсутствовать в неполной сборке, тогда
+ * вызывающий код не передаёт icon и Electron использует иконку по умолчанию.
+ */
+export function brandIconPath(
+  options: Pick<PathOptions, 'isPackaged' | 'appPath' | 'resourcesPath'>,
+): string {
+  return options.isPackaged
+    ? join(options.resourcesPath, 'assets', 'logo', 'icon-512.png')
+    : join(options.appPath, '..', 'assets', 'logo', 'icon-512.png')
+}
+
+/**
  * Собирает пути desktop-клиента.
  *
  * В dev-режиме бинарь и ресурсы берутся из корня репозитория, в упакованном —

@@ -74,21 +74,14 @@ code {
 .brand {
   display: flex;
   gap: 0.5rem;
-  align-items: baseline;
+  align-items: center;
 }
 
-.brand-mark {
-  display: inline-grid;
-  width: 1.65rem;
-  height: 1.65rem;
-  place-items: center;
-  border-radius: 7px;
-  background: var(--green-700);
-  color: #fff;
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 1;
-  transform: translateY(0.2rem);
+.brand-logo {
+  display: block;
+  flex: none;
+  width: 26px;
+  height: 33px;
 }
 
 .brand-name {
