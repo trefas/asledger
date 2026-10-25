@@ -241,6 +241,15 @@ Get-FileHash .\asledger-1.3.2-win-x64.exe -Algorithm SHA256
    миграция `1.2.0 → 1.3.x`, откат и Windows runtime. Релиз `v1.3.2` их не
    закрывает; до выполнения проверок #155 остаётся открытым.
 
+### Публикация `v1.3.2`
+
+Релиз опубликован workflow
+[40185031350](https://github.com/trefas/asledger/actions/runs/40185031350):
+все job зелёные. APK `asledger-1.3.2.apk` имеет SHA-256
+`f8ed6cfc669660b2f2fd91ca5787b70e2aea919e1a413b380539b31701e2d42a`;
+скачанные артефакты проверены `sha256sum -c` по `checksums.txt`,
+`SHA256SUMS-linux`, `SHA256SUMS-windows` и `asledger-1.3.2.apk.sha256`.
+
 ## Публикация по тегу
 
 ```bash

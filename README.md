@@ -276,6 +276,7 @@ SQLCipher и пароль книги (эпик
 - [x] S22 — пароль в desktop, `safeStorage` и совместимость Android
 - [x] S23 — общий логотип desktop и патч `v1.3.1`
 - [x] S24 — SQLCipher 4.19.0/SQLite 3.53.4 и патч `v1.3.2`
+- [x] S25 — выпуск `v1.3.2`
 
 Ручные проверки миграции `1.2.0 → 1.3.x`, отката и Windows runtime из
 [#155](https://github.com/trefas/asledger/issues/155) остаются открытыми;
