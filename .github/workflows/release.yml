@@ -40,9 +40,42 @@ jobs:
           ./bin/asledgerctl version | grep -F "${GITHUB_REF_NAME}"
           ./bin/asledgerd --version | grep -F "${GITHUB_REF_NAME}"
 
+  prepare:
+    name: Черновик релиза и серверные артефакты
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # GoReleaser создаёт черновик релиза и загружает в него серверные
+      # артефакты. Остальные job добавляют свои файлы напрямую в черновик,
+      # поэтому artifact storage GitHub Actions не используется.
+      - name: GoReleaser (cgo, cross, draft)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm \
+            -e GITHUB_TOKEN \
+            -e CGO_ENABLED=1 \
+            -v "$PWD":/go/src/github.com/trefas/asledger \
+            -w /go/src/github.com/trefas/asledger \
+            ghcr.io/goreleaser/goreleaser-cross:v1.26.10 \
+            release --clean --draft
+
+      - name: Проверить черновик
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" \
+            --json isDraft,assets --jq '{isDraft, assets: [.assets[].name]}'
+          test "$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq '.isDraft')" = "true"
+
   android:
     name: Android (release APK)
-    needs: test
+    needs: prepare
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -152,16 +185,14 @@ jobs:
           cd "$RUNNER_TEMP/android-release"
           sha256sum "${APK_NAME}" > "${APK_NAME}.sha256"
 
-      - name: Приложить APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: asledger-android-release
-          path: ${{ runner.temp }}/android-release/*
-          if-no-files-found: error
+      - name: Загрузить APK в черновик релиза
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" "$RUNNER_TEMP"/android-release/* --clobber
 
   desktop-linux:
     name: Desktop Linux (release)
-    needs: test
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -221,16 +252,14 @@ jobs:
           cd "$RUNNER_TEMP/desktop-linux"
           sha256sum * > SHA256SUMS-linux
 
-      - name: Приложить Desktop Linux
-        uses: actions/upload-artifact@v4
-        with:
-          name: asledger-desktop-linux-release
-          path: ${{ runner.temp }}/desktop-linux/*
-          if-no-files-found: error
+      - name: Загрузить Desktop Linux в черновик релиза
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" "$RUNNER_TEMP"/desktop-linux/* --clobber
 
   desktop-windows:
     name: Desktop Windows (release)
-    needs: test
+    needs: prepare
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
@@ -300,67 +329,24 @@ jobs:
           ($lines -join "`n") | Set-Content -NoNewline -Encoding utf8 `
             "$env:RUNNER_TEMP\desktop-windows\SHA256SUMS-windows"
 
-      - name: Приложить Desktop Windows
-        uses: actions/upload-artifact@v4
-        with:
-          name: asledger-desktop-windows-release
-          path: ${{ runner.temp }}/desktop-windows/*
-          if-no-files-found: error
+      - name: Загрузить Desktop Windows в черновик релиза
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $files = Get-ChildItem "$env:RUNNER_TEMP\desktop-windows" -File |
+            Select-Object -ExpandProperty FullName
+          gh release upload "$env:GITHUB_REF_NAME" @files --clobber
 
   release:
     name: Публикация релиза
-    needs: [test, android, desktop-linux, desktop-windows]
+    needs: [prepare, android, desktop-linux, desktop-windows]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # SQLCipher требует cgo, поэтому GoReleaser запускается в
-      # goreleaser-cross: образ содержит gcc, aarch64-linux-gnu-gcc и
-      # x86_64-w64-mingw32-gcc. Версия образа привязана к Go 1.26.10.
-      - name: GoReleaser (cgo, cross)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          docker run --rm \
-            -e GITHUB_TOKEN \
-            -e CGO_ENABLED=1 \
-            -v "$PWD":/go/src/github.com/trefas/asledger \
-            -w /go/src/github.com/trefas/asledger \
-            ghcr.io/goreleaser/goreleaser-cross:v1.26.10 \
-            release --clean
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: asledger-android-release
-          path: ${{ runner.temp }}/android-release
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: asledger-desktop-linux-release
-          path: ${{ runner.temp }}/desktop-linux
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: asledger-desktop-windows-release
-          path: ${{ runner.temp }}/desktop-windows
-
-      - name: Загрузить APK в релиз
+      - name: Опубликовать черновик
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${GITHUB_REF_NAME}" \
-            "$RUNNER_TEMP"/android-release/* --clobber
+          gh release edit "${GITHUB_REF_NAME}" --draft=false
           gh release view "${GITHUB_REF_NAME}" \
-            --json assets --jq '.assets[].name'
-
-      - name: Загрузить Desktop в релиз
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${GITHUB_REF_NAME}" \
-            "$RUNNER_TEMP"/desktop-linux/* \
-            "$RUNNER_TEMP"/desktop-windows/* --clobber
-          gh release view "${GITHUB_REF_NAME}" \
-            --json assets --jq '.assets[].name'
+            --json isDraft,assets --jq '{isDraft, assets: [.assets[].name]}'

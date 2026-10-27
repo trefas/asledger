@@ -312,12 +312,17 @@ git push origin v1.0.0
    собирают AppImage/deb для amd64 и arm64, NSIS/portable/ZIP для Windows,
    проверяют пакеты и готовят `SHA256SUMS-linux`/`SHA256SUMS-windows`.
    macOS в матрицу не входит.
-4. **Публикация** — job с
-   `needs: [test, android, desktop-linux, desktop-windows]`, поэтому релиз не
-   создаётся при падающих тестах, неподписанном APK или сломанной упаковке
-   desktop. GoReleaser в `goreleaser-cross` собирает серверные артефакты и
-   публикует GitHub Release, после чего в него загружаются APK, desktop-пакеты
-   и файлы контрольных сумм.
+4. **Черновик и публикация** — job `prepare` запускает GoReleaser в
+   `goreleaser-cross` с `--draft`: он собирает серверные артефакты и создаёт
+   черновик GitHub Release. Джобы Android и Desktop загружают APK, пакеты и
+   `SHA256SUMS-*` прямо в этот черновик через `gh release upload`; общий
+   artifact storage GitHub Actions не используется. Финальный job с
+   `needs: [prepare, android, desktop-linux, desktop-windows]` публикует
+   черновик (`gh release edit --draft=false`) только после успешной сборки всех
+   платформ. Поэтому падающие тесты, неподписанный APK или сломанная упаковка
+   desktop не публикуют релиз. CI-артефакты в `.github/workflows/ci.yml`
+   необязательны (`continue-on-error`) и хранятся 7 дней; в релизе они не
+   участвуют.
 
 Секреты Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
 `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Ключ хранится вне репозитория;
