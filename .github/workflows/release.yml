@@ -69,9 +69,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "${GITHUB_REF_NAME}" \
+          gh release view "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" \
             --json isDraft,assets --jq '{isDraft, assets: [.assets[].name]}'
-          test "$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq '.isDraft')" = "true"
+          test "$(gh release view "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" \
+            --json isDraft --jq '.isDraft')" = "true"
 
   android:
     name: Android (release APK)
@@ -188,7 +189,7 @@ jobs:
       - name: Загрузить APK в черновик релиза
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF_NAME}" "$RUNNER_TEMP"/android-release/* --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" "$RUNNER_TEMP"/android-release/* --clobber
 
   desktop-linux:
     name: Desktop Linux (release)
@@ -255,7 +256,7 @@ jobs:
       - name: Загрузить Desktop Linux в черновик релиза
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF_NAME}" "$RUNNER_TEMP"/desktop-linux/* --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" "$RUNNER_TEMP"/desktop-linux/* --clobber
 
   desktop-windows:
     name: Desktop Windows (release)
@@ -336,7 +337,7 @@ jobs:
         run: |
           $files = Get-ChildItem "$env:RUNNER_TEMP\desktop-windows" -File |
             Select-Object -ExpandProperty FullName
-          gh release upload "$env:GITHUB_REF_NAME" @files --clobber
+          gh release upload "$env:GITHUB_REF_NAME" -R "$env:GITHUB_REPOSITORY" @files --clobber
 
   release:
     name: Публикация релиза
@@ -347,6 +348,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit "${GITHUB_REF_NAME}" --draft=false
-          gh release view "${GITHUB_REF_NAME}" \
+          gh release edit "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" --draft=false
+          gh release view "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" \
             --json isDraft,assets --jq '{isDraft, assets: [.assets[].name]}'

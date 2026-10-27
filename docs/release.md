@@ -281,6 +281,22 @@ Get-FileHash .\asledger-1.3.3-win-x64.exe -Algorithm SHA256
    с отсутствующей и 0-байтной книгой, перечислены в
    [docs/testing.md](testing.md).
 
+### Публикация `v1.3.3`
+
+Релиз опубликован workflow
+[40510821587](https://github.com/trefas/asledger/actions/runs/40510821587).
+Проверки, черновик, Android и Desktop Linux/Windows завершились успешно; все
+15 assets загружены в черновик. Шаг `Опубликовать черновик` в этом run упал:
+в job не было `checkout`, и `gh release edit` не смог определить репозиторий.
+Черновик опубликован вручную командой
+`gh release edit v1.3.3 --draft=false`; в `main` workflow исправлен
+(`-R "${GITHUB_REPOSITORY}"`). APK `asledger-1.3.3.apk` имеет SHA-256
+`609470c5d87a6a0a6da30acadf4e491e36ae015d9b0ce680fbf345aecb2b06ad`.
+Скачанные assets проверены `sha256sum -c` по `checksums.txt`,
+`SHA256SUMS-linux`, `SHA256SUMS-windows` и `asledger-1.3.3.apk.sha256` — все
+суммы совпали. Подпись APK проверена в release job через `apksigner`
+(v1/v2/v3), версия и `minSdk` — через `aapt`.
+
 ### Публикация `v1.3.2` (предыдущая)
 
 Релиз опубликован workflow
