@@ -84,7 +84,7 @@ C-компилятора не пройдёт.
 
 ```bash
 sha256sum -c checksums.txt
-sha256sum -c asledger-1.3.2.apk.sha256
+sha256sum -c asledger-1.3.3.apk.sha256
 ```
 
 ## Desktop-клиент (Electron)
@@ -108,10 +108,29 @@ npm run package:win:zip       # Windows amd64: ZIP без установки
 `libc6-dev-arm64-cross`. На Windows нужен MinGW (`x86_64-w64-mingw32-gcc`);
 CI ставит его через MSYS2. `package:win` и `package:win:zip` запускаются на
 Windows-раннере; локальная кросс-сборка ZIP возможна без wine, но требует
-кросс-компилятор. macOS в MVP `v1.3.2` не входит: нет сертификата и
+кросс-компилятор. macOS в MVP `v1.3.3` не входит: нет сертификата и
 нотаризации. Windows-артефакты не подписываются; подпись — отдельная задача.
 
-### Патч `v1.3.2`
+### Патч `v1.3.3`
+
+`v1.3.3` — патч к `v1.3.2` для первого запуска desktop после перехода на
+SQLCipher. Если рядом осталась plaintext-книга `v1.2.0`, desktop показывает
+«Новый пароль для миграции», сам вызывает встроенный
+`asledgerctl migrate-encrypt` (пароль только через stdin), создаёт
+зашифрованную резервную копию и sidecar, после чего запускает `asledgerd` с тем
+же паролем. Отсутствующий или нулевой `data/asledger.db` считается новой
+книгой: окно «Новый пароль книги» создаёт зашифрованную книгу и sidecar, файл
+не нужно удалять вручную. `ASLEDGER_*` очищаются из окружения дочерних
+`asledgerctl`/`asledgerd`, а каталог на месте книги не считается отсутствующей
+книгой (актуально для Windows).
+
+Формат книги, DSN, KDF, sidecar и Android API не меняются. Android-клиент не
+меняется, кроме версии релиза; Go-сервер и матрица платформ те же, что в
+`v1.3.2`. Изменения: #164. Сценарии закреплены unit- и E2E-тестами, включая
+создание книги из отсутствующего и 0-байтного файла; подробности — в
+[docs/testing.md](testing.md).
+
+### Патч `v1.3.2` (предыдущий)
 
 `v1.3.2` — патч к `v1.3.1`: драйвер SQLCipher заменён на
 `github.com/meow-io/go-sqlcipher v1.1.2` (SQLCipher 4.19.0, SQLite 3.53.4).
@@ -126,10 +145,9 @@ desktop использует тот же общий логотип. Матриц
 требования к cgo/статической линковке не меняются.
 
 Ручные проверки миграции `1.2.0 → 1.3.x`, отката и Windows runtime из
-[#155](https://github.com/trefas/asledger/issues/155) пропущены по решению
-владельца проекта: реального релиза с пользовательскими данными ещё не было.
-#155, S22 и эпики #137/#138 закрыты. Автоматические проверки и CI перечислены
-в [docs/testing.md](testing.md).
+[#155](https://github.com/trefas/asledger/issues/155) были пропущены по решению
+владельца проекта; #155, S22 и эпики #137/#138 остаются закрытыми.
+Автоматические проверки и CI перечислены в [docs/testing.md](testing.md).
 
 ### Патч `v1.3.1` (предыдущий)
 
@@ -170,7 +188,13 @@ cgo/статической линковке не меняются.
 
 ### Обновление с `v1.2.0`
 
-Книга `v1.2.0` была незашифрованной. Перед первым запуском `v1.3.x`:
+Книга `v1.2.0` была незашифрованной. В desktop-клиенте `v1.3.3` достаточно
+запустить новую версию: при наличии plaintext-книги окно покажет «Новый пароль
+для миграции», само выполнит `asledgerctl migrate-encrypt` через stdin и
+создаст зашифрованную резервную копию и sidecar. Если книги ещё нет или
+`data/asledger.db` имеет размер 0 байт, это считается новой книгой: окно
+«Новый пароль книги» создаёт зашифрованную книгу и sidecar, пустой файл не
+нужно удалять вручную. Для headless-установки или ручного контроля:
 
 1. Остановите службу/`asledgerd` и сделайте резервную копию книги.
 2. Выполните `asledgerctl migrate-encrypt -db /path/to/asledger.db` (пароль
@@ -184,27 +208,29 @@ cgo/статической линковке не меняются.
 
 Если книга уже зашифрована, `migrate-encrypt` откажется работать. Для смены
 пароля используйте `asledgerctl passwd`; для резервной копии —
-`asledgerctl backup`.
+`asledgerctl backup`. Обычный DB Browser for SQLite не открывает
+SQLCipher-книгу без SQLCipher-плагина и ключа: ошибка `file is not a database`
+там ожидаема и не означает повреждение.
 
-### Артефакты `v1.3.2`
+### Артефакты `v1.3.3`
 
 | Файл | Платформа | Установка |
 | --- | --- | --- |
-| `asledger-1.3.2-linux-x86_64.AppImage` | Linux amd64 | без установки |
-| `asledger-1.3.2-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
-| `asledger-1.3.2-linux-arm64.AppImage` | Linux arm64 | без установки |
-| `asledger-1.3.2-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
-| `asledger-1.3.2-win-x64.exe` | Windows x64 | NSIS, per-user |
-| `asledger-1.3.2-win-x64-portable.exe` | Windows x64 | portable |
-| `asledger-1.3.2-win-x64.zip` | Windows x64 | распаковать и запустить |
-| `asledger-1.3.2.apk` | Android 12+ | установить APK |
-| `asledger-1.3.2.apk.sha256` | Android | SHA-256 APK |
+| `asledger-1.3.3-linux-x86_64.AppImage` | Linux amd64 | без установки |
+| `asledger-1.3.3-linux-amd64.deb` | Linux amd64 | `sudo apt install ./…` |
+| `asledger-1.3.3-linux-arm64.AppImage` | Linux arm64 | без установки |
+| `asledger-1.3.3-linux-arm64.deb` | Linux arm64 | `sudo apt install ./…` |
+| `asledger-1.3.3-win-x64.exe` | Windows x64 | NSIS, per-user |
+| `asledger-1.3.3-win-x64-portable.exe` | Windows x64 | portable |
+| `asledger-1.3.3-win-x64.zip` | Windows x64 | распаковать и запустить |
+| `asledger-1.3.3.apk` | Android 12+ | установить APK |
+| `asledger-1.3.3.apk.sha256` | Android | SHA-256 APK |
 | `SHA256SUMS-linux` | Linux | контрольные суммы |
 | `SHA256SUMS-windows` | Windows | контрольные суммы |
 
 Ссылки на файлы релиза строятся по шаблону
-`https://github.com/trefas/asledger/releases/download/v1.3.2/<файл>`;
-страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.3.2`.
+`https://github.com/trefas/asledger/releases/download/v1.3.3/<файл>`;
+страница релиза — `https://github.com/trefas/asledger/releases/tag/v1.3.3`.
 Конкретные SHA-256 появляются в `SHA256SUMS-linux` и `SHA256SUMS-windows`
 после сборки; они не хранятся в репозитории. Проверка:
 
@@ -214,7 +240,7 @@ sha256sum -c SHA256SUMS-linux
 sha256sum -c SHA256SUMS-windows
 
 # Windows PowerShell
-Get-FileHash .\asledger-1.3.2-win-x64.exe -Algorithm SHA256
+Get-FileHash .\asledger-1.3.3-win-x64.exe -Algorithm SHA256
 ```
 
 Перед публикацией workflow сверяет версию `package.json`, `package-lock.json`,
@@ -222,7 +248,7 @@ Get-FileHash .\asledger-1.3.2-win-x64.exe -Algorithm SHA256
 `sync-version` и `verify:version`; упакованный бинарь проверяется
 `verify:package`. Если версия не совпала, релиз не публикуется.
 
-### Проверка релиза `v1.3.2`
+### Проверка релиза `v1.3.3`
 
 1. Скачать `SHA256SUMS-linux` и `SHA256SUMS-windows`, проверить хэши скачанных
    файлов.
@@ -232,19 +258,30 @@ Get-FileHash .\asledger-1.3.2-win-x64.exe -Algorithm SHA256
 3. На чистой Windows-машине проверить NSIS, portable и ZIP: установка без
    администратора (NSIS/portable), запуск, healthcheck, открытие книги,
    остановка процесса.
-4. В desktop-клиенте сменить пароль: старый пароль перестаёт открывать книгу,
+4. Первый запуск с отсутствующей книгой: удалить или переместить `data/`,
+   запустить приложение, ввести новый пароль в окне «Новый пароль книги».
+   Должны появиться `data/asledger.db` с заголовком не `SQLite format 3` и
+   `data/asledger.db.kdf.json`; книга открывается в web-интерфейсе.
+5. Первый запуск с пустым файлом: создать `data/asledger.db` нулевого размера
+   и запустить приложение. Пустой файл должен быть заменён зашифрованной
+   книгой без ручного удаления; проверки те же, что в шаге 4.
+6. Обновление с `v1.2.0`: положить plaintext-книгу в `data/asledger.db`,
+   запустить приложение, ввести новый пароль в окне «Новый пароль для
+   миграции». Должны появиться `.encrypted-backup.db`, его sidecar и
+   `.kdf.json`; повторный запуск открывает книгу новым паролем.
+7. В desktop-клиенте сменить пароль: старый пароль перестаёт открывать книгу,
    новый открывает, резервная копия `<книга>.pre-rekey-*.db` и sidecar
    существуют. Проверить, что при выключенном «Запомнить» сохранённый ключ
    удалён, а при включённом — заменён.
-5. Проверить, что Go-сервер и Android-клиент из того же тега не
+8. Проверить, что Go-сервер и Android-клиент из того же тега не
    регрессировали: `make check`, `make android-check` и APK из релиза.
-6. Ручные проверки [#155](https://github.com/trefas/asledger/issues/155):
-   миграция `1.2.0 → 1.3.x`, откат и Windows runtime пропущены по решению
-   владельца проекта — реального релиза с пользовательскими данными ещё не
-   было. Issue закрыт; автоматические проверки перечислены в
+9. Ручные проверки [#155](https://github.com/trefas/asledger/issues/155):
+   миграция `1.2.0 → 1.3.x`, откат и Windows runtime остаются пропущенными по
+   решению владельца проекта; автоматические проверки, включая первый запуск
+   с отсутствующей и 0-байтной книгой, перечислены в
    [docs/testing.md](testing.md).
 
-### Публикация `v1.3.2`
+### Публикация `v1.3.2` (предыдущая)
 
 Релиз опубликован workflow
 [40185031350](https://github.com/trefas/asledger/actions/runs/40185031350):
@@ -275,12 +312,17 @@ git push origin v1.0.0
    собирают AppImage/deb для amd64 и arm64, NSIS/portable/ZIP для Windows,
    проверяют пакеты и готовят `SHA256SUMS-linux`/`SHA256SUMS-windows`.
    macOS в матрицу не входит.
-4. **Публикация** — job с
-   `needs: [test, android, desktop-linux, desktop-windows]`, поэтому релиз не
-   создаётся при падающих тестах, неподписанном APK или сломанной упаковке
-   desktop. GoReleaser в `goreleaser-cross` собирает серверные артефакты и
-   публикует GitHub Release, после чего в него загружаются APK, desktop-пакеты
-   и файлы контрольных сумм.
+4. **Черновик и публикация** — job `prepare` запускает GoReleaser в
+   `goreleaser-cross` с `--draft`: он собирает серверные артефакты и создаёт
+   черновик GitHub Release. Джобы Android и Desktop загружают APK, пакеты и
+   `SHA256SUMS-*` прямо в этот черновик через `gh release upload`; общий
+   artifact storage GitHub Actions не используется. Финальный job с
+   `needs: [prepare, android, desktop-linux, desktop-windows]` публикует
+   черновик (`gh release edit --draft=false`) только после успешной сборки всех
+   платформ. Поэтому падающие тесты, неподписанный APK или сломанная упаковка
+   desktop не публикуют релиз. CI-артефакты в `.github/workflows/ci.yml`
+   необязательны (`continue-on-error`) и хранятся 7 дней; в релизе они не
+   участвуют.
 
 Секреты Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
 `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Ключ хранится вне репозитория;

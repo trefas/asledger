@@ -9,7 +9,8 @@ Desktop-клиент asledger на Electron. Отдельное приложен
 сервера** (#144) и **упаковка** (#145): окно Electron, безопасный preload-API,
 запуск `asledgerd`, healthcheck, статусы, журнал, кнопки старта/остановки,
 открытие книги в отдельном окне, ввод пароля книги, «Запомнить ключ» через
-`safeStorage` и готовые пакеты с `asledgerd`, ассетами и шаблонами.
+`safeStorage`, автоматическая миграция plaintext-книги `v1.2.0` при первом
+запуске и готовые пакеты с `asledgerd`, ассетами и шаблонами.
 
 ## Требования
 
@@ -66,8 +67,9 @@ npm run verify:package:win
 
 `npm run check` включает typecheck, unit-тесты Vitest и production-сборку.
 Smoke-тест Playwright запускает Electron, ждёт healthcheck, проверяет журнал и
-корректную остановку `asledgerd`; он не входит в `npm run check`, чтобы
-обычные тесты работали без графического сеанса.
+корректную остановку `asledgerd`, а также миграцию plaintext-книги `v1.2.0`;
+он не входит в `npm run check`, чтобы обычные тесты работали без графического
+сеанса.
 
 В dev-режиме менеджер ищет `asledgerd` и `asledgerctl` в `../bin/`. Соберите
 их командой `make build` в корне репозитория. Данные и журналы лежат рядом с
@@ -98,15 +100,15 @@ renderer подключает его через `publicDir` electron-vite, а ma
 
 ## Сборка и упаковка
 
-Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.3.2`).
+Версия desktop-приложения берётся из `desktop/package.json` (сейчас `1.3.3`).
 `npm run build:backend` передаёт её в `asledgerd` и `asledgerctl` через
 `-ldflags`, поэтому версии бинарей, имя артефакта и `package.json` согласованы.
 При выпуске
 по тегу версия синхронизируется заранее:
 
 ```bash
-ASLEDGER_VERSION=v1.3.2 npm run sync-version
-ASLEDGER_VERSION=v1.3.2 npm run verify:version
+ASLEDGER_VERSION=v1.3.3 npm run sync-version
+ASLEDGER_VERSION=v1.3.3 npm run verify:version
 ```
 
 Перед упаковкой нужны Go, Node.js 22+, gcc и кросс-компилятор для выбранной
@@ -133,14 +135,14 @@ ASLEDGER_VERSION=v1.3.2 npm run verify:version
 
 Артефакты:
 
-- Linux amd64: AppImage и deb (`asledger-1.3.2-linux-x86_64.AppImage`,
-  `asledger-1.3.2-linux-amd64.deb`).
-- Linux arm64: AppImage и deb (`asledger-1.3.2-linux-arm64.AppImage`,
-  `asledger-1.3.2-linux-arm64.deb`), `npm run package:linux:arm64`.
-- Windows amd64: NSIS, portable и ZIP (`asledger-1.3.2-win-x64.exe`,
-  `asledger-1.3.2-win-x64-portable.exe`, `asledger-1.3.2-win-x64.zip`); ZIP
+- Linux amd64: AppImage и deb (`asledger-1.3.3-linux-x86_64.AppImage`,
+  `asledger-1.3.3-linux-amd64.deb`).
+- Linux arm64: AppImage и deb (`asledger-1.3.3-linux-arm64.AppImage`,
+  `asledger-1.3.3-linux-arm64.deb`), `npm run package:linux:arm64`.
+- Windows amd64: NSIS, portable и ZIP (`asledger-1.3.3-win-x64.exe`,
+  `asledger-1.3.3-win-x64-portable.exe`, `asledger-1.3.3-win-x64.zip`); ZIP
   собирается `npm run package:win:zip`, в том числе локально без wine.
-- macOS: **не входит в MVP v1.3.2**. Нет сертификата и нотаризации; сборка и
+- macOS: **не входит в MVP v1.3.3**. Нет сертификата и нотаризации; сборка и
   публикация macOS станут отдельной задачей после проверки требований.
 
 Подпись Windows/macOS в MVP не выполняется: артефакты неподписанные, ОС может
@@ -184,7 +186,16 @@ npm run verify:package:win   # Windows: проверяет бинарь, асс�
   его в статусе и журнале и переводит состояние в «Ошибка».
 - В `config.json` нет паролей, токенов и производных ключей. Пароль и
   raw-ключ в него не пишутся; sidecar `data/asledger.db.kdf.json` содержит
-  только соль и параметры Argon2id.
+  только соль и параметры Argon2id. При переносе книги копируйте `.db` и
+  `.kdf.json` вместе.
+- Если книги ещё нет или `data/asledger.db` имеет размер 0 байт, окно
+  «Новый пароль книги» создаёт зашифрованную книгу и sidecar; пустой файл не
+  нужно удалять вручную.
+- Если при первом запуске найдена plaintext-книга `v1.2.0`, окно просит новый
+  пароль с подтверждением и запускает встроенный `asledgerctl migrate-encrypt`
+  (пароль через stdin). Создаются `data/asledger.db.encrypted-backup.db` и
+  sidecar, затем сервер стартует с тем же паролем. Обычный DB Browser без
+  SQLCipher такую книгу не откроет — это не повреждение.
 - Пароль передаётся `asledgerd` через stdin (`-password-fd=0`), а не через
   argv/env. «Запомнить ключ» сохраняет в `safeStorage` только 32-байтовый
   raw-ключ; на Linux при `basic_text` или без keyring сохранение отключено.
@@ -258,3 +269,4 @@ Loopback, link-local (`169.254.0.0/16`), multicast и зарезервирова
   `v1.3.1`).
 - #160/#161 — SQLCipher 4.19.0/SQLite 3.53.4 (завершено, патч `v1.3.2`).
 - #162 — выпуск `v1.3.2` (завершено).
+- #164 — первый запуск с plaintext/пустой книгой и патч `v1.3.3` (завершено).

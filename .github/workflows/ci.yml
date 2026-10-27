@@ -130,12 +130,16 @@ jobs:
 
       - name: Приложить Linux-артефакты
         uses: actions/upload-artifact@v4
+        # Квота artifact storage не должна ломать проверки: релизные файлы
+        # публикуются напрямую в GitHub Release.
+        continue-on-error: true
         with:
           name: asledger-desktop-linux
           path: |
             desktop/release/*.AppImage
             desktop/release/*.deb
           if-no-files-found: error
+          retention-days: 7
 
   desktop-windows:
     name: Desktop (Windows, сборка и пакет)
@@ -183,12 +187,15 @@ jobs:
 
       - name: Приложить Windows-артефакты
         uses: actions/upload-artifact@v4
+        # Артефакты CI необязательны; см. комментарий в desktop-linux.
+        continue-on-error: true
         with:
           name: asledger-desktop-windows
           path: desktop/release/*.exe
           if-no-files-found: error
+          retention-days: 7
 
-  # macOS не входит в MVP v1.3.2: нет сертификата и нотаризации (#145).
+  # macOS не входит в MVP v1.3.3: нет сертификата и нотаризации (#145).
 
   lint:
     name: golangci-lint
@@ -254,7 +261,10 @@ jobs:
 
       - name: Приложить debug APK
         uses: actions/upload-artifact@v4
+        # Артефакты CI необязательны; см. комментарий в desktop-linux.
+        continue-on-error: true
         with:
           name: asledger-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 7

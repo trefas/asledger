@@ -7,6 +7,7 @@ import type {
   BackendLogEntry,
   BackendStartRequest,
   BackendState,
+  BookState,
   KeyStorageStatus,
   NetworkAddress,
 } from '../../shared/ipc'
@@ -92,7 +93,8 @@ const passwordChangeResult =
 const logLines: string[] = []
 const MAX_LOG_LINES = 200
 
-let bookExists = true
+let bookState: BookState = 'unknown'
+let bookPath = ''
 
 function setStatus(status: AppStatus): void {
   statusElement.textContent = statusLabel(status)
@@ -131,7 +133,7 @@ function applyState(state: BackendState): void {
   restartButton.disabled = busy
   changePasswordButton.disabled = state.status !== 'ready'
   if (state.status === 'ready') {
-    bookExists = true
+    bookState = 'encrypted'
   }
 }
 
@@ -267,7 +269,8 @@ async function openBook(): Promise<void> {
 async function loadInfo(): Promise<void> {
   try {
     const info = await window.asledger.getInfo()
-    bookExists = info.bookExists
+    bookState = info.bookState
+    bookPath = info.bookPath
     setText(versionElement, info.version)
     setText(platformElement, info.platform)
     setText(electronElement, info.electron)
@@ -346,32 +349,37 @@ function openPasswordDialog(
   message?: string,
 ): void {
   authAction = action
-  const creating = action === 'start' && !bookExists
+  const creating = bookState === 'missing'
+  const migrating = bookState === 'plaintext'
+  const needsConfirm = creating || migrating
   passwordInput.value = ''
   passwordConfirmInput.value = ''
-  passwordConfirmField.hidden = !creating
-  passwordConfirmInput.required = creating
+  passwordConfirmField.hidden = !needsConfirm
+  passwordConfirmInput.required = needsConfirm
   passwordStrengthElement.hidden = true
   passwordStrengthElement.textContent = ''
   rememberCheckbox.checked = false
   passwordSubmitButton.disabled = false
-  passwordSubmitButton.textContent =
-    action === 'restart'
-      ? 'Перезапустить'
-      : creating
-        ? 'Создать книгу'
+  passwordSubmitButton.textContent = migrating
+    ? 'Зашифровать книгу'
+    : creating
+      ? 'Создать книгу'
+      : action === 'restart'
+        ? 'Перезапустить'
         : 'Открыть книгу'
-  passwordTitle.textContent =
-    action === 'restart'
-      ? 'Перезапуск книги'
-      : creating
-        ? 'Новый пароль книги'
+  passwordTitle.textContent = migrating
+    ? 'Новый пароль для миграции'
+    : creating
+      ? 'Новый пароль книги'
+      : action === 'restart'
+        ? 'Перезапуск книги'
         : 'Пароль книги'
-  passwordHint.textContent =
-    action === 'restart'
-      ? 'Введите пароль книги, чтобы перезапустить asledgerd.'
-      : creating
-        ? 'Книги ещё нет. Придумайте пароль и повторите его: он создаст ключ SQLCipher. Восстановить забытый пароль нельзя, сохраните резервную копию.'
+  passwordHint.textContent = migrating
+    ? `Книга ${bookPath || 'в каталоге данных'} от старой версии не зашифрована. Придумайте новый пароль: asledger зашифрует её, создаст sidecar и резервную копию. Восстановить забытый пароль нельзя.`
+    : creating
+      ? 'Книги ещё нет. Придумайте пароль и повторите его: он создаст ключ SQLCipher. Восстановить забытый пароль нельзя, сохраните резервную копию.'
+      : action === 'restart'
+        ? 'Введите пароль книги, чтобы перезапустить asledgerd.'
         : 'Введите пароль книги. Он нужен для вывода ключа SQLCipher и не сохраняется в конфигурации.'
   setAuthError(message ?? null)
   if (!passwordDialog.open) {
@@ -432,6 +440,9 @@ async function openChangePasswordDialog(): Promise<void> {
 async function startWithRemembered(
   action: 'start' | 'restart',
 ): Promise<boolean> {
+  if (bookState === 'plaintext') {
+    return false
+  }
   const status = await refreshAuthStatus()
   if (!status?.remembered) {
     return false
@@ -505,12 +516,14 @@ newPasswordInput.addEventListener('input', () => {
 passwordForm.addEventListener('submit', (event) => {
   event.preventDefault()
   const password = passwordInput.value
+  const creating = bookState === 'missing'
+  const migrating = bookState === 'plaintext'
   if (password.length === 0) {
     setAuthError('Введите пароль книги')
     passwordInput.focus()
     return
   }
-  if (!bookExists && passwordConfirmInput.value !== password) {
+  if ((creating || migrating) && passwordConfirmInput.value !== password) {
     setAuthError('Пароли не совпадают')
     passwordConfirmInput.focus()
     return
@@ -519,7 +532,19 @@ passwordForm.addEventListener('submit', (event) => {
     password,
     remember: rememberCheckbox.checked,
   }
+  const idleLabel = migrating
+    ? 'Зашифровать книгу'
+    : creating
+      ? 'Создать книгу'
+      : authAction === 'restart'
+        ? 'Перезапустить'
+        : 'Открыть книгу'
   passwordSubmitButton.disabled = true
+  passwordSubmitButton.textContent = migrating
+    ? 'Шифруем книгу…'
+    : creating
+      ? 'Создаём книгу…'
+      : 'Открываем книгу…'
   void (async () => {
     const state = await runAction(
       () =>
@@ -529,6 +554,7 @@ passwordForm.addEventListener('submit', (event) => {
       setAuthError,
     )
     passwordSubmitButton.disabled = false
+    passwordSubmitButton.textContent = idleLabel
     passwordInput.value = ''
     passwordConfirmInput.value = ''
     if (state?.status === 'ready') {
@@ -583,7 +609,6 @@ changePasswordForm.addEventListener('submit', (event) => {
         remember: changeRememberCheckbox.checked,
       })
       applyState(result.state)
-      bookExists = true
       changePasswordDialog.close()
       passwordChangeResult.hidden = false
       passwordChangeResult.textContent = `Пароль изменён. Резервная копия: ${result.backupPath}`

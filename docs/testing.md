@@ -77,7 +77,7 @@ workflow публикации по тегу (`needs: test`), systemd-юнит и
 установке. Это даёт автотесты для критериев раздела 14, которые иначе
 проверялись бы только вручную.
 
-### Шифрование SQLCipher в `v1.3.0`–`v1.3.2`
+### Шифрование SQLCipher в `v1.3.0`–`v1.3.3`
 
 Проверки, которые закрывают требования #148–#154:
 
@@ -92,26 +92,71 @@ workflow публикации по тегу (`needs: test`), systemd-юнит и
 | `migrate-encrypt -dry-run` не меняет схему и не оставляет WAL | `TestMigrateEncryptDryRun` | проходит |
 | Смена пароля, неверный старый пароль, зашифрованный backup | `cmd/asledgerctl/encrypt_test.go`, `TestPasswd*`, `TestBackupEncrypted` | проходит |
 | Argon2id, sidecar, источники пароля/fd/raw-ключа | `internal/key/key_test.go` | проходит |
-| Пароль не попадает в argv/env и журнал | `desktop/tests/backend.test.ts`, `desktop/tests/password-change.test.ts` | проходит |
-| Electron: первый запуск, смена пароля, старый пароль, backup | `desktop/tests/e2e/desktop.spec.ts` | проходит на Linux |
+| Пароль не попадает в argv/env и журнал | `desktop/tests/backend.test.ts`, `desktop/tests/password-change.test.ts`, `desktop/tests/book-migration.test.ts` | проходит |
+| Desktop отличает отсутствующую, plaintext и зашифрованную книгу | `desktop/tests/book-state.test.ts` | проходит |
+| Desktop шифрует plaintext-книгу `v1.2.0` через `asledgerctl`, пароль идёт в stdin | `desktop/tests/book-migration.test.ts` | проходит |
+| Electron: первый запуск без книги, создание из 0-байтного файла, миграция plaintext, смена пароля, старый пароль, backup | `desktop/tests/e2e/desktop.spec.ts` | проходит на Linux |
 
-Команды и результаты на 2026-10-25 (Linux amd64):
+Команды и результаты на 2026-10-27 (Linux amd64):
 
 ```bash
 make check          # go vet, тесты, проверки денег и трассировки — успешно
 make test-race      # go test -race ./... — успешно
-make cover-check    # покрытие 74.3 % при пороге 70 %
+make cover-check    # покрытие 70.3 % при пороге 70 %
 cd desktop
-npm run check       # typecheck, 61 unit-тест, production-сборка — успешно
-npm run test:e2e    # Electron smoke + смена пароля — 1 тест, успешно
+npm run check       # typecheck, 68 unit-тестов, production-сборка — успешно
+npm run test:e2e    # Electron: первый запуск, пустая книга, миграция plaintext, смена пароля — 3 теста, успешно
+npm run package     # Linux amd64: asledgerd/asledgerctl, ассеты и шаблоны — успешно
+npm run verify:package
 ```
 
-Ограничения: Windows runtime SQLCipher и desktop-пакет локально не проверялись;
-Android JVM-тест обновлён, но в среде разработки нет JDK/Android SDK, поэтому
-локальный прогон не выполнялся. Windows runtime проверяется в CI. Ручные
-проверки релиза [#155](https://github.com/trefas/asledger/issues/155) пропущены
-по решению владельца проекта: реального релиза с пользовательскими данными ещё
-не было.
+Локально `npm run package` и `npm run verify:package` прошли; упакованный
+Linux-клиент проверен с отсутствующей и 0-байтной книгой. Ограничения: Windows
+runtime SQLCipher проверяется только в CI; Android JVM-тест обновлён, но в
+среде разработки нет JDK/Android SDK, поэтому локальный прогон не выполнялся.
+Ручные проверки релиза [#155](https://github.com/trefas/asledger/issues/155)
+были пропущены по решению владельца проекта; при проверке обновления с
+`v1.2.0` обнаружена и исправлена регрессия первого запуска с plaintext-книгой.
+
+### Регрессия первого запуска с книгой `v1.2.0`
+
+После обновления с `v1.2.0` у пользователя оставалась plaintext-книга
+`data/asledger.db` без sidecar. `asledgerd` корректно отказывался её открывать,
+но desktop показывал только ошибку `книга не зашифрована` и не предлагал
+миграцию. Проверка на копии реальной книги подтвердила причину: первый запуск
+с *новой* книгой работал, а существующая plaintext-книга требовала ручного
+`asledgerctl migrate-encrypt`.
+
+Исправление:
+
+- `desktop/src/main/book-state.ts` отличает `missing`/`plaintext`/`encrypted`;
+- `desktop/src/main/book-migration.ts` вызывает
+  `asledgerctl migrate-encrypt -password-fd 0`, передавая пароль только через
+  stdin и очищая `ASLEDGER_*` из окружения;
+- renderer показывает окно «Новый пароль для миграции» с подтверждением;
+- после миграции создаются `.encrypted-backup.db` и `.kdf.json`, сервер
+  стартует с тем же паролем; повторный запуск открывает книгу обычным паролем.
+
+Проверки: `desktop/tests/book-state.test.ts`,
+`desktop/tests/book-migration.test.ts` и E2E-сценарий в
+`desktop/tests/e2e/desktop.spec.ts`. Ручная проверка на копии книги `v1.2.0`
+(135168 байт, схема v4) прошла в исходном и упакованном Linux-приложении:
+статус «Готово», sidecar и резервная копия созданы, заголовок книги больше не
+`SQLite format 3`, книга открылась в отдельном окне. DB Browser без
+SQLCipher-плагина такую книгу не открывает — это ожидаемо.
+
+### Первый запуск с пустой книгой
+
+Отсутствующий `data/asledger.db` и файл нулевого размера считаются новой
+книгой. Desktop показывает окно «Новый пароль книги», после подтверждения
+`asledgerd` создаёт зашифрованную книгу и sidecar. E2E-тест
+`создаёт зашифрованную книгу из пустого файла при первом запуске` проверяет
+0-байтный файл, повторный запуск с обычным паролем и наличие `logs/`.
+Первый E2E-тест покрывает отсутствующую книгу. Упакованный Linux-клиент
+дополнительно проверен вручную с отсутствующей и 0-байтной книгой: после
+ввода пароля появились `data/asledger.db` и `data/asledger.db.kdf.json`,
+заголовок книги не `SQLite format 3`, окно книги открылось на экране
+первичной настройки.
 
 ### Обновление SQLCipher в S24 (#160)
 
@@ -142,7 +187,7 @@ npm run verify:package
 ```
 
 Результаты на Linux amd64: `make check` и `make test-race` успешно,
-покрытие 74.3 %, desktop — 61 unit-тест, E2E — 1 тест, пакет и
+покрытие 74.4 %, desktop — 68 unit-тестов, E2E — 2 теста, пакет и
 `verify:package` успешно. Ограничение: Windows runtime по-прежнему
 проверяется только в CI; локального Windows/Wine окружения нет.
 Android-клиент не менялся, его JVM-тест остаётся за CI.
