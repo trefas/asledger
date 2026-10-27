@@ -26,6 +26,9 @@ export async function inspectBookState(path: string): Promise<BookState> {
 
   try {
     const info = await file.stat()
+    if (!info.isFile()) {
+      return 'unknown'
+    }
     if (info.size === 0) {
       return 'missing'
     }
