@@ -13,7 +13,7 @@ const rawVersion =
 
 if (!rawVersion) {
   throw new Error(
-    'Задайте версию: ASLEDGER_VERSION=v1.3.2 npm run sync-version',
+    'Задайте версию: ASLEDGER_VERSION=v1.3.3 npm run sync-version',
   )
 }
 const version = rawVersion.replace(/^v/, '')
