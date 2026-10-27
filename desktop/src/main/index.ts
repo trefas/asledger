@@ -22,6 +22,8 @@ import {
 } from '../shared/ipc'
 import { deriveBookKey } from './book-key'
 import { BackendProcess, type BackendSecret } from './backend'
+import { migratePlaintextBook } from './book-migration'
+import { inspectBookState } from './book-state'
 import { loadOrCreateConfig, type DesktopConfig } from './config'
 import { readLogTail } from './log'
 import { changeBookPassword } from './password-change'
@@ -225,6 +227,14 @@ async function startBackend(
   restart: boolean,
 ): Promise<BackendState> {
   const request = parseStartRequest(raw)
+  const bookState = await inspectBookState(backendDbPath)
+  const needsMigration = bookState === 'plaintext'
+  if (needsMigration && request.useRemembered) {
+    throw new Error(
+      'Книга от старой версии не зашифрована; введите новый пароль для миграции',
+    )
+  }
+
   let secret: BackendSecret | undefined
   let rememberedKey: Buffer | null = null
 
@@ -239,6 +249,25 @@ async function startBackend(
       throw new Error('Введите пароль книги')
     }
     secret = { kind: 'password', value: request.password }
+  }
+
+  if (needsMigration) {
+    if (request.password === undefined) {
+      throw new Error(
+        'Книга от старой версии не зашифрована; введите новый пароль для миграции',
+      )
+    }
+    if (backendCtlBinary === '') {
+      throw new Error('Не найден asledgerctl для миграции книги')
+    }
+    // Старая книга v1.2.0 ещё plaintext. Шифруем её тем же паролем, который
+    // пользователь только что ввёл; asledgerctl создаст резервную копию и
+    // sidecar, после чего asledgerd откроет уже зашифрованную книгу.
+    await migratePlaintextBook({
+      command: backendCtlBinary,
+      dbPath: backendDbPath,
+      password: request.password,
+    })
   }
 
   let state: BackendState
@@ -370,14 +399,16 @@ function registerIpc(
   monitor: NetworkMonitor,
   bookUrl: string,
 ): void {
-  ipcMain.handle(IPC_CHANNELS.getInfo, (): DesktopInfo => {
+  ipcMain.handle(IPC_CHANNELS.getInfo, async (): Promise<DesktopInfo> => {
+    const bookState = await inspectBookState(backendDbPath)
     return {
       appName: APP_NAME,
       version: app.getVersion(),
       platform: process.platform,
       electron: process.versions.electron ?? 'unknown',
       chrome: process.versions.chrome ?? 'unknown',
-      bookExists: backendDbPath !== '' && existsSync(backendDbPath),
+      bookState,
+      bookPath: backendDbPath,
     }
   })
 

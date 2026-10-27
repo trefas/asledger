@@ -98,6 +98,9 @@ export interface AuthApi {
   changePassword(request: PasswordChangeRequest): Promise<PasswordChangeResult>
 }
 
+/** Состояние файла книги до запуска сервера. */
+export type BookState = 'missing' | 'plaintext' | 'encrypted' | 'unknown'
+
 /** Сведения о приложении, безопасно передаваемые в renderer. */
 export interface DesktopInfo {
   appName: string
@@ -105,8 +108,10 @@ export interface DesktopInfo {
   platform: string
   electron: string
   chrome: string
-  /** Существует ли файл книги до первого запуска. */
-  bookExists: boolean
+  /** Зашифрована ли книга, отсутствует ли она или требует миграции. */
+  bookState: BookState
+  /** Путь к книге для диагностики и подсказки о миграции. */
+  bookPath: string
 }
 
 /** Узкий API, который preload выставляет в window.asledger. */

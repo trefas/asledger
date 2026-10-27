@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Writable } from 'node:stream'
+import { safeChildEnv } from './child-env'
 
 /** Параметры смены пароля книги через asledgerctl. */
 export interface PasswordChangeOptions {
@@ -33,18 +34,6 @@ function redact(text: string, secrets: string[]): string {
     }
   }
   return result.trim()
-}
-
-/** Убирает из окружения переменные, которые могут подсунуть другой ключ. */
-function safeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const copy = { ...env }
-  for (const key of Object.keys(copy)) {
-    // Windows сравнивает имена переменных без учёта регистра.
-    if (key.toUpperCase().startsWith('ASLEDGER_')) {
-      delete copy[key]
-    }
-  }
-  return copy
 }
 
 function backupPathFor(dbPath: string): string {
@@ -80,7 +69,7 @@ function runCtl(
     let child
     try {
       child = spawn(options.command, args, {
-        env: safeEnv(options.env ?? process.env),
+        env: safeChildEnv(options.env ?? process.env),
         stdio,
         windowsHide: true,
       })

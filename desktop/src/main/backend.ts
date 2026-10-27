@@ -12,6 +12,7 @@ import type {
   BackendState,
   BackendStatus,
 } from '../shared/ipc'
+import { safeChildEnv } from './child-env'
 import { waitForHealth } from './health'
 import { maskSecrets } from './log'
 
@@ -171,7 +172,7 @@ export class BackendProcess {
         : ['ignore', 'pipe', 'pipe']
       const spawned = spawnImpl(this.options.command, args, {
         cwd: this.options.cwd,
-        env: { ...process.env },
+        env: safeChildEnv(process.env),
         stdio,
         windowsHide: true,
       })

@@ -1,6 +1,7 @@
 import { _electron as electron, expect, test } from '@playwright/test'
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -52,6 +53,20 @@ function binaryPath(name: 'asledgerd' | 'asledgerctl'): string {
     override?.trim() ||
     join(process.cwd(), 'resources', 'backend', `${goos}-${goarch}`, binary)
   )
+}
+
+/** Создаёт книгу v1.2.0 без шифрования для проверки миграции. */
+function createPlaintextBook(ctl: string, dbPath: string): void {
+  const result = spawnSync(
+    ctl,
+    ['migrate', '-allow-plaintext', '-db', dbPath],
+    { encoding: 'utf8' },
+  )
+  if (result.status !== 0) {
+    throw new Error(
+      `Не удалось создать plaintext-книгу: ${result.stderr || result.stdout}`,
+    )
+  }
 }
 
 test('запускает asledgerd, открывает книгу и корректно останавливает', async () => {
@@ -232,6 +247,113 @@ test('запускает asledgerd, открывает книгу и корре�
         { timeout: 10_000 },
       )
       .toBe('closed')
+  } finally {
+    await app.close()
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('шифрует plaintext-книгу v1.2.0 при первом запуске', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'asledger-desktop-migrate-'))
+  const binary = binaryPath('asledgerd')
+  const ctl = binaryPath('asledgerctl')
+  for (const path of [binary, ctl]) {
+    if (!existsSync(path)) {
+      throw new Error(
+        `Не найден ${path}. Соберите бинарь: npm run build:backend`,
+      )
+    }
+  }
+
+  const dataDir = join(dir, 'data')
+  await mkdir(dataDir, { recursive: true })
+  const dbPath = join(dataDir, 'asledger.db')
+  createPlaintextBook(ctl, dbPath)
+  const before = await readFile(dbPath)
+  expect(before.subarray(0, 16).toString('latin1')).toBe(
+    'SQLite format 3\u0000',
+  )
+
+  const webPort = await freePort()
+  const apiPort = await freePort()
+  const configPath = join(dir, 'config.json')
+  await writeFile(
+    configPath,
+    `${JSON.stringify(
+      {
+        web_port: webPort,
+        api_port: apiPort,
+        data_path: 'data',
+        log_path: 'logs',
+      },
+      null,
+      2,
+    )}\n`,
+  )
+
+  const args = [
+    '.',
+    '--no-sandbox',
+    `--user-data-dir=${join(dir, 'userdata')}`,
+  ]
+  if (process.platform === 'linux') {
+    args.push('--ozone-platform=x11')
+  }
+
+  const app = await electron.launch({
+    args,
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      ASLEDGER_DESKTOP_CONFIG: configPath,
+      ASLEDGERD_BIN: binary,
+      ASLEDGERCTL_BIN: ctl,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+    },
+  })
+
+  try {
+    const window = await app.firstWindow()
+    await window.waitForLoadState('domcontentloaded')
+
+    // Для старой plaintext-книги нужен новый пароль, а не текущий.
+    await expect(window.locator('#password-dialog')).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(window.locator('#password-title')).toHaveText(
+      'Новый пароль для миграции',
+    )
+    await expect(window.locator('#password-confirm-field')).toBeVisible()
+    await window.locator('#password').fill('e2e-migrate-password')
+    await window.locator('#password-confirm').fill('e2e-migrate-password')
+    await window.locator('#password-submit').click()
+
+    await expect(window.locator('#status')).toHaveText('Готово', {
+      timeout: 30_000,
+    })
+    await expect(window.locator('#detail')).toHaveText('Сервер готов')
+
+    const after = await readFile(dbPath)
+    expect(after.subarray(0, 16).toString('latin1')).not.toBe(
+      'SQLite format 3\u0000',
+    )
+    expect(existsSync(`${dbPath}.kdf.json`)).toBe(true)
+    expect(existsSync(`${dbPath}.encrypted-backup.db`)).toBe(true)
+    expect(existsSync(`${dbPath}.encrypted-backup.db.kdf.json`)).toBe(true)
+
+    // После миграции книга должна открываться обычным паролем.
+    await window.locator('#stop').click()
+    await expect(window.locator('#status')).toHaveText('Остановлен', {
+      timeout: 15_000,
+    })
+    await window.locator('#start').click()
+    await expect(window.locator('#password-dialog')).toBeVisible()
+    await expect(window.locator('#password-confirm-field')).toBeHidden()
+    await window.locator('#password').fill('e2e-migrate-password')
+    await window.locator('#password-submit').click()
+    await expect(window.locator('#status')).toHaveText('Готово', {
+      timeout: 20_000,
+    })
   } finally {
     await app.close()
     await rm(dir, { recursive: true, force: true })
