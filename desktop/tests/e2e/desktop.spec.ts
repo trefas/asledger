@@ -253,6 +253,109 @@ test('запускает asledgerd, открывает книгу и корре�
   }
 })
 
+test('создаёт зашифрованную книгу из пустого файла при первом запуске', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'asledger-desktop-empty-'))
+  const binary = binaryPath('asledgerd')
+  const ctl = binaryPath('asledgerctl')
+  for (const path of [binary, ctl]) {
+    if (!existsSync(path)) {
+      throw new Error(
+        `Не найден ${path}. Соберите бинарь: npm run build:backend`,
+      )
+    }
+  }
+
+  const dataDir = join(dir, 'data')
+  await mkdir(dataDir, { recursive: true })
+  const dbPath = join(dataDir, 'asledger.db')
+  // Нулевой файл — это ещё не книга: asledgerd должен создать в нём
+  // зашифрованную книгу, а не пытаться открыть пустой SQLite.
+  await writeFile(dbPath, '')
+  expect((await readFile(dbPath)).length).toBe(0)
+
+  const webPort = await freePort()
+  const apiPort = await freePort()
+  const configPath = join(dir, 'config.json')
+  await writeFile(
+    configPath,
+    `${JSON.stringify(
+      {
+        web_port: webPort,
+        api_port: apiPort,
+        data_path: 'data',
+        log_path: 'logs',
+      },
+      null,
+      2,
+    )}\n`,
+  )
+
+  const args = [
+    '.',
+    '--no-sandbox',
+    `--user-data-dir=${join(dir, 'userdata')}`,
+  ]
+  if (process.platform === 'linux') {
+    args.push('--ozone-platform=x11')
+  }
+
+  const app = await electron.launch({
+    args,
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      ASLEDGER_DESKTOP_CONFIG: configPath,
+      ASLEDGERD_BIN: binary,
+      ASLEDGERCTL_BIN: ctl,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+    },
+  })
+
+  try {
+    const window = await app.firstWindow()
+    await window.waitForLoadState('domcontentloaded')
+
+    await expect(window.locator('#password-dialog')).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(window.locator('#password-title')).toHaveText('Новый пароль книги')
+    await expect(window.locator('#password-confirm-field')).toBeVisible()
+    await window.locator('#password').fill('e2e-empty-password')
+    await window.locator('#password-confirm').fill('e2e-empty-password')
+    await window.locator('#password-submit').click()
+
+    await expect(window.locator('#status')).toHaveText('Готово', {
+      timeout: 30_000,
+    })
+    await expect(window.locator('#detail')).toHaveText('Сервер готов')
+
+    const after = await readFile(dbPath)
+    expect(after.length).toBeGreaterThan(0)
+    expect(after.subarray(0, 16).toString('latin1')).not.toBe(
+      'SQLite format 3\u0000',
+    )
+    expect(existsSync(`${dbPath}.kdf.json`)).toBe(true)
+    expect(existsSync(join(dir, 'logs'))).toBe(true)
+
+    // Повторный запуск должен открыть уже созданную книгу обычным паролем.
+    await window.locator('#stop').click()
+    await expect(window.locator('#status')).toHaveText('Остановлен', {
+      timeout: 15_000,
+    })
+    await window.locator('#start').click()
+    await expect(window.locator('#password-dialog')).toBeVisible()
+    await expect(window.locator('#password-confirm-field')).toBeHidden()
+    await window.locator('#password').fill('e2e-empty-password')
+    await window.locator('#password-submit').click()
+    await expect(window.locator('#status')).toHaveText('Готово', {
+      timeout: 20_000,
+    })
+  } finally {
+    await app.close()
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('шифрует plaintext-книгу v1.2.0 при первом запуске', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'asledger-desktop-migrate-'))
   const binary = binaryPath('asledgerd')
