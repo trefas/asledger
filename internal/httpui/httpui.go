@@ -94,6 +94,7 @@ var pageFiles = map[string]string{
 	"reconcile":       "reconcile.html",
 	"shopping":        "shopping.html",
 	"shopping_detail": "shopping_detail.html",
+	"shopping_shop":   "shopping_shop.html",
 	"error":           "error.html",
 }
 
@@ -194,6 +195,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /shopping-lists", s.handleShoppingListCreate)
 	mux.HandleFunc("GET /shopping-lists/{id}", s.handleShoppingListDetail)
 	mux.HandleFunc("POST /shopping-lists/{id}/items", s.handleShoppingItemCreate)
+	mux.HandleFunc("GET /shopping-lists/{id}/shop", s.handleShoppingShop)
+	mux.HandleFunc("POST /shopping-lists/{id}/shop/{item}", s.handleShoppingShopUpdate)
 	mux.HandleFunc("POST /shopping-lists/{id}/status", s.handleShoppingListStatus)
 	mux.HandleFunc("POST /shopping-lists/{id}/archive", s.handleShoppingListArchive)
 	mux.HandleFunc("POST /shopping-items/{id}", s.handleShoppingItemUpdate)

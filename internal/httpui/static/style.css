@@ -240,6 +240,21 @@ tr.total td { font-weight: 600; }
 .shop-edit-form { margin-top: .4rem; }
 .shopping-lists td a { font-weight: 600; }
 
+/* Режим магазина: крупные элементы для телефона */
+.shop-summary-sticky { position: sticky; top: 0; z-index: 2; }
+.shop-shop-item { padding: .8rem; }
+.shop-item-unconfirmed { border-left: 4px solid var(--green-500); }
+.shop-shop-fields { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.shop-shop-fields input { min-height: 44px; font-size: 1rem; }
+.shop-shop-checks { display: flex; gap: .6rem; flex-wrap: wrap; margin: .5rem 0; }
+.shop-shop-checks label.check {
+  display: flex; align-items: center; gap: .5rem; min-height: 44px;
+  padding: .25rem .6rem; border: 1px solid var(--line); border-radius: 8px;
+  font-size: 1rem; color: inherit; cursor: pointer;
+}
+.shop-shop-checks input { width: 1.35rem; height: 1.35rem; }
+.shop-save { min-height: 44px; width: 100%; margin-top: .35rem; font-size: 1rem; }
+
 .footer {
   display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
   padding: .75rem 1rem; border-top: 1px solid var(--line);
@@ -253,4 +268,5 @@ tr.total td { font-weight: 600; }
   .shop-item-price { margin-left: 0; }
   .shop-item-main { align-items: flex-start; }
   .shop-edit summary { padding: .5rem 0; }
+  .shop-shop-fields { grid-template-columns: 1fr; }
 }

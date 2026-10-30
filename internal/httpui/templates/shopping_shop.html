@@ -1,0 +1,63 @@
+{{define "shop-item-row"}}
+<li class="shop-item shop-shop-item{{if not .Confirmed}} shop-item-unconfirmed{{end}}" id="item-{{.Item.ID}}">
+  <div class="shop-item-main">
+    <span class="shop-item-name">{{.Item.Name}}</span>
+    <span class="badge{{if eq .StatusValue "purchased"}} badge-muted{{end}}">{{.Status}}</span>
+    {{if .PriceMismatch}}<span class="badge badge-warn">расхождение цены</span>{{end}}
+    <span class="shop-item-meta">{{if .Account}}{{.Account}}{{else}}статья не задана{{end}}</span>
+    <span class="shop-item-price">
+      {{if .Item.ActualPrice.IsZero}}{{if .InCart}}в корзине{{else}}ожидается{{end}}{{else}}{{money .Item.ActualPrice}}{{end}}
+    </span>
+  </div>
+  <form method="post" action="/shopping-lists/{{.Item.ListID}}/shop/{{.Item.ID}}" class="shop-shop-form">
+    <input type="hidden" name="version" value="{{.Item.Version}}">
+    <div class="shop-shop-fields">
+      <div>
+        <label for="shop-{{.Item.ID}}-price">Фактическая цена</label>
+        <input class="shop-price-input" type="text" inputmode="decimal" id="shop-{{.Item.ID}}-price"
+               name="actual_price" value="{{.ActualPrice}}" placeholder="0,00">
+      </div>
+      <div>
+        <label for="shop-{{.Item.ID}}-comment">Комментарий</label>
+        <input type="text" id="shop-{{.Item.ID}}-comment" name="comment"
+               value="{{.Comment}}" maxlength="500" placeholder="например, ценник 59,90">
+      </div>
+    </div>
+    <div class="shop-shop-checks">
+      <label class="check">
+        <input type="checkbox" name="in_cart" value="1"{{if .InCart}} checked{{end}}>
+        в корзине
+      </label>
+      <label class="check">
+        <input type="checkbox" name="price_mismatch" value="1"{{if .PriceMismatch}} checked{{end}}>
+        расхождение с ценником
+      </label>
+    </div>
+    <button class="btn shop-save" type="submit">Сохранить</button>
+  </form>
+</li>
+{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<p class="muted"><a href="/shopping-lists/{{.List.List.ID}}">← К списку</a></p>
+<h1>{{.List.List.Name}}: в магазине</h1>
+<p class="muted">Отметьте товары, которые действительно лежат в корзине, и введите цену с кассового чека. Неподтверждённые позиции останутся в списке и не попадут в проводки.</p>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+
+<div class="shop-summary shop-summary-sticky">
+  <span>Подтверждено: <strong>{{.List.List.ConfirmedCount}}</strong> из {{.List.List.ItemCount}}</span>
+  <span>Итого: <strong>{{money .List.List.ConfirmedTotal}}</strong></span>
+  <span class="muted">неподтверждённых: {{.UnconfirmedCount}}</span>
+</div>
+
+{{if .Items}}
+<ul class="shop-items shop-mode">
+  {{range .Items}}{{template "shop-item-row" .}}{{end}}
+</ul>
+{{else}}
+<p class="empty">В списке нет позиций. Вернитесь к списку и добавьте товары.</p>
+{{end}}
+{{end}}
+{{end}}

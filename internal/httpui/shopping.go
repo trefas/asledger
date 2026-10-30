@@ -82,6 +82,37 @@ type shoppingDetailView struct {
 	Statuses   []shoppingStatusOption
 }
 
+// shopDraft — введённые в магазине значения, которые нужно сохранить при
+// ошибке (например, конфликте версий), чтобы пользователь не потерял данные.
+type shopDraft struct {
+	ItemID        int64
+	ActualPrice   string
+	InCart        bool
+	PriceMismatch bool
+	Comment       string
+}
+
+// shopItemRow — позиция на экране магазина.
+type shopItemRow struct {
+	Item          model.ShoppingListItem
+	Account       string
+	Status        string
+	StatusValue   string
+	Confirmed     bool
+	ActualPrice   string
+	InCart        bool
+	PriceMismatch bool
+	Comment       string
+}
+
+// shoppingShopView — данные экрана «в магазине».
+type shoppingShopView struct {
+	List             shoppingListCard
+	Items            []shopItemRow
+	UnconfirmedCount int
+	Error            string
+}
+
 // shoppingListStatuses — варианты статуса списка с подписями.
 func shoppingListStatuses() []shoppingStatusOption {
 	options := make([]shoppingStatusOption, 0, len(model.ShoppingListStatuses()))
@@ -401,6 +432,200 @@ func (s *Server) handleShoppingSuggestJSON(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeWebJSON(w, map[string]any{"items": items})
+}
+
+// handleShoppingShop показывает экран «в магазине».
+func (s *Server) handleShoppingShop(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.shoppingID(w, r, "/shopping-lists")
+	if !ok {
+		return
+	}
+	view, err := s.shoppingShopView(r.Context(), id, nil)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.renderError(w, r, http.StatusNotFound, "Список покупок не найден.")
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	s.render(w, r, "shopping_shop", pageData{
+		Title: view.List.List.Name + " — в магазине", Active: "shopping", Data: view,
+	})
+}
+
+// handleShoppingShopUpdate сохраняет фактическую цену и отметки позиции.
+//
+// При конфликте версий страница перерисовывается с введёнными значениями,
+// чтобы покупатель не потерял цену из ценника.
+func (s *Server) handleShoppingShopUpdate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	listID, ok := s.shoppingID(w, r, "/shopping-lists")
+	if !ok {
+		return
+	}
+	itemID, err := strconv.ParseInt(r.PathValue("item"), 10, 64)
+	if err != nil || itemID <= 0 {
+		s.renderError(w, r, http.StatusBadRequest, "Не удалось определить позицию списка.")
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.fail(w, err)
+		return
+	}
+	draft := &shopDraft{
+		ItemID:        itemID,
+		ActualPrice:   strings.TrimSpace(r.FormValue("actual_price")),
+		InCart:        formChecked(r, "in_cart"),
+		PriceMismatch: formChecked(r, "price_mismatch"),
+		Comment:       strings.TrimSpace(r.FormValue("comment")),
+	}
+
+	item, err := s.db.ShoppingItem(ctx, itemID)
+	if err != nil || item.ListID != listID {
+		s.renderError(w, r, http.StatusNotFound, "Позиция списка не найдена.")
+		return
+	}
+	version, err := strconv.ParseInt(strings.TrimSpace(r.FormValue("version")), 10, 64)
+	if err != nil || version <= 0 {
+		s.shopFailure(w, r, listID, draft, "не задана версия позиции — обновите страницу и повторите")
+		return
+	}
+	actual, err := parseFormMoney(draft.ActualPrice)
+	if err != nil {
+		s.shopFailure(w, r, listID, draft, err.Error())
+		return
+	}
+
+	status := item.Status
+	if status == model.ShoppingItemPlanned || status == model.ShoppingItemConfirmed {
+		status = model.ShoppingItemPlanned
+		if actual.Kopecks() > 0 || draft.InCart {
+			status = model.ShoppingItemConfirmed
+		}
+	}
+	comment := draft.Comment
+	_, err = s.db.UpdateShoppingItem(ctx, itemID, store.ShoppingItemPatch{
+		Version:       version,
+		ActualPrice:   &actual,
+		InCart:        &draft.InCart,
+		PriceMismatch: &draft.PriceMismatch,
+		Comment:       &comment,
+		Status:        &status,
+	})
+	if err != nil {
+		message := shoppingErrorMessage(err)
+		var ve *store.ValidationError
+		if errors.As(err, &ve) && ve.Code == store.CodeShoppingVersionConflict {
+			message = "Позицию изменили на другом устройстве. Проверьте цену и сохраните ещё раз."
+		}
+		s.shopFailure(w, r, listID, draft, message)
+		return
+	}
+	s.redirectShop(w, r, listID, itemID, "Сохранено: "+item.Name)
+}
+
+// shopFailure перерисовывает экран магазина с сообщением и введёнными данными.
+func (s *Server) shopFailure(w http.ResponseWriter, r *http.Request, listID int64, draft *shopDraft, message string) {
+	view, err := s.shoppingShopView(r.Context(), listID, draft)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.renderError(w, r, http.StatusNotFound, "Список покупок не найден.")
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	view.Error = message
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	data := pageData{
+		Title: view.List.List.Name + " — в магазине", Active: "shopping",
+		Version: s.cfg.Version, Data: view,
+	}
+	if needsSetup, setupErr := s.needsSetup(r.Context()); setupErr == nil {
+		data.Setup = needsSetup
+		data.HasChart = !needsSetup
+	}
+	if err := s.pages["shopping_shop"].ExecuteTemplate(w, "layout", data); err != nil {
+		s.logger.Error("не удалось отрисовать экран магазина", "err", err)
+	}
+}
+
+// redirectShop переадресует на экран магазина к сохранённой позиции.
+func (s *Server) redirectShop(w http.ResponseWriter, r *http.Request, listID, itemID int64, message string) {
+	target := shoppingShopPath(listID) + "?flash=" + encodeQuery(message) + "&kind=ok"
+	if itemID > 0 {
+		target += "#item-" + strconv.FormatInt(itemID, 10)
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+// shoppingShopView собирает данные экрана магазина.
+func (s *Server) shoppingShopView(ctx context.Context, id int64, draft *shopDraft) (shoppingShopView, error) {
+	list, err := s.db.ShoppingList(ctx, id)
+	if err != nil {
+		return shoppingShopView{}, err
+	}
+	users, err := s.db.ListUsers(ctx)
+	if err != nil {
+		return shoppingShopView{}, err
+	}
+	paths, err := s.accountPaths(ctx)
+	if err != nil {
+		return shoppingShopView{}, err
+	}
+	view := shoppingShopView{List: toShoppingListCard(list, userNames(users))}
+	for i := range list.Items {
+		item := &list.Items[i]
+		row := shopItemRow{
+			Item:          *item,
+			Status:        shoppingItemStatusLabel(item.Status),
+			StatusValue:   string(item.Status),
+			Confirmed:     item.Confirmed(),
+			ActualPrice:   kopInput(item.ActualPrice),
+			InCart:        item.InCart,
+			PriceMismatch: item.PriceMismatch,
+			Comment:       item.Comment,
+		}
+		if item.AccountID != nil {
+			row.Account = paths[*item.AccountID]
+		}
+		if draft != nil && draft.ItemID == item.ID {
+			row.ActualPrice = draft.ActualPrice
+			row.InCart = draft.InCart
+			row.PriceMismatch = draft.PriceMismatch
+			row.Comment = draft.Comment
+		}
+		if !row.Confirmed {
+			view.UnconfirmedCount++
+		}
+		view.Items = append(view.Items, row)
+	}
+	return view, nil
+}
+
+// shoppingShopPath собирает адрес экрана магазина.
+func shoppingShopPath(id int64) string {
+	return shoppingListPath(id) + "/shop"
+}
+
+// formChecked сообщает, отмечен ли флажок формы.
+func formChecked(r *http.Request, name string) bool {
+	switch strings.ToLower(strings.TrimSpace(r.FormValue(name))) {
+	case "1", "on", "true", "да":
+		return true
+	default:
+		return false
+	}
+}
+
+// kopInput выводит сумму для поля ввода: «1 250,00» без знака рубля.
+func kopInput(k money.Kop) string {
+	if k == 0 {
+		return ""
+	}
+	return strings.TrimSuffix(k.String(), " ₽")
 }
 
 // shoppingDetailView собирает данные страницы списка.

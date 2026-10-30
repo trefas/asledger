@@ -283,3 +283,153 @@ func listIDFromPath(t *testing.T, path string) int64 {
 	}
 	return id
 }
+
+// TestASL_15_WebShoppingShop проверяет режим магазина: подтверждение ценой и
+// отметкой «в корзине», расхождение, итог и сохранение данных при конфликте.
+func TestASL_15_WebShoppingShop(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+	userID := w.userID(t)
+	accountID := w.accountID(t, "Расходы:Продукты")
+	ctx := context.Background()
+
+	list, err := w.db.CreateShoppingList(ctx, store.ShoppingListInput{
+		Name: "Поход в магазин", OwnerID: userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateShoppingList: %v", err)
+	}
+	add := func(name string) *model.ShoppingListItem {
+		t.Helper()
+		item, err := w.db.AddShoppingItem(ctx, list.ID, store.ShoppingItemInput{
+			Name: name, AccountID: &accountID, Priority: model.ShoppingPriorityNormal,
+		})
+		if err != nil {
+			t.Fatalf("AddShoppingItem(%q): %v", name, err)
+		}
+		return item
+	}
+	bread := add("Хлеб")
+	milk := add("Молоко")
+	cheese := add("Сыр")
+
+	shopPath := "/shopping-lists/" + strconv.FormatInt(list.ID, 10) + "/shop"
+	rec := w.get(t, shopPath)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("экран магазина: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"в магазине", "Хлеб", "Молоко", "Сыр", "Итого", "неподтверждённых: 3"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("на экране магазина нет %q", want)
+		}
+	}
+
+	// Хлеб подтверждаем ценой, отмечаем «в корзине» и расхождение.
+	rec = w.postForm(t, shopPath+"/"+strconv.FormatInt(bread.ID, 10), url.Values{
+		"version":        {strconv.FormatInt(bread.Version, 10)},
+		"actual_price":   {"59,90"},
+		"in_cart":        {"1"},
+		"price_mismatch": {"1"},
+		"comment":        {"ценник 59,90"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("сохранение хлеба: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	saved, err := w.db.ShoppingItem(ctx, bread.ID)
+	if err != nil {
+		t.Fatalf("ShoppingItem(хлеб): %v", err)
+	}
+	if saved.Status != model.ShoppingItemConfirmed || !saved.Confirmed() {
+		t.Fatalf("хлеб не подтверждён: %+v", saved)
+	}
+	if saved.ActualPrice != money.FromKopecks(5990) {
+		t.Fatalf("цена хлеба = %s, ожидалось 59,90 ₽", saved.ActualPrice)
+	}
+	if !saved.InCart || !saved.PriceMismatch || saved.Comment != "ценник 59,90" {
+		t.Fatalf("отметки хлеба: %+v", saved)
+	}
+	breadVersion := saved.Version
+
+	// Молоко подтверждаем только отметкой «в корзине» — цена ещё неизвестна.
+	rec = w.postForm(t, shopPath+"/"+strconv.FormatInt(milk.ID, 10), url.Values{
+		"version": {strconv.FormatInt(milk.Version, 10)},
+		"in_cart": {"1"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("сохранение молока: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	saved, err = w.db.ShoppingItem(ctx, milk.ID)
+	if err != nil {
+		t.Fatalf("ShoppingItem(молоко): %v", err)
+	}
+	if saved.Status != model.ShoppingItemConfirmed || !saved.Confirmed() {
+		t.Fatalf("молоко не подтверждено отметкой: %+v", saved)
+	}
+	if saved.ActualPrice != 0 {
+		t.Fatalf("цена молока = %s, ожидался ноль", saved.ActualPrice)
+	}
+
+	// Сыр остаётся неподтверждённым и не попадает в итог.
+	unchanged, err := w.db.ShoppingItem(ctx, cheese.ID)
+	if err != nil {
+		t.Fatalf("ShoppingItem(сыр): %v", err)
+	}
+	if unchanged.Confirmed() || unchanged.Status != model.ShoppingItemPlanned {
+		t.Fatalf("сыр подтверждён без цены и отметки: %+v", unchanged)
+	}
+
+	list, err = w.db.ShoppingList(ctx, list.ID)
+	if err != nil {
+		t.Fatalf("ShoppingList: %v", err)
+	}
+	if list.ConfirmedCount != 2 || list.ItemCount != 3 {
+		t.Fatalf("подтверждено %d из %d, ожидалось 2 из 3", list.ConfirmedCount, list.ItemCount)
+	}
+	if list.ConfirmedTotal != money.FromKopecks(5990) {
+		t.Fatalf("итог = %s, ожидалось 59,90 ₽ (неподтверждённые и нулевые не в счёте)", list.ConfirmedTotal)
+	}
+
+	rec = w.get(t, shopPath)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("экран магазина после сохранения: код %d", rec.Code)
+	}
+	body = rec.Body.String()
+	for _, want := range []string{"59,90 ₽", "неподтверждённых: 1", "расхождение цены"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("на экране магазина после сохранения нет %q", want)
+		}
+	}
+
+	// Конфликт версий: позицию изменили на другом устройстве, а телефон
+	// присылает устаревшую версию с новой ценой. Введённая цена не теряется.
+	newName := "Хлеб бородинский"
+	if _, err := w.db.UpdateShoppingItem(ctx, bread.ID, store.ShoppingItemPatch{
+		Version: breadVersion, Name: &newName,
+	}); err != nil {
+		t.Fatalf("правка хлеба на «другом устройстве»: %v", err)
+	}
+
+	rec = w.postForm(t, shopPath+"/"+strconv.FormatInt(bread.ID, 10), url.Values{
+		"version":      {strconv.FormatInt(bread.Version, 10)},
+		"actual_price": {"65,00"},
+		"in_cart":      {"1"},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("конфликт версий: код %d, ожидалась перерисовка (тело %s)", rec.Code, rec.Body.String())
+	}
+	body = rec.Body.String()
+	if !strings.Contains(body, "65,00") {
+		t.Fatalf("при конфликте потеряна введённая цена: %s", body)
+	}
+	if !strings.Contains(body, "изменили на другом устройстве") {
+		t.Fatalf("при конфликте нет понятного сообщения: %s", body)
+	}
+	after, err := w.db.ShoppingItem(ctx, bread.ID)
+	if err != nil {
+		t.Fatalf("ShoppingItem(хлеб) после конфликта: %v", err)
+	}
+	if after.ActualPrice != money.FromKopecks(5990) || after.Name != "Хлеб бородинский" {
+		t.Fatalf("конфликт изменил данные: %+v", after)
+	}
+}
