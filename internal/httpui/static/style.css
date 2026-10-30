@@ -217,6 +217,29 @@ tr.negative td.account { font-weight: 600; }
 tr.total td { font-weight: 600; }
 .badge-warn { background: var(--danger-bg); color: var(--danger); }
 
+/* Списки покупок */
+.shop-summary {
+  display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: baseline;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: .75rem .9rem; margin-bottom: 1rem; box-shadow: var(--shadow);
+}
+.shop-summary strong { font-variant-numeric: tabular-nums; }
+.shop-status { margin-bottom: 1rem; }
+.shop-add h2 { margin-top: 0; }
+.shop-items { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: .6rem; }
+.shop-item {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: .65rem .8rem;
+}
+.shop-item-main { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+.shop-item-name { font-weight: 600; }
+.shop-item-meta { color: var(--muted); font-size: .85rem; }
+.shop-item-price { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.shop-edit { margin-top: .4rem; }
+.shop-edit summary { cursor: pointer; color: var(--green-700); font-size: .9rem; }
+.shop-edit-form { margin-top: .4rem; }
+.shopping-lists td a { font-weight: 600; }
+
 .footer {
   display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
   padding: .75rem 1rem; border-top: 1px solid var(--line);
@@ -227,4 +250,7 @@ tr.total td { font-weight: 600; }
   .entry-line { grid-template-columns: 1fr; }
   .line-amount { min-width: 6rem; }
   .nav { width: 100%; margin-left: 0; overflow-x: auto; }
+  .shop-item-price { margin-left: 0; }
+  .shop-item-main { align-items: flex-start; }
+  .shop-edit summary { padding: .5rem 0; }
 }

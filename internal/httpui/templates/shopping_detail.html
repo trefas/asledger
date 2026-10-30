@@ -1,0 +1,143 @@
+{{define "shopping-item-row"}}
+<li class="shop-item" data-item-id="{{.Item.ID}}">
+  <div class="shop-item-main">
+    <span class="shop-item-name">{{.Item.Name}}</span>
+    <span class="badge{{if eq .StatusValue "purchased"}} badge-muted{{end}}{{if eq .StatusValue "skipped"}} badge-muted{{end}}">{{.Status}}</span>
+    {{if .Item.PriceMismatch}}<span class="badge badge-warn">расхождение цены</span>{{end}}
+    {{if .Item.InCart}}<span class="badge">в корзине</span>{{end}}
+    <span class="shop-item-meta">{{if .Account}}{{.Account}}{{else}}статья не задана{{end}}</span>
+    {{if .Assignee}}<span class="shop-item-meta">ответственный: {{.Assignee}}</span>{{end}}
+    <span class="shop-item-meta">приоритет: {{.Priority}}</span>
+    <span class="shop-item-price">{{money .Item.PlannedPrice}}{{if .Item.Confirmed}} · факт {{money .Item.ActualPrice}}{{end}}</span>
+  </div>
+  <details class="shop-edit">
+    <summary>Изменить</summary>
+    <form method="post" action="/shopping-items/{{.Item.ID}}" class="shop-edit-form">
+      <input type="hidden" name="version" value="{{.Item.Version}}">
+      <input type="hidden" name="list_id" value="{{.Item.ListID}}">
+      <div class="row">
+        <div>
+          <label for="item-{{.Item.ID}}-name">Товар</label>
+          <input type="text" id="item-{{.Item.ID}}-name" name="name" value="{{.Item.Name}}" required maxlength="200">
+        </div>
+        <div>
+          <label for="item-{{.Item.ID}}-account">Статья расходов</label>
+          <select id="item-{{.Item.ID}}-account" name="account_id">
+            <option value="">без статьи</option>
+            {{range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.AccountID}} selected{{end}}>{{.FullPath}}</option>{{end}}
+          </select>
+        </div>
+        <div>
+          <label for="item-{{.Item.ID}}-assignee">Ответственный</label>
+          <select id="item-{{.Item.ID}}-assignee" name="assignee_id">
+            <option value="">не назначен</option>
+            {{range .Users}}<option value="{{.ID}}"{{if eq .ID $.AssigneeID}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </div>
+        <div>
+          <label for="item-{{.Item.ID}}-priority">Приоритет</label>
+          <select id="item-{{.Item.ID}}-priority" name="priority">
+            <option value="low"{{if eq .PriorityValue "low"}} selected{{end}}>низкий</option>
+            <option value="normal"{{if eq .PriorityValue "normal"}} selected{{end}}>обычный</option>
+            <option value="high"{{if eq .PriorityValue "high"}} selected{{end}}>высокий</option>
+          </select>
+        </div>
+        <div>
+          <label for="item-{{.Item.ID}}-price">Ожидаемая цена</label>
+          <input type="text" inputmode="decimal" id="item-{{.Item.ID}}-price" name="planned_price" value="{{money .Item.PlannedPrice}}">
+        </div>
+      </div>
+      <div>
+        <label for="item-{{.Item.ID}}-comment">Комментарий</label>
+        <input type="text" id="item-{{.Item.ID}}-comment" name="comment" value="{{.Item.Comment}}" maxlength="500">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary btn-small" type="submit">Сохранить</button>
+      </div>
+    </form>
+    {{if ne .StatusValue "purchased"}}
+    <form method="post" action="/shopping-items/{{.Item.ID}}/delete" class="inline-form" onsubmit="return confirm('Удалить позицию «{{.Item.Name}}»?')">
+      <input type="hidden" name="list_id" value="{{.Item.ListID}}">
+      <button class="btn btn-secondary btn-small" type="submit">Удалить</button>
+    </form>
+    {{end}}
+  </details>
+</li>
+{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<p class="muted"><a href="/shopping-lists">← Все списки покупок</a></p>
+<h1>{{.List.List.Name}}</h1>
+<p class="muted">
+  Владелец: {{.List.Owner}} · дата похода: {{.List.Planned}} · статус: {{.List.Status}}
+</p>
+
+<div class="shop-summary" id="shopping-summary">
+  <span>Позиций: <strong id="shopping-item-count">{{.List.List.ItemCount}}</strong></span>
+  <span>Подтверждено: <strong id="shopping-confirmed-count">{{.List.List.ConfirmedCount}}</strong></span>
+  <span>Сумма подтверждённых: <strong id="shopping-confirmed-total">{{money .List.List.ConfirmedTotal}}</strong></span>
+</div>
+
+<form method="post" action="/shopping-lists/{{.List.List.ID}}/status" class="filters shop-status">
+  <label>Статус списка
+    <select name="status">
+      {{range .Statuses}}<option value="{{.Value}}"{{if eq .Value $.Data.List.StatusValue}} selected{{end}}>{{.Label}}</option>{{end}}
+    </select>
+  </label>
+  <button type="submit">Сохранить статус</button>
+</form>
+
+<form method="post" action="/shopping-lists/{{.List.List.ID}}/items" id="shopping-add-form" class="card shop-add" data-suggest="/shopping/suggest.json">
+  <h2>Добавить товар</h2>
+  <div class="row">
+    <div>
+      <label for="add-name">Товар</label>
+      <input type="text" id="add-name" name="name" required maxlength="200" placeholder="например, Хлеб">
+    </div>
+    <div class="ac">
+      <label for="add-account">Статья расходов</label>
+      <input class="ac-input" type="text" id="add-account" name="account_path" autocomplete="off" placeholder="например, Расходы:Продукты">
+      <input type="hidden" name="account_id" id="add-account-id">
+      <ul class="ac-list" id="add-account-list" role="listbox" aria-label="Статьи расходов" hidden></ul>
+    </div>
+    <div>
+      <label for="add-assignee">Ответственный</label>
+      <select id="add-assignee" name="assignee_id">
+        <option value="">не назначен</option>
+        {{range .Users}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div>
+      <label for="add-priority">Приоритет</label>
+      <select id="add-priority" name="priority">
+        {{range .Priorities}}<option value="{{.Value}}"{{if eq .Value "normal"}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </div>
+    <div>
+      <label for="add-price">Ожидаемая цена</label>
+      <input type="text" inputmode="decimal" id="add-price" name="planned_price" placeholder="0,00">
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Добавить</button></div>
+  </div>
+  <p class="matrix-warning" id="shopping-add-error" role="alert" hidden></p>
+</form>
+
+{{if .Items}}
+<ul class="shop-items" id="shopping-items">
+  {{range .Items}}{{template "shopping-item-row" .}}{{end}}
+</ul>
+{{else}}
+<ul class="shop-items" id="shopping-items"></ul>
+<p class="empty" id="shopping-empty">В списке пока нет позиций. Добавьте первый товар.</p>
+{{end}}
+
+<div class="card">
+  <h2>Завершение списка</h2>
+  <p class="muted">Архивация сохраняет позиции и историю: список можно посмотреть позже, выбрав фильтр «архив».</p>
+  <form method="post" action="/shopping-lists/{{.List.List.ID}}/archive" class="inline-form" onsubmit="return confirm('Перевести список «{{.List.List.Name}}» в архив?')">
+    <button class="btn btn-secondary" type="submit">Перевести в архив</button>
+  </form>
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,64 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Списки покупок</h1>
+<p class="muted">Список заранее распределяет покупки по статьям расходов и ответственным. В проводки попадут только подтверждённые позиции, остальные останутся для следующего похода в магазин.</p>
+
+<div class="card">
+  <h2>Новый список</h2>
+  {{if .Users}}
+  <form method="post" action="/shopping-lists" class="row">
+    <div>
+      <label for="list-name">Название</label>
+      <input type="text" id="list-name" name="name" required maxlength="200" placeholder="например, Продукты на неделю">
+    </div>
+    <div>
+      <label for="list-date">Дата похода</label>
+      <input type="date" id="list-date" name="planned_date">
+    </div>
+    <div>
+      <label for="list-owner">Владелец</label>
+      <select id="list-owner" name="owner_id">
+        {{range .Users}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Создать список</button></div>
+  </form>
+  {{else}}
+  <p class="muted">Чтобы создать список, сначала добавьте пользователя на странице <a href="/users">«Пользователи»</a>.</p>
+  {{end}}
+</div>
+
+<form class="filters" method="get" action="/shopping-lists">
+  <label>Статус
+    <select name="status">
+      <option value="">все, кроме архива</option>
+      {{range .Statuses}}<option value="{{.Value}}"{{if eq .Value $.Data.Status}} selected{{end}}>{{.Label}}</option>{{end}}
+    </select>
+  </label>
+  <label class="check"><input type="checkbox" name="include_archived" value="1"{{if .IncludeArchived}} checked{{end}}> показывать архив</label>
+  <button type="submit">Показать</button>
+</form>
+
+{{if .Lists}}
+<table class="report shopping-lists">
+  <thead>
+    <tr><th>Список</th><th>Дата похода</th><th>Владелец</th><th class="num">Позиций</th><th class="num">Подтверждено</th><th>Статус</th></tr>
+  </thead>
+  <tbody>
+  {{range .Lists}}
+    <tr>
+      <td><a href="/shopping-lists/{{.List.ID}}">{{.List.Name}}</a></td>
+      <td>{{.Planned}}</td>
+      <td>{{.Owner}}</td>
+      <td class="num">{{.List.ItemCount}}</td>
+      <td class="num">{{.List.ConfirmedCount}} · {{money .List.ConfirmedTotal}}</td>
+      <td><span class="badge{{if eq .List.Status "archived"}} badge-muted{{end}}">{{.Status}}</span></td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="empty">Списков покупок пока нет. Создайте первый — например, «Продукты на неделю».</p>
+{{end}}
+{{end}}
+{{end}}

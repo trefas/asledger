@@ -651,12 +651,203 @@
     recompute();
   }
 
+  // === Списки покупок ===
+
+  // initShoppingForm добавляет товары без перезагрузки страницы и подсказывает
+  // статьи расходов по плану счетов и истории трат.
+  function initShoppingForm() {
+    var form = document.getElementById('shopping-add-form');
+    var list = document.getElementById('shopping-items');
+    if (!form || !list) {
+      return;
+    }
+    var errorBox = document.getElementById('shopping-add-error');
+    var accountInput = document.getElementById('add-account');
+    var accountHidden = document.getElementById('add-account-id');
+    var accountList = document.getElementById('add-account-list');
+    var suggestURL = form.getAttribute('data-suggest') || '/shopping/suggest.json';
+    var items = [];
+    var timer = null;
+
+    function closeList() {
+      if (!accountList) {
+        return;
+      }
+      accountList.hidden = true;
+      accountInput.setAttribute('aria-expanded', 'false');
+    }
+
+    function pick(item) {
+      accountInput.value = item.path;
+      accountHidden.value = String(item.id);
+      closeList();
+    }
+
+    function renderList(found) {
+      items = found;
+      accountList.textContent = '';
+      if (!found.length) {
+        closeList();
+        return;
+      }
+      found.forEach(function (item) {
+        var li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        li.setAttribute('aria-selected', 'false');
+        var path = document.createElement('span');
+        path.className = 'ac-path';
+        path.textContent = item.path;
+        li.appendChild(path);
+        if (item.used > 0) {
+          var note = document.createElement('span');
+          note.className = 'ac-note';
+          note.textContent = 'использований: ' + item.used;
+          li.appendChild(note);
+        }
+        li.addEventListener('mousedown', function (event) {
+          event.preventDefault();
+          pick(item);
+        });
+        accountList.appendChild(li);
+      });
+      accountList.hidden = false;
+      accountInput.setAttribute('aria-expanded', 'true');
+    }
+
+    function search() {
+      fetch(suggestURL + '?q=' + encodeURIComponent(accountInput.value.trim()) + '&limit=12', {
+        headers: { Accept: 'application/json' }
+      })
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) { renderList((data && data.items) || []); })
+        .catch(closeList);
+    }
+
+    if (accountInput && accountHidden && accountList) {
+      accountInput.addEventListener('input', function () {
+        accountHidden.value = '';
+        if (timer) {
+          clearTimeout(timer);
+        }
+        timer = setTimeout(search, 140);
+      });
+      accountInput.addEventListener('focus', function () {
+        if (accountInput.value.trim() !== '') {
+          search();
+        }
+      });
+      accountInput.addEventListener('blur', function () { setTimeout(closeList, 150); });
+      accountInput.addEventListener('keydown', function (event) {
+        if (accountList.hidden) {
+          return;
+        }
+        var options = Array.prototype.slice.call(accountList.querySelectorAll('li'));
+        var current = options.findIndex(function (li) {
+          return li.getAttribute('aria-selected') === 'true';
+        });
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          var next = event.key === 'ArrowDown' ? current + 1 : current - 1;
+          if (next < 0) {
+            next = 0;
+          }
+          if (next >= options.length) {
+            next = options.length - 1;
+          }
+          options.forEach(function (li, idx) {
+            li.setAttribute('aria-selected', idx === next ? 'true' : 'false');
+          });
+        } else if (event.key === 'Enter') {
+          if (current >= 0 && items[current]) {
+            event.preventDefault();
+            pick(items[current]);
+          }
+        } else if (event.key === 'Escape') {
+          closeList();
+        }
+      });
+    }
+
+    function showError(message) {
+      if (!errorBox) {
+        return;
+      }
+      errorBox.textContent = message || '';
+      errorBox.hidden = !message;
+    }
+
+    function setText(id, value) {
+      var node = document.getElementById(id);
+      if (node && value !== undefined && value !== null) {
+        node.textContent = value;
+      }
+    }
+
+    function updateSummary(data) {
+      setText('shopping-item-count', data.item_count);
+      setText('shopping-confirmed-count', data.confirmed_count);
+      setText('shopping-confirmed-total', data.confirmed_total_kop);
+      var empty = document.getElementById('shopping-empty');
+      if (empty && data.item_count > 0) {
+        empty.hidden = true;
+      }
+    }
+
+    form.addEventListener('submit', function (event) {
+      if (!window.fetch || !window.FormData) {
+        return;
+      }
+      event.preventDefault();
+      showError('');
+      var button = form.querySelector('button[type="submit"]');
+      if (button) {
+        button.disabled = true;
+      }
+      fetch(form.action, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        body: new URLSearchParams(new FormData(form))
+      })
+        .then(function (resp) {
+          return resp.json().then(function (data) {
+            return { ok: resp.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            showError((result.data && result.data.error) || 'не удалось добавить позицию');
+            return;
+          }
+          list.insertAdjacentHTML('beforeend', result.data.html);
+          form.reset();
+          accountHidden.value = '';
+          updateSummary(result.data);
+          var name = document.getElementById('add-name');
+          if (name) {
+            name.focus();
+          }
+        })
+        .catch(function () {
+          // Сеть недоступна — отправляем обычной формой.
+          form.submit();
+        })
+        .finally(function () {
+          if (button) {
+            button.disabled = false;
+          }
+        });
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     if (document.getElementById('entry-form')) {
       initEntryForm();
     }
     if (document.getElementById('initial-form')) {
       initInitialForm();
+    }
+    if (document.getElementById('shopping-add-form')) {
+      initShoppingForm();
     }
   });
 })();

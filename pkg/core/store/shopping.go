@@ -371,6 +371,67 @@ func (db *DB) ListShoppingTemplatesFull(ctx context.Context) ([]model.ShoppingLi
 	return templates, nil
 }
 
+// ShoppingAccountSuggestion — статья расходов в подсказке списка покупок.
+//
+// Used — сколько раз счёт встречался в дебете проводок типа «трата»:
+// подсказка поднимает привычные статьи выше редких.
+type ShoppingAccountSuggestion struct {
+	// ID — идентификатор счёта.
+	ID int64
+	// Path — полный путь счёта.
+	Path string
+	// Used — число использований в прошлых тратах.
+	Used int
+}
+
+// SuggestShoppingAccounts подсказывает листовые статьи расходов.
+//
+// Сортировка: сначала часто используемые в прошлых тратах, затем по пути.
+// Пустой запрос возвращает самые употребимые статьи.
+func (db *DB) SuggestShoppingAccounts(ctx context.Context, query string, limit int) ([]ShoppingAccountSuggestion, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 12
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT a.id, a.name, a.full_path,
+		       (SELECT COUNT(*)
+		          FROM transaction_lines l
+		          JOIN transactions t ON t.id = l.transaction_id
+		         WHERE l.account_id = a.id AND l.side = 'DEBIT' AND t.op_type = 'трата') AS used
+		  FROM accounts a
+		 WHERE a.is_leaf = 1 AND a.is_archived = 0 AND a.type = 'расход'
+		 ORDER BY used DESC, a.full_path`)
+	if err != nil {
+		return nil, fmt.Errorf("store: не удалось прочитать статьи расходов: %w", err)
+	}
+	defer rows.Close()
+
+	q := strings.ToLower(strings.TrimSpace(query))
+	var result []ShoppingAccountSuggestion
+	for rows.Next() {
+		var (
+			item ShoppingAccountSuggestion
+			name string
+		)
+		if err := rows.Scan(&item.ID, &name, &item.Path, &item.Used); err != nil {
+			return nil, fmt.Errorf("store: не удалось разобрать статью расходов: %w", err)
+		}
+		if q != "" &&
+			!strings.Contains(strings.ToLower(name), q) &&
+			!strings.Contains(strings.ToLower(item.Path), q) {
+			continue
+		}
+		result = append(result, item)
+		if len(result) >= limit {
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: ошибка чтения статей расходов: %w", err)
+	}
+	return result, nil
+}
+
 // ShoppingItem возвращает позицию списка по идентификатору.
 func (db *DB) ShoppingItem(ctx context.Context, id int64) (*model.ShoppingListItem, error) {
 	row := db.QueryRowContext(ctx,

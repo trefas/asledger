@@ -357,5 +357,58 @@ func TestASL_15_ShoppingTemplates(t *testing.T) {
 	}
 }
 
+// TestASL_15_ShoppingAccountSuggest проверяет подсказку статей расходов
+// с учётом истории трат.
+func TestASL_15_ShoppingAccountSuggest(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	userID := mustCreateUser(t, db, "Андрей")
+	products := mustCreateAccount(t, db, "Продукты", model.TypeExpense, nil)
+	household := mustCreateAccount(t, db, "Хозяйство", model.TypeExpense, nil)
+	asset := mustCreateAccount(t, db, "Наличные", model.TypeAsset, nil)
+
+	// Продукты уже использовались в тратах — подсказка поднимает их выше.
+	mustInsertTransaction(t, db, &model.Transaction{
+		UUID:    "11111111-1111-4111-8111-111111111111",
+		OpType:  model.OpExpense,
+		Date:    time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
+		ActorID: userID,
+		Lines: []model.TransactionLine{
+			{AccountID: products.ID, Amount: money.FromKopecks(15000), Side: model.SideDebit},
+			{AccountID: asset.ID, Amount: money.FromKopecks(15000), Side: model.SideCredit},
+		},
+	})
+
+	suggestions, err := db.SuggestShoppingAccounts(ctx, "", 10)
+	if err != nil {
+		t.Fatalf("SuggestShoppingAccounts: %v", err)
+	}
+	if len(suggestions) != 2 {
+		t.Fatalf("подсказок = %d, ожидалось 2: %+v", len(suggestions), suggestions)
+	}
+	if suggestions[0].ID != products.ID || suggestions[0].Used != 1 {
+		t.Fatalf("первая подсказка = %+v, ожидались продукты с одним использованием", suggestions[0])
+	}
+	if suggestions[1].ID != household.ID || suggestions[1].Used != 0 {
+		t.Fatalf("вторая подсказка = %+v", suggestions[1])
+	}
+
+	// Фильтр по запросу ищет по имени и пути.
+	filtered, err := db.SuggestShoppingAccounts(ctx, "хозяй", 10)
+	if err != nil {
+		t.Fatalf("SuggestShoppingAccounts фильтр: %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].ID != household.ID {
+		t.Fatalf("фильтр по запросу: %+v", filtered)
+	}
+
+	// Счета других типов в подсказку не попадают.
+	for _, item := range suggestions {
+		if item.ID == asset.ID {
+			t.Fatal("счёт актива попал в подсказку статей расходов")
+		}
+	}
+}
+
 func statusPtr(v model.ShoppingItemStatus) *model.ShoppingItemStatus { return &v }
 func strPtr(v string) *string                                        { return &v }

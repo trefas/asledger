@@ -82,17 +82,19 @@ type pageData struct {
 
 // pageFiles сопоставляет имя страницы файлу шаблона.
 var pageFiles = map[string]string{
-	"journal":   "journal.html",
-	"entry":     "entry.html",
-	"setup":     "setup.html",
-	"data":      "data.html",
-	"chart":     "chart.html",
-	"users":     "users.html",
-	"devices":   "devices.html",
-	"initial":   "initial.html",
-	"reports":   "reports.html",
-	"reconcile": "reconcile.html",
-	"error":     "error.html",
+	"journal":         "journal.html",
+	"entry":           "entry.html",
+	"setup":           "setup.html",
+	"data":            "data.html",
+	"chart":           "chart.html",
+	"users":           "users.html",
+	"devices":         "devices.html",
+	"initial":         "initial.html",
+	"reports":         "reports.html",
+	"reconcile":       "reconcile.html",
+	"shopping":        "shopping.html",
+	"shopping_detail": "shopping_detail.html",
+	"error":           "error.html",
 }
 
 // New создаёт web-интерфейс и разбирает шаблоны.
@@ -187,6 +189,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /reconcile", s.handleReconcileForm)
 	mux.HandleFunc("POST /reconcile", s.handleReconcileSubmit)
 	mux.HandleFunc("POST /journal/reverse", s.handleJournalReverse)
+
+	mux.HandleFunc("GET /shopping-lists", s.handleShoppingLists)
+	mux.HandleFunc("POST /shopping-lists", s.handleShoppingListCreate)
+	mux.HandleFunc("GET /shopping-lists/{id}", s.handleShoppingListDetail)
+	mux.HandleFunc("POST /shopping-lists/{id}/items", s.handleShoppingItemCreate)
+	mux.HandleFunc("POST /shopping-lists/{id}/status", s.handleShoppingListStatus)
+	mux.HandleFunc("POST /shopping-lists/{id}/archive", s.handleShoppingListArchive)
+	mux.HandleFunc("POST /shopping-items/{id}", s.handleShoppingItemUpdate)
+	mux.HandleFunc("POST /shopping-items/{id}/delete", s.handleShoppingItemDelete)
+	mux.HandleFunc("GET /shopping/suggest.json", s.handleShoppingSuggestJSON)
 
 	mux.HandleFunc("GET /suggest.json", s.handleSuggestJSON)
 	mux.HandleFunc("GET /matrix.json", s.handleMatrixJSON)
