@@ -200,4 +200,5 @@ const (
 	OpInsert  = "insert"
 	OpUpdate  = "update"
 	OpArchive = "archive"
+	OpDelete  = "delete"
 )

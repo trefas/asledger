@@ -46,6 +46,12 @@ type Snapshot struct {
 	Users         []User              `json:"users"`
 	Settings      map[string]string   `json:"settings"`
 	Transactions  []model.Transaction `json:"transactions"`
+	// Списки покупок — дополнительные read-only данные для клиентов.
+	// Android-клиент v1.3.3 игнорирует неизвестные поля, поэтому
+	// format_version не меняется.
+	ShoppingLists     []model.ShoppingList         `json:"shopping_lists,omitempty"`
+	ShoppingItems     []model.ShoppingListItem     `json:"shopping_items,omitempty"`
+	ShoppingTemplates []model.ShoppingListTemplate `json:"shopping_list_templates,omitempty"`
 }
 
 // Snapshot собирает полный снапшот книги.
@@ -72,19 +78,34 @@ func (s *Service) Snapshot(ctx context.Context) (*Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
+	shoppingLists, err := s.db.ListShoppingLists(ctx, store.ShoppingListFilter{IncludeArchived: true})
+	if err != nil {
+		return nil, err
+	}
+	shoppingItems, err := s.db.ListAllShoppingItems(ctx)
+	if err != nil {
+		return nil, err
+	}
+	shoppingTemplates, err := s.db.ListShoppingTemplatesFull(ctx)
+	if err != nil {
+		return nil, err
+	}
 	chainHash, err := s.chainHash(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	snapshot := &Snapshot{
-		FormatVersion: SnapshotFormatVersion,
-		HeadSeq:       head,
-		ChainHash:     chainHash,
-		Accounts:      accounts,
-		Users:         publicUsers(users),
-		Settings:      settings,
-		Transactions:  transactions,
+		FormatVersion:     SnapshotFormatVersion,
+		HeadSeq:           head,
+		ChainHash:         chainHash,
+		Accounts:          accounts,
+		Users:             publicUsers(users),
+		Settings:          settings,
+		Transactions:      transactions,
+		ShoppingLists:     shoppingLists,
+		ShoppingItems:     shoppingItems,
+		ShoppingTemplates: shoppingTemplates,
 	}
 	return snapshot, nil
 }
@@ -101,6 +122,11 @@ type Pull struct {
 	AccountsReadOnly bool                   `json:"accounts_read_only"`
 	Commits          []model.Commit         `json:"commits"`
 	ResyncRequired   bool                   `json:"resync_required"`
+	// Списки покупок передаются целиком, как и план счетов: их немного,
+	// а клиенту нужен согласованный срез для отображения.
+	ShoppingLists     []model.ShoppingList         `json:"shopping_lists,omitempty"`
+	ShoppingItems     []model.ShoppingListItem     `json:"shopping_items,omitempty"`
+	ShoppingTemplates []model.ShoppingListTemplate `json:"shopping_list_templates,omitempty"`
 }
 
 // Pull возвращает дельту журнала изменений с seq больше since.
@@ -130,6 +156,18 @@ func (s *Service) Pull(ctx context.Context, since int64, knownChainHash string) 
 	if err != nil {
 		return nil, err
 	}
+	shoppingLists, err := s.db.ListShoppingLists(ctx, store.ShoppingListFilter{IncludeArchived: true})
+	if err != nil {
+		return nil, err
+	}
+	shoppingItems, err := s.db.ListAllShoppingItems(ctx)
+	if err != nil {
+		return nil, err
+	}
+	shoppingTemplates, err := s.db.ListShoppingTemplatesFull(ctx)
+	if err != nil {
+		return nil, err
+	}
 	head, err := s.db.HeadSeq(ctx)
 	if err != nil {
 		return nil, err
@@ -144,15 +182,18 @@ func (s *Service) Pull(ctx context.Context, since int64, knownChainHash string) 
 	}
 
 	pull := &Pull{
-		FormatVersion:    SnapshotFormatVersion,
-		Since:            since,
-		HeadSeq:          head,
-		ChainHash:        chainHash,
-		Changes:          changes,
-		Transactions:     transactions,
-		Accounts:         accounts,
-		AccountsReadOnly: true,
-		Commits:          commits,
+		FormatVersion:     SnapshotFormatVersion,
+		Since:             since,
+		HeadSeq:           head,
+		ChainHash:         chainHash,
+		Changes:           changes,
+		Transactions:      transactions,
+		Accounts:          accounts,
+		AccountsReadOnly:  true,
+		Commits:           commits,
+		ShoppingLists:     shoppingLists,
+		ShoppingItems:     shoppingItems,
+		ShoppingTemplates: shoppingTemplates,
 	}
 	if knownChainHash != "" {
 		pull.ResyncRequired = !s.chainMatches(ctx, since, knownChainHash)

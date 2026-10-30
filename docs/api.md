@@ -147,6 +147,109 @@ Authorization: Bearer <токен>
 на отменяемую запись. Тело запроса не требуется. Повторная отмена идемпотентна и
 возвращает уже созданное сторно. Ответ — `201` с проводкой-сторно.
 
+## Списки покупок
+
+Списки покупок — вспомогательные сущности книги (эпик #165). Они хранятся в
+той же зашифрованной книге, что и проводки, и доступны через REST API.
+В проводки попадают только подтверждённые позиции; неподтверждённые остаются
+в списке для следующих походов в магазин.
+
+Позиция считается подтверждённой, если у неё указана фактическая цена
+(`actual_price_kop > 0`) или стоит отметка `in_cart = true`.
+
+### GET /api/v1/shopping-lists
+
+Параметры: `status` (`draft|active|shopping|completed|archived`),
+`include_archived=1`, `owner_id`, `limit`, `offset`.
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "uuid": "…",
+      "name": "На выходные",
+      "planned_date": "2026-11-01T00:00:00Z",
+      "status": "active",
+      "owner_id": 1,
+      "item_count": 3,
+      "confirmed_count": 1,
+      "confirmed_total_kop": 6200
+    }
+  ]
+}
+```
+
+### POST /api/v1/shopping-lists
+
+```json
+{ "name": "На выходные", "planned_date": "2026-11-01T00:00:00Z" }
+```
+
+Владелец по умолчанию — пользователь устройства. Ответ `201` содержит список.
+
+### GET /api/v1/shopping-lists/{id}
+
+Возвращает список вместе с позициями, суммами и версиями позиций.
+
+### PATCH /api/v1/shopping-lists/{id}
+
+Частичное изменение: `name`, `planned_date`, `status`, `owner_id`.
+
+### DELETE /api/v1/shopping-lists/{id}
+
+Переводит список в архив, не удаляя позиции и историю.
+
+### POST /api/v1/shopping-lists/{id}/items
+
+```json
+{
+  "name": "Хлеб",
+  "account_id": 12,
+  "assignee_id": 1,
+  "priority": "high",
+  "planned_price_kop": 5000,
+  "actual_price_kop": 6200,
+  "in_cart": false,
+  "price_mismatch": false,
+  "comment": "Ценник не совпал с кассой"
+}
+```
+
+`account_id` — листовой счёт типа «расход». Ответ `201` содержит позицию с
+`version = 1`.
+
+### PATCH /api/v1/shopping-items/{id}
+
+Обновление позиции требует поле `version` — версию, которую видел клиент.
+При устаревшей версии возвращается `409` с кодом
+`ERR_SHOPPING_VERSION_CONFLICT`; клиент должен перечитать позицию и повторить
+изменение.
+
+```json
+{
+  "version": 1,
+  "actual_price_kop": 6200,
+  "in_cart": false,
+  "price_mismatch": true,
+  "status": "confirmed"
+}
+```
+
+Для очистки ссылок используются флаги `clear_account` и `clear_assignee`.
+
+### DELETE /api/v1/shopping-items/{id}
+
+Удаляет запланированную позицию. Купленную позицию (`status = purchased`)
+удалить нельзя — история сохраняется.
+
+### Синхронизация
+
+`GET /api/v1/sync/snapshot` и `GET /api/v1/sync/pull` дополнительно отдают
+массивы `shopping_lists`, `shopping_items` и `shopping_list_templates`.
+`format_version` остаётся `1`: Android-клиент `v1.3.3` игнорирует неизвестные
+поля и продолжает работать без изменений.
+
 ## Отчёты и сверка
 
 Все отчёты строятся свёрткой журнала (остатки не хранятся) и требуют токен.

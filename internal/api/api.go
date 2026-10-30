@@ -72,6 +72,15 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/sync/push", s.auth(http.HandlerFunc(s.handlePush)))
 	mux.Handle("GET /api/v1/sync/pull", s.auth(http.HandlerFunc(s.handlePull)))
 
+	mux.Handle("GET /api/v1/shopping-lists", s.auth(http.HandlerFunc(s.handleShoppingLists)))
+	mux.Handle("POST /api/v1/shopping-lists", s.auth(http.HandlerFunc(s.handleShoppingLists)))
+	mux.Handle("GET /api/v1/shopping-lists/{id}", s.auth(http.HandlerFunc(s.handleShoppingList)))
+	mux.Handle("PATCH /api/v1/shopping-lists/{id}", s.auth(http.HandlerFunc(s.handleShoppingList)))
+	mux.Handle("DELETE /api/v1/shopping-lists/{id}", s.auth(http.HandlerFunc(s.handleShoppingList)))
+	mux.Handle("POST /api/v1/shopping-lists/{id}/items", s.auth(http.HandlerFunc(s.handleShoppingListItems)))
+	mux.Handle("PATCH /api/v1/shopping-items/{id}", s.auth(http.HandlerFunc(s.handleShoppingItem)))
+	mux.Handle("DELETE /api/v1/shopping-items/{id}", s.auth(http.HandlerFunc(s.handleShoppingItem)))
+
 	mux.Handle("GET /api/v1/accounts/suggest", s.auth(http.HandlerFunc(s.handleSuggest)))
 	mux.Handle("GET /api/v1/engine/roles", s.auth(http.HandlerFunc(s.handleEngineRoles)))
 	mux.Handle("GET /api/v1/charts/templates", s.auth(http.HandlerFunc(s.handleChartTemplates)))

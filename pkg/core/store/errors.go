@@ -22,6 +22,12 @@ var (
 	ErrDuplicateUUID = errors.New("store: транзакция с таким uuid уже существует")
 	// ErrAuthFailed — пользователь есть, но секрет не совпал.
 	ErrAuthFailed = errors.New("store: неверный секрет пользователя")
+	// ErrShoppingVersionConflict — позиция списка изменена другим клиентом.
+	ErrShoppingVersionConflict = errors.New("store: конфликт версии позиции списка покупок")
+	// ErrShoppingListArchived — список покупок в архиве и недоступен для правок.
+	ErrShoppingListArchived = errors.New("store: список покупок заархивирован")
+	// ErrShoppingItemPurchased — купленную позицию нельзя удалить.
+	ErrShoppingItemPurchased = errors.New("store: купленная позиция защищена от удаления")
 )
 
 // Коды нарушений инвариантов записи. Совпадают с кодами валидации движка,
@@ -43,6 +49,24 @@ const (
 	CodeAccountNotFound = "ERR_ACCOUNT_NOT_FOUND"
 	// CodeAccountTypeMismatch — тип счёта не совпадает с типом родителя.
 	CodeAccountTypeMismatch = "ERR_ACCOUNT_TYPE_MISMATCH"
+	// CodeShoppingName — пустое или слишком длинное наименование.
+	CodeShoppingName = "ERR_SHOPPING_NAME"
+	// CodeShoppingStatus — недопустимый статус списка или позиции.
+	CodeShoppingStatus = "ERR_SHOPPING_STATUS"
+	// CodeShoppingPriority — недопустимый приоритет позиции.
+	CodeShoppingPriority = "ERR_SHOPPING_PRIORITY"
+	// CodeShoppingAccountInvalid — статья расходов не листовая или не «расход».
+	CodeShoppingAccountInvalid = "ERR_SHOPPING_ACCOUNT_INVALID"
+	// CodeShoppingAssigneeInvalid — ответственный не найден.
+	CodeShoppingAssigneeInvalid = "ERR_SHOPPING_ASSIGNEE_INVALID"
+	// CodeShoppingPriceInvalid — отрицательная цена позиции.
+	CodeShoppingPriceInvalid = "ERR_SHOPPING_PRICE_INVALID"
+	// CodeShoppingVersionConflict — устаревшая версия позиции.
+	CodeShoppingVersionConflict = "ERR_SHOPPING_VERSION_CONFLICT"
+	// CodeShoppingListArchived — список заархивирован.
+	CodeShoppingListArchived = "ERR_SHOPPING_LIST_ARCHIVED"
+	// CodeShoppingItemPurchased — купленную позицию нельзя удалить.
+	CodeShoppingItemPurchased = "ERR_SHOPPING_ITEM_PURCHASED"
 )
 
 // ValidationError описывает нарушение инварианта сохранения проводки.
