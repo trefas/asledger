@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -32,6 +34,111 @@ func TestASL_15_ShoppingMigration(t *testing.T) {
 	if err := db.Migrate(ctx); err != nil {
 		t.Fatalf("повторная Migrate: %v", err)
 	}
+}
+
+// TestASL_15_ShoppingMigrationFromV133 проверяет инкрементальную миграцию
+// книги версии 1.3.3: схема 0001–0005 уже есть, 0006 добавляется Migrate.
+func TestASL_15_ShoppingMigrationFromV133(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "v133.db"), WithKey(testKey))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	// Воспроизводим книгу v1.3.3: применяем 0001–0005 вручную, не вызывая
+	// Migrate, иначе он применил бы и 0006.
+	if _, err := db.ExecContext(ctx, `
+		CREATE TABLE schema_migrations (
+			version    INTEGER PRIMARY KEY,
+			name       TEXT NOT NULL,
+			applied_at INTEGER NOT NULL
+		)`); err != nil {
+		t.Fatalf("schema_migrations: %v", err)
+	}
+	migrations, err := loadMigrations()
+	if err != nil {
+		t.Fatalf("loadMigrations: %v", err)
+	}
+	for _, m := range migrations {
+		if m.version > 5 {
+			continue
+		}
+		if err := db.applyMigration(ctx, m); err != nil {
+			t.Fatalf("миграция %s: %v", m.name, err)
+		}
+	}
+
+	// В книге v1.3.3 есть данные, которые миграция обязана сохранить.
+	userID := mustCreateUser(t, db, "Андрей")
+	account := mustCreateAccount(t, db, "Продукты", model.TypeExpense, nil)
+
+	var version int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
+		t.Fatalf("версия схемы: %v", err)
+	}
+	if version != 5 {
+		t.Fatalf("версия схемы = %d, ожидалась 5", version)
+	}
+	if tableExists(t, db, "shopping_lists") {
+		t.Fatal("таблица shopping_lists уже существует до миграции 0006")
+	}
+
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+
+	for _, table := range []string{
+		"shopping_lists", "shopping_items",
+		"shopping_list_templates", "shopping_template_items",
+	} {
+		if !tableExists(t, db, table) {
+			t.Fatalf("таблица %q не создана миграцией 0006", table)
+		}
+	}
+	if err := db.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
+		t.Fatalf("версия схемы после миграции: %v", err)
+	}
+	if version != 6 {
+		t.Fatalf("версия схемы = %d, ожидалась 6", version)
+	}
+
+	// Данные книги не пострадали, списки создаются на существующей книге.
+	var userName string
+	if err := db.QueryRowContext(ctx, `SELECT name FROM users WHERE id = ?`, userID).Scan(&userName); err != nil {
+		t.Fatalf("пользователь потерян: %v", err)
+	}
+	if userName != "Андрей" {
+		t.Fatalf("имя пользователя = %q", userName)
+	}
+	list, err := db.CreateShoppingList(ctx, ShoppingListInput{
+		Name: "После обновления", OwnerID: userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateShoppingList после миграции: %v", err)
+	}
+	if _, err := db.AddShoppingItem(ctx, list.ID, ShoppingItemInput{
+		Name: "Хлеб", AccountID: &account.ID,
+	}); err != nil {
+		t.Fatalf("AddShoppingItem после миграции: %v", err)
+	}
+}
+
+// tableExists сообщает, существует ли таблица в книге.
+func tableExists(t *testing.T, db *DB, name string) bool {
+	t.Helper()
+	var found string
+	err := db.QueryRowContext(context.Background(),
+		`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false
+	}
+	if err != nil {
+		t.Fatalf("проверка таблицы %q: %v", name, err)
+	}
+	return true
 }
 
 // TestASL_15_ShoppingConstraints проверяет ограничения схемы и store.
