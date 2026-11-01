@@ -255,6 +255,27 @@ tr.total td { font-weight: 600; }
 .shop-shop-checks input { width: 1.35rem; height: 1.35rem; }
 .shop-save { min-height: 44px; width: 100%; margin-top: .35rem; font-size: 1rem; }
 
+/* Оформление покупки */
+.shop-actions { display: flex; gap: .6rem; flex-wrap: wrap; }
+.checkout-items select { min-width: 12rem; max-width: 100%; }
+.checkout-amount {
+  width: 8rem; text-align: right; font-variant-numeric: tabular-nums;
+  min-height: 44px; font-size: 1rem;
+}
+.checkout-total { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.checkout-unconfirmed { margin: .25rem 0 0; padding-left: 1.2rem; }
+.checkout-preview { margin-top: 1rem; }
+.checkout-preview h2 { margin-top: 0; }
+@media (max-width: 560px) {
+  .checkout-items select { min-width: 0; width: 100%; }
+  .checkout-amount { width: 100%; text-align: left; }
+  .checkout-items td { display: block; }
+  .checkout-items thead { display: none; }
+  .checkout-items tr { display: block; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+  .checkout-items td { padding: .2rem 0; }
+  .checkout-items td.num::before { content: "Сумма: "; color: var(--muted); }
+}
+
 .footer {
   display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
   padding: .75rem 1rem; border-top: 1px solid var(--line);

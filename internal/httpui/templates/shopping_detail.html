@@ -79,7 +79,7 @@
   <span>Сумма подтверждённых: <strong id="shopping-confirmed-total">{{money .List.List.ConfirmedTotal}}</strong></span>
 </div>
 
-{{if ne .List.StatusValue "archived"}}<p><a class="btn" href="/shopping-lists/{{.List.List.ID}}/shop">Режим магазина</a></p>{{end}}
+{{if ne .List.StatusValue "archived"}}<p class="shop-actions"><a class="btn" href="/shopping-lists/{{.List.List.ID}}/shop">Режим магазина</a> <a class="btn btn-secondary" href="/shopping-lists/{{.List.List.ID}}/checkout">Оформить покупку</a></p>{{end}}
 
 <form method="post" action="/shopping-lists/{{.List.List.ID}}/status" class="filters shop-status">
   <label>Статус списка

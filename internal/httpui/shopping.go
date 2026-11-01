@@ -12,9 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trefas/asledger/pkg/core/engine"
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
 	"github.com/trefas/asledger/pkg/core/store"
+	"github.com/trefas/asledger/pkg/core/uuid"
 )
 
 // shoppingStatusOption — статус в фильтре и форме.
@@ -111,6 +113,66 @@ type shoppingShopView struct {
 	Items            []shopItemRow
 	UnconfirmedCount int
 	Error            string
+}
+
+// checkoutItemRow — подтверждённая позиция на экране оформления покупки.
+type checkoutItemRow struct {
+	Item        model.ShoppingListItem
+	AccountID   int64
+	AccountPath string
+	Amount      string
+	AmountKop   money.Kop
+}
+
+// checkoutSourceRow — счёт-источник оплаты с суммой.
+type checkoutSourceRow struct {
+	AccountID   int64
+	AccountPath string
+	Amount      string
+}
+
+// checkoutLine — строка предпросмотра проводки.
+type checkoutLine struct {
+	AccountPath string
+	Side        string
+	Amount      money.Kop
+}
+
+// checkoutPreview — предпросмотр проводки покупки до записи.
+type checkoutPreview struct {
+	Date        string
+	Description string
+	Actor       string
+	Lines       []checkoutLine
+	Total       money.Kop
+	DebitTotal  money.Kop
+	CreditTotal money.Kop
+}
+
+// checkoutView — данные экрана оформления покупки.
+type checkoutView struct {
+	List        shoppingListCard
+	Items       []checkoutItemRow
+	Unconfirmed []shoppingItemRow
+	Sources     []checkoutSourceRow
+	Accounts    []model.Account
+	Users       []model.User
+	ActorID     int64
+	Date        string
+	Description string
+	Total       money.Kop
+	Error       string
+	Preview     *checkoutPreview
+}
+
+// checkoutSubmitted — значения формы оформления, сохранённые при ошибке.
+type checkoutSubmitted struct {
+	ItemAccounts  map[int64]int64
+	ItemAmounts   map[int64]string
+	SourceAmounts map[int64]string
+	Date          string
+	Description   string
+	ActorID       int64
 }
 
 // shoppingListStatuses — варианты статуса списка с подписями.
@@ -537,19 +599,7 @@ func (s *Server) shopFailure(w http.ResponseWriter, r *http.Request, listID int6
 		return
 	}
 	view.Error = message
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	data := pageData{
-		Title: view.List.List.Name + " — в магазине", Active: "shopping",
-		Version: s.cfg.Version, Data: view,
-	}
-	if needsSetup, setupErr := s.needsSetup(r.Context()); setupErr == nil {
-		data.Setup = needsSetup
-		data.HasChart = !needsSetup
-	}
-	if err := s.pages["shopping_shop"].ExecuteTemplate(w, "layout", data); err != nil {
-		s.logger.Error("не удалось отрисовать экран магазина", "err", err)
-	}
+	s.renderPageWithStatus(w, r, "shopping_shop", view.List.List.Name+" — в магазине", "shopping", view, http.StatusOK)
 }
 
 // redirectShop переадресует на экран магазина к сохранённой позиции.
@@ -626,6 +676,385 @@ func kopInput(k money.Kop) string {
 		return ""
 	}
 	return strings.TrimSuffix(k.String(), " ₽")
+}
+
+// handleShoppingCheckout показывает экран оформления покупки.
+func (s *Server) handleShoppingCheckout(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.shoppingID(w, r, "/shopping-lists")
+	if !ok {
+		return
+	}
+	view, err := s.shoppingCheckoutView(r.Context(), id, nil)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.renderError(w, r, http.StatusNotFound, "Список покупок не найден.")
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	s.render(w, r, "shopping_checkout", pageData{
+		Title: "Оформить покупку", Active: "shopping", Data: view,
+	})
+}
+
+// handleShoppingCheckoutPreview собирает предпросмотр проводки без записи.
+//
+// Проведение покупки — отдельная задача; здесь показываются строки, которые
+// получит движок, и проверяются инварианты матрицы ASL-2.2.
+func (s *Server) handleShoppingCheckoutPreview(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := s.shoppingID(w, r, "/shopping-lists")
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.fail(w, err)
+		return
+	}
+	list, err := s.db.ShoppingList(ctx, id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.renderError(w, r, http.StatusNotFound, "Список покупок не найден.")
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	users, err := s.db.ListUsers(ctx)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	in := &checkoutSubmitted{
+		ItemAccounts:  make(map[int64]int64),
+		ItemAmounts:   make(map[int64]string),
+		SourceAmounts: make(map[int64]string),
+		Date:          strings.TrimSpace(r.FormValue("date")),
+		Description:   strings.TrimSpace(r.FormValue("description")),
+		ActorID:       parseID(r.FormValue("actor_id"), list.OwnerID),
+	}
+	if in.Date == "" {
+		in.Date = todayString()
+	}
+	names := userNames(users)
+	if _, ok := names[in.ActorID]; !ok {
+		in.ActorID = list.OwnerID
+	}
+
+	entries, total, err := checkoutItemEntries(r, list, in)
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, err.Error())
+		return
+	}
+	sourceEntries, err := s.checkoutSourceEntries(ctx, r, total, in)
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, err.Error())
+		return
+	}
+	entries = append(entries, sourceEntries...)
+
+	date, err := parseDate(in.Date)
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, err.Error())
+		return
+	}
+	opUUID, err := uuid.New()
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	prepared, err := s.engine.Prepare(ctx, engine.Operation{
+		OpType:      model.OpExpense,
+		UUID:        opUUID,
+		Date:        date,
+		Description: in.Description,
+		Source:      "web",
+		Entries:     entries,
+	}, in.ActorID)
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, statusMessage(err))
+		return
+	}
+
+	view, err := s.shoppingCheckoutView(ctx, id, in)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	preview, err := s.checkoutPreview(ctx, prepared.Transaction, total, names)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	view.Error = ""
+	view.Preview = preview
+	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", "shopping", view, http.StatusOK)
+}
+
+// checkoutFailure перерисовывает оформление с сообщением и введёнными данными.
+func (s *Server) checkoutFailure(w http.ResponseWriter, r *http.Request, id int64, in *checkoutSubmitted, message string) {
+	view, err := s.shoppingCheckoutView(r.Context(), id, in)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.renderError(w, r, http.StatusNotFound, "Список покупок не найден.")
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	view.Error = message
+	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", "shopping", view, http.StatusOK)
+}
+
+// shoppingCheckoutView собирает данные экрана оформления покупки.
+func (s *Server) shoppingCheckoutView(ctx context.Context, id int64, in *checkoutSubmitted) (checkoutView, error) {
+	list, err := s.db.ShoppingList(ctx, id)
+	if err != nil {
+		return checkoutView{}, err
+	}
+	users, err := s.db.ListUsers(ctx)
+	if err != nil {
+		return checkoutView{}, err
+	}
+	accounts, err := s.db.ListAccounts(ctx, store.AccountFilter{OnlyLeaves: true})
+	if err != nil {
+		return checkoutView{}, err
+	}
+	paths, err := s.accountPaths(ctx)
+	if err != nil {
+		return checkoutView{}, err
+	}
+	names := userNames(users)
+
+	view := checkoutView{
+		List:        toShoppingListCard(list, names),
+		Users:       users,
+		Date:        todayString(),
+		Description: "Покупки: " + list.Name,
+		ActorID:     list.OwnerID,
+	}
+	if in != nil {
+		view.Date = in.Date
+		view.Description = in.Description
+		view.ActorID = in.ActorID
+	}
+
+	var assetAccounts []model.Account
+	for i := range accounts {
+		switch accounts[i].Type {
+		case model.TypeExpense:
+			view.Accounts = append(view.Accounts, accounts[i])
+		case model.TypeAsset:
+			// Служебная «Дебиторка» — не источник оплаты покупки.
+			if accounts[i].IsSystem {
+				continue
+			}
+			assetAccounts = append(assetAccounts, accounts[i])
+		}
+	}
+
+	for i := range list.Items {
+		item := &list.Items[i]
+		if !item.Confirmed() {
+			view.Unconfirmed = append(view.Unconfirmed, toShoppingItemRow(item, paths, names))
+			continue
+		}
+		row := checkoutItemRow{Item: *item}
+		if item.AccountID != nil {
+			row.AccountID = *item.AccountID
+		}
+		row.AccountPath = paths[row.AccountID]
+		row.Amount = kopInput(item.ActualPrice)
+		if row.Amount == "" {
+			row.Amount = kopInput(item.PlannedPrice)
+		}
+		if in != nil {
+			if accountID, ok := in.ItemAccounts[item.ID]; ok {
+				row.AccountID = accountID
+				row.AccountPath = paths[accountID]
+			}
+			if amount, ok := in.ItemAmounts[item.ID]; ok {
+				row.Amount = amount
+			}
+		}
+		if amount, err := parseFormMoney(row.Amount); err == nil {
+			row.AmountKop = amount
+			view.Total += amount
+		}
+		view.Items = append(view.Items, row)
+	}
+
+	for i := range assetAccounts {
+		row := checkoutSourceRow{
+			AccountID:   assetAccounts[i].ID,
+			AccountPath: paths[assetAccounts[i].ID],
+		}
+		if in != nil {
+			row.Amount = in.SourceAmounts[assetAccounts[i].ID]
+		}
+		view.Sources = append(view.Sources, row)
+	}
+	return view, nil
+}
+
+// checkoutItemEntries собирает строки расходов по подтверждённым позициям.
+func checkoutItemEntries(r *http.Request, list *model.ShoppingList, in *checkoutSubmitted) ([]engine.Entry, money.Kop, error) {
+	var entries []engine.Entry
+	var total money.Kop
+	for i := range list.Items {
+		item := &list.Items[i]
+		if !item.Confirmed() {
+			continue
+		}
+		key := strconv.FormatInt(item.ID, 10)
+		accountRaw := strings.TrimSpace(r.FormValue("item_account_" + key))
+		amountRaw := strings.TrimSpace(r.FormValue("item_amount_" + key))
+		accountID, _ := strconv.ParseInt(accountRaw, 10, 64)
+		in.ItemAccounts[item.ID] = accountID
+		in.ItemAmounts[item.ID] = amountRaw
+		if accountID <= 0 {
+			return nil, 0, errors.New("для позиции «" + item.Name + "» не выбрана статья расходов")
+		}
+		amount, err := parseFormMoney(amountRaw)
+		if err != nil {
+			return nil, 0, errors.New("позиция «" + item.Name + "»: " + err.Error())
+		}
+		if amount.Kopecks() <= 0 {
+			return nil, 0, errors.New("для позиции «" + item.Name + "» укажите сумму больше нуля")
+		}
+		entries = append(entries, engine.Entry{AccountID: accountID, Amount: amount, Role: engine.RoleExpense})
+		total += amount
+	}
+	if len(entries) == 0 {
+		return nil, 0, errors.New("в списке нет подтверждённых позиций для оформления")
+	}
+	return entries, total, nil
+}
+
+// checkoutSourceEntries собирает строки источников и распределяет итог.
+//
+// Пустые суммы получают остаток: если источников несколько, остаток делится
+// между ними поровну, последнему достаются копейки от деления.
+func (s *Server) checkoutSourceEntries(ctx context.Context, r *http.Request, total money.Kop, in *checkoutSubmitted) ([]engine.Entry, error) {
+	accounts, err := s.db.ListAccounts(ctx, store.AccountFilter{OnlyLeaves: true})
+	if err != nil {
+		return nil, err
+	}
+	type source struct {
+		id     int64
+		amount *money.Kop
+	}
+	var sources []source
+	var filled money.Kop
+	for i := range accounts {
+		if accounts[i].Type != model.TypeAsset || accounts[i].IsSystem {
+			continue
+		}
+		raw := strings.TrimSpace(r.FormValue("source_amount_" + strconv.FormatInt(accounts[i].ID, 10)))
+		in.SourceAmounts[accounts[i].ID] = raw
+		if raw == "" {
+			sources = append(sources, source{id: accounts[i].ID})
+			continue
+		}
+		amount, err := parseFormMoney(raw)
+		if err != nil {
+			return nil, errors.New("источник «" + accounts[i].FullPath + "»: " + err.Error())
+		}
+		if amount.Kopecks() < 0 {
+			return nil, errors.New("сумма источника не может быть отрицательной")
+		}
+		value := amount
+		sources = append(sources, source{id: accounts[i].ID, amount: &value})
+		filled += amount
+	}
+	if len(sources) == 0 {
+		return nil, errors.New("в книге нет листовых счетов-активов для оплаты")
+	}
+	if filled > total {
+		return nil, errors.New("сумма источников больше итога покупки")
+	}
+
+	remaining := total - filled
+	var blanks []int
+	for i := range sources {
+		if sources[i].amount == nil {
+			blanks = append(blanks, i)
+		}
+	}
+	if len(blanks) == 0 && remaining != 0 {
+		return nil, errors.New("сумма источников не равна итогу покупки")
+	}
+	switch {
+	case len(blanks) == len(sources):
+		// Ничего не указано — платим с первого счёта целиком.
+		amount := total
+		sources[0].amount = &amount
+	case len(blanks) > 0:
+		// Остаток делим между пустыми источниками, последнему — копейки деления.
+		assigned := money.Kop(0)
+		for n, idx := range blanks {
+			var amount money.Kop
+			if n == len(blanks)-1 {
+				amount = remaining - assigned
+			} else {
+				amount = remaining / money.Kop(len(blanks))
+			}
+			assigned += amount
+			value := amount
+			sources[idx].amount = &value
+		}
+	}
+
+	var entries []engine.Entry
+	var sum money.Kop
+	for _, src := range sources {
+		if src.amount == nil || src.amount.Kopecks() <= 0 {
+			continue
+		}
+		entries = append(entries, engine.Entry{AccountID: src.id, Amount: *src.amount, Role: engine.RoleSource})
+		sum += *src.amount
+	}
+	if len(entries) == 0 {
+		return nil, errors.New("не указан ни один источник оплаты")
+	}
+	if sum != total {
+		return nil, errors.New("сумма источников не равна итогу покупки")
+	}
+	return entries, nil
+}
+
+// checkoutPreview переводит подготовленную проводку в строки предпросмотра.
+func (s *Server) checkoutPreview(ctx context.Context, tr *model.Transaction, total money.Kop, names map[int64]string) (*checkoutPreview, error) {
+	paths, err := s.accountPaths(ctx)
+	if err != nil {
+		return nil, err
+	}
+	preview := &checkoutPreview{
+		Date:        tr.Date.Format("02.01.2006"),
+		Description: tr.Description,
+		Actor:       names[tr.ActorID],
+		Total:       total,
+	}
+	for _, line := range tr.Lines {
+		preview.Lines = append(preview.Lines, checkoutLine{
+			AccountPath: paths[line.AccountID],
+			Side:        sideLabel(line.Side),
+			Amount:      line.Amount,
+		})
+		if line.Side == model.SideDebit {
+			preview.DebitTotal += line.Amount
+		} else {
+			preview.CreditTotal += line.Amount
+		}
+	}
+	return preview, nil
+}
+
+// shoppingCheckoutPath собирает адрес экрана оформления покупки.
+func shoppingCheckoutPath(id int64) string {
+	return shoppingListPath(id) + "/checkout"
 }
 
 // shoppingDetailView собирает данные страницы списка.

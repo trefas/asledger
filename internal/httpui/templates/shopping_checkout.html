@@ -1,0 +1,129 @@
+{{define "content"}}
+{{with .Data}}
+<p class="muted"><a href="/shopping-lists/{{.List.List.ID}}">← К списку</a></p>
+<h1>Оформить покупку</h1>
+<p class="muted">Проверьте подтверждённые позиции, при необходимости измените статью расходов и сумму, затем выберите счёт оплаты. Книга не изменится: это предпросмотр проводки.</p>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+
+<form method="post" action="/shopping-lists/{{.List.List.ID}}/checkout">
+  <fieldset class="card">
+    <legend>1. Подтверждённые позиции</legend>
+    {{if .Items}}
+    <table class="report checkout-items">
+      <thead>
+        <tr><th>Товар</th><th>Статья расходов</th><th class="num">Сумма</th></tr>
+      </thead>
+      <tbody>
+      {{range .Items}}
+        {{$row := .}}
+        <tr>
+          <td>
+            <span class="checkout-item-name">{{.Item.Name}}</span>
+            {{if .Item.PriceMismatch}}<span class="badge badge-warn">расхождение</span>{{end}}
+            {{if .Item.InCart}}<span class="badge">в корзине</span>{{end}}
+          </td>
+          <td>
+            <select name="item_account_{{.Item.ID}}" required aria-label="Статья расходов для «{{.Item.Name}}»">
+              <option value="">выберите статью</option>
+              {{range $.Data.Accounts}}<option value="{{.ID}}"{{if eq .ID $row.AccountID}} selected{{end}}>{{.FullPath}}</option>{{end}}
+            </select>
+          </td>
+          <td class="num">
+            <input class="checkout-amount" type="text" inputmode="decimal" name="item_amount_{{.Item.ID}}"
+                   value="{{.Amount}}" placeholder="0,00" aria-label="Сумма для «{{.Item.Name}}»">
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty">Нет подтверждённых позиций. Отметьте товары в <a href="/shopping-lists/{{.List.List.ID}}/shop">режиме магазина</a>.</p>
+    {{end}}
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>2. Источники оплаты</legend>
+    <p class="muted">Укажите, сколько списать с каждого счёта. Пустые поля получают остаток: если источников несколько, сумма распределится между ними поровну.</p>
+    {{if .Sources}}
+    <table class="report checkout-sources">
+      <thead><tr><th>Счёт</th><th class="num">Сумма</th></tr></thead>
+      <tbody>
+      {{range .Sources}}
+        <tr>
+          <td>{{.AccountPath}}</td>
+          <td class="num">
+            <input class="checkout-amount" type="text" inputmode="decimal" name="source_amount_{{.AccountID}}"
+                   value="{{.Amount}}" placeholder="остаток" aria-label="Сумма с счёта {{.AccountPath}}">
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty">В книге нет листовых счетов-активов для оплаты.</p>
+    {{end}}
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>3. Дата и автор</legend>
+    <div class="row">
+      <div>
+        <label for="checkout-date">Дата</label>
+        <input type="date" id="checkout-date" name="date" value="{{.Date}}" required>
+      </div>
+      <div>
+        <label for="checkout-actor">Автор проводки</label>
+        <select id="checkout-actor" name="actor_id">
+          {{range .Users}}<option value="{{.ID}}"{{if eq .ID $.Data.ActorID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <label for="checkout-description">Описание</label>
+    <input type="text" id="checkout-description" name="description" value="{{.Description}}" maxlength="500">
+  </fieldset>
+
+  {{if .Unconfirmed}}
+  <fieldset class="card">
+    <legend>Не попадут в покупку</legend>
+    <p class="muted">Эти позиции не подтверждены: нет цены и отметки «в корзине». Они останутся в списке.</p>
+    <ul class="checkout-unconfirmed">
+      {{range .Unconfirmed}}<li>{{.Item.Name}} — {{.Status}}</li>{{end}}
+    </ul>
+  </fieldset>
+  {{end}}
+
+  <div class="summary checkout-total">
+    <span>Итог покупки: <strong>{{money .Total}}</strong></span>
+  </div>
+  <div class="form-actions">
+    <button class="btn" type="submit">Показать предпросмотр</button>
+  </div>
+</form>
+
+{{if .Preview}}
+<div class="card checkout-preview" id="checkout-preview">
+  <h2>Предпросмотр проводки</h2>
+  <p class="muted">Дата {{.Preview.Date}} · {{.Preview.Description}} · автор {{.Preview.Actor}}</p>
+  <table class="report">
+    <thead><tr><th>Счёт</th><th>Сторона</th><th class="num">Сумма</th></tr></thead>
+    <tbody>
+    {{range .Preview.Lines}}
+      <tr>
+        <td>{{.AccountPath}}</td>
+        <td><span class="badge{{if eq .Side "кредит"}} badge-muted{{end}}">{{.Side}}</span></td>
+        <td class="num">{{money .Amount}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+    <tfoot>
+      <tr><th colspan="2">Дебет</th><td class="num">{{money .Preview.DebitTotal}}</td></tr>
+      <tr><th colspan="2">Кредит</th><td class="num">{{money .Preview.CreditTotal}}</td></tr>
+      <tr><th colspan="2">Итог покупки</th><td class="num"><strong>{{money .Preview.Total}}</strong></td></tr>
+    </tfoot>
+  </table>
+  <p class="muted">Это предпросмотр: проводка ещё не записана, книга не изменена.</p>
+</div>
+{{end}}
+{{end}}
+{{end}}

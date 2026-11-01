@@ -82,20 +82,21 @@ type pageData struct {
 
 // pageFiles сопоставляет имя страницы файлу шаблона.
 var pageFiles = map[string]string{
-	"journal":         "journal.html",
-	"entry":           "entry.html",
-	"setup":           "setup.html",
-	"data":            "data.html",
-	"chart":           "chart.html",
-	"users":           "users.html",
-	"devices":         "devices.html",
-	"initial":         "initial.html",
-	"reports":         "reports.html",
-	"reconcile":       "reconcile.html",
-	"shopping":        "shopping.html",
-	"shopping_detail": "shopping_detail.html",
-	"shopping_shop":   "shopping_shop.html",
-	"error":           "error.html",
+	"journal":           "journal.html",
+	"entry":             "entry.html",
+	"setup":             "setup.html",
+	"data":              "data.html",
+	"chart":             "chart.html",
+	"users":             "users.html",
+	"devices":           "devices.html",
+	"initial":           "initial.html",
+	"reports":           "reports.html",
+	"reconcile":         "reconcile.html",
+	"shopping":          "shopping.html",
+	"shopping_detail":   "shopping_detail.html",
+	"shopping_shop":     "shopping_shop.html",
+	"shopping_checkout": "shopping_checkout.html",
+	"error":             "error.html",
 }
 
 // New создаёт web-интерфейс и разбирает шаблоны.
@@ -197,6 +198,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /shopping-lists/{id}/items", s.handleShoppingItemCreate)
 	mux.HandleFunc("GET /shopping-lists/{id}/shop", s.handleShoppingShop)
 	mux.HandleFunc("POST /shopping-lists/{id}/shop/{item}", s.handleShoppingShopUpdate)
+	mux.HandleFunc("GET /shopping-lists/{id}/checkout", s.handleShoppingCheckout)
+	mux.HandleFunc("POST /shopping-lists/{id}/checkout", s.handleShoppingCheckoutPreview)
 	mux.HandleFunc("POST /shopping-lists/{id}/status", s.handleShoppingListStatus)
 	mux.HandleFunc("POST /shopping-lists/{id}/archive", s.handleShoppingListArchive)
 	mux.HandleFunc("POST /shopping-items/{id}", s.handleShoppingItemUpdate)
@@ -256,6 +259,28 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := t.ExecuteTemplate(w, "layout", data); err != nil {
+		s.logger.Error("не удалось отрисовать страницу", "page", name, "err", err)
+	}
+}
+
+// renderPageWithStatus отрисовывает страницу с заданным кодом ответа.
+//
+// Используется там, где ошибку нужно показать в самой форме, а не отдельной
+// страницей: например, конфликт версий в режиме магазина.
+func (s *Server) renderPageWithStatus(w http.ResponseWriter, r *http.Request, name, title, active string, data any, status int) {
+	t, ok := s.pages[name]
+	if !ok {
+		s.fail(w, fmt.Errorf("httpui: нет шаблона страницы %q", name))
+		return
+	}
+	page := pageData{Title: title, Active: active, Version: s.cfg.Version, Data: data}
+	if needsSetup, err := s.needsSetup(r.Context()); err == nil {
+		page.Setup = needsSetup
+		page.HasChart = !needsSetup
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := t.ExecuteTemplate(w, "layout", page); err != nil {
 		s.logger.Error("не удалось отрисовать страницу", "page", name, "err", err)
 	}
 }

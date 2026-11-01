@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
@@ -282,6 +283,147 @@ func listIDFromPath(t *testing.T, path string) int64 {
 		t.Fatalf("идентификатор списка из %q: %v", path, err)
 	}
 	return id
+}
+
+// TestASL_15_WebShoppingCheckout проверяет оформление покупки: предпросмотр
+// проводки, распределение итога по источникам и отсутствие записи в книгу.
+func TestASL_15_WebShoppingCheckout(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+	userID := w.userID(t)
+	accountID := w.accountID(t, "Расходы:Продукты")
+	cashID := w.accountID(t, "Активы:Наличные")
+	cardID := w.accountID(t, "Активы:Карта")
+	ctx := context.Background()
+
+	list, err := w.db.CreateShoppingList(ctx, store.ShoppingListInput{
+		Name: "Покупки", OwnerID: userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateShoppingList: %v", err)
+	}
+	add := func(name string, in store.ShoppingItemInput) *model.ShoppingListItem {
+		t.Helper()
+		in.Name = name
+		in.AccountID = &accountID
+		item, err := w.db.AddShoppingItem(ctx, list.ID, in)
+		if err != nil {
+			t.Fatalf("AddShoppingItem(%q): %v", name, err)
+		}
+		return item
+	}
+	bread := add("Хлеб", store.ShoppingItemInput{
+		ActualPrice: money.FromKopecks(5990), InCart: true, Status: model.ShoppingItemConfirmed,
+	})
+	milk := add("Молоко", store.ShoppingItemInput{
+		PlannedPrice: money.FromKopecks(8000), InCart: true, Status: model.ShoppingItemConfirmed,
+	})
+	add("Сыр", store.ShoppingItemInput{PlannedPrice: money.FromKopecks(3000)})
+
+	// Второй счёт расходов: проверяем корректировку статьи в оформлении.
+	expensesID := w.accountID(t, "Расходы")
+	household, err := w.db.CreateAccount(ctx, store.AccountInput{
+		Name: "Хозяйство", Type: model.TypeExpense, ParentID: &expensesID,
+	})
+	if err != nil {
+		t.Fatalf("CreateAccount: %v", err)
+	}
+
+	checkoutPath := "/shopping-lists/" + strconv.FormatInt(list.ID, 10) + "/checkout"
+	rec := w.get(t, "/shopping-lists/"+strconv.FormatInt(list.ID, 10))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Оформить покупку") {
+		t.Fatalf("на странице списка нет ссылки на оформление: код %d", rec.Code)
+	}
+	rec = w.get(t, checkoutPath)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("экран оформления: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"Оформить покупку", "Хлеб", "Молоко", "Сыр — запланировано",
+		"Не попадут в покупку", "139,90 ₽",
+		`value="` + strconv.FormatInt(accountID, 10) + `" selected`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("на экране оформления нет %q", want)
+		}
+	}
+
+	itemFields := func(breadAmount, milkAmount, breadAccount string) url.Values {
+		return url.Values{
+			"item_account_" + strconv.FormatInt(bread.ID, 10): {breadAccount},
+			"item_amount_" + strconv.FormatInt(bread.ID, 10):  {breadAmount},
+			"item_account_" + strconv.FormatInt(milk.ID, 10):  {strconv.FormatInt(accountID, 10)},
+			"item_amount_" + strconv.FormatInt(milk.ID, 10):   {milkAmount},
+			"date":        {time.Now().UTC().Format(time.DateOnly)},
+			"actor_id":    {strconv.FormatInt(userID, 10)},
+			"description": {"Покупки"},
+		}
+	}
+
+	// Один источник с пустой суммой получает весь итог; статью молока меняем.
+	form := itemFields("59,90", "80,00", strconv.FormatInt(accountID, 10))
+	form.Set("item_account_"+strconv.FormatInt(milk.ID, 10), strconv.FormatInt(household.ID, 10))
+	form.Set("source_amount_"+strconv.FormatInt(cashID, 10), "")
+	rec = w.postForm(t, checkoutPath, form)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("предпросмотр: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	body = rec.Body.String()
+	for _, want := range []string{
+		"Предпросмотр проводки", "Активы:Наличные", "Расходы:Продукты", "Расходы:Хозяйство",
+		"Дебет", "Кредит", "139,90 ₽", "Это предпросмотр",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("в предпросмотре нет %q", want)
+		}
+	}
+	if got := strings.Count(body, "<td>Расходы:Продукты</td>"); got != 1 {
+		t.Fatalf("строк по статье «Продукты» = %d, ожидалась 1", got)
+	}
+	if got := strings.Count(body, "<td>Расходы:Хозяйство</td>"); got != 1 {
+		t.Fatalf("строк по статье «Хозяйство» = %d, ожидалась 1 (сыр не должен попасть)", got)
+	}
+	count, err := w.db.CountTransactions(ctx, store.TransactionFilter{})
+	if err != nil {
+		t.Fatalf("CountTransactions: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("предпросмотр записал %d проводок, ожидалось 0", count)
+	}
+
+	// Несколько источников: сумма распределяется по счетам.
+	form = itemFields("59,90", "80,00", strconv.FormatInt(accountID, 10))
+	form.Set("source_amount_"+strconv.FormatInt(cashID, 10), "100,00")
+	form.Set("source_amount_"+strconv.FormatInt(cardID, 10), "39,90")
+	rec = w.postForm(t, checkoutPath, form)
+	body = rec.Body.String()
+	for _, want := range []string{"Активы:Наличные", "Активы:Карта", "100,00 ₽", "39,90 ₽"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("в предпросмотре с двумя источниками нет %q", want)
+		}
+	}
+
+	// Сумма источников не равна итогу — понятная ошибка.
+	form = itemFields("59,90", "80,00", strconv.FormatInt(accountID, 10))
+	form.Set("source_amount_"+strconv.FormatInt(cashID, 10), "100,00")
+	form.Set("source_amount_"+strconv.FormatInt(cardID, 10), "10,00")
+	rec = w.postForm(t, checkoutPath, form)
+	if !strings.Contains(rec.Body.String(), "сумма источников не равна итогу покупки") {
+		t.Fatalf("нет сообщения о несовпадении источников: %s", rec.Body.String())
+	}
+
+	// Позиция без статьи расходов — ошибка с сохранением введённых значений.
+	form = itemFields("59,90", "80,00", "")
+	form.Set("source_amount_"+strconv.FormatInt(cashID, 10), "")
+	rec = w.postForm(t, checkoutPath, form)
+	body = rec.Body.String()
+	if !strings.Contains(body, "не выбрана статья расходов") {
+		t.Fatalf("нет сообщения о статье расходов: %s", body)
+	}
+	if !strings.Contains(body, "59,90") || !strings.Contains(body, "80,00") {
+		t.Fatalf("при ошибке потеряны введённые суммы: %s", body)
+	}
 }
 
 // TestASL_15_WebShoppingShop проверяет режим магазина: подтверждение ценой и
