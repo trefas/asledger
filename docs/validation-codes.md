@@ -45,6 +45,22 @@
 | `ERR_ACCOUNT_NOT_FOUND` | Счёт строки не существует |
 | `ERR_ACCOUNT_TYPE_MISMATCH` | Тип счёта-потомка не совпадает с типом родителя |
 
+### Списки покупок
+
+| Код | Когда возникает |
+| --- | --- |
+| `ERR_SHOPPING_NAME` | Пустое или слишком длинное наименование списка или позиции |
+| `ERR_SHOPPING_STATUS` | Недопустимый статус списка или позиции |
+| `ERR_SHOPPING_PRIORITY` | Недопустимый приоритет позиции |
+| `ERR_SHOPPING_ACCOUNT_INVALID` | Статья расходов не листовая или не типа «расход» |
+| `ERR_SHOPPING_ASSIGNEE_INVALID` | Ответственный не найден |
+| `ERR_SHOPPING_PRICE_INVALID` | Отрицательная цена позиции |
+| `ERR_SHOPPING_VERSION_CONFLICT` | Позиция изменена другим клиентом (устаревшая `version`) |
+| `ERR_SHOPPING_LIST_ARCHIVED` | Список заархивирован и не принимает изменения |
+| `ERR_SHOPPING_ITEM_PURCHASED` | Купленную позицию нельзя удалить или провести повторно |
+| `ERR_SHOPPING_ITEM_NOT_FOUND` | Позиция не найдена или не принадлежит списку |
+| `ERR_SHOPPING_ITEM_NOT_CONFIRMED` | Неподтверждённую позицию пытаются провести в покупку |
+
 ## Коды REST API (`internal/api`)
 
 | Код | Когда возникает |

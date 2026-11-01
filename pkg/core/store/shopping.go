@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -553,6 +554,131 @@ func (db *DB) DeleteShoppingItem(ctx context.Context, id int64) error {
 		}
 		return appendChangelog(ctx, tx, model.EntityShoppingItem, id, model.OpDelete)
 	})
+}
+
+// shoppingPostMu сериализует проведения покупок в процессе демона: повторная
+// отправка с тем же uuid не должна создать дубль даже при одновременных
+// запросах. Демон — единственная точка записи, поэтому мьютекса процесса
+// достаточно.
+var shoppingPostMu sync.Mutex
+
+// ShoppingPurchaseInput — данные проведения покупки по списку.
+type ShoppingPurchaseInput struct {
+	// ListID — список покупок.
+	ListID int64
+	// ItemIDs — позиции, которые нужно отметить купленными.
+	ItemIDs []int64
+	// Transaction — подготовленная проводка расхода.
+	Transaction *model.Transaction
+}
+
+// PostShoppingPurchase сохраняет проводку покупки и отмечает позиции купленными
+// одной транзакцией БД.
+//
+// Идемпотентность: если проводка с таким uuid уже есть, возвращается она же и
+// created = false; позиции повторно не меняются. Если хотя бы одна позиция не
+// принадлежит списку, не подтверждена или уже куплена, откатывается всё.
+func (db *DB) PostShoppingPurchase(ctx context.Context, in ShoppingPurchaseInput) (*model.Transaction, bool, error) {
+	if in.Transaction == nil {
+		return nil, false, shoppingValidation(CodeShoppingStatus, "не задана проводка покупки")
+	}
+	if in.ListID <= 0 || len(in.ItemIDs) == 0 {
+		return nil, false, shoppingValidation(CodeShoppingStatus, "не задан список или позиции покупки")
+	}
+
+	shoppingPostMu.Lock()
+	defer shoppingPostMu.Unlock()
+
+	var (
+		id      int64
+		created bool
+	)
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		var existing int64
+		err := tx.QueryRowContext(ctx,
+			`SELECT id FROM transactions WHERE uuid = ?`, in.Transaction.UUID).Scan(&existing)
+		switch {
+		case err == nil:
+			id = existing
+			return nil
+		case !errors.Is(err, sql.ErrNoRows):
+			return fmt.Errorf("store: не удалось проверить uuid покупки: %w", err)
+		}
+
+		list, err := getShoppingListTx(ctx, tx, in.ListID)
+		if err != nil {
+			return err
+		}
+		if list.Status == model.ShoppingListArchived {
+			return shoppingValidation(CodeShoppingListArchived, "список покупок заархивирован")
+		}
+
+		seen := make(map[int64]bool, len(in.ItemIDs))
+		for _, itemID := range in.ItemIDs {
+			if seen[itemID] {
+				continue
+			}
+			seen[itemID] = true
+			item, err := getShoppingItemTx(ctx, tx, itemID)
+			if err != nil {
+				return shoppingValidation(CodeShoppingItemNotFound, "позиция покупки не найдена")
+			}
+			if item.ListID != in.ListID {
+				return shoppingValidation(CodeShoppingItemNotFound, "позиция не принадлежит списку покупок")
+			}
+			if item.Status == model.ShoppingItemPurchased {
+				return shoppingValidation(CodeShoppingItemPurchased, "позиция уже куплена")
+			}
+			if !item.Confirmed() {
+				return shoppingValidation(CodeShoppingItemNotConfirmed, "позиция не подтверждена к покупке")
+			}
+		}
+
+		id, err = insertTransactionTx(ctx, tx, in.Transaction)
+		if err != nil {
+			return err
+		}
+		created = true
+
+		now := Now()
+		for itemID := range seen {
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE shopping_items SET status = ?, version = version + 1, updated_at = ? WHERE id = ?`,
+				string(model.ShoppingItemPurchased), now, itemID); err != nil {
+				return fmt.Errorf("store: не удалось отметить позицию купленной: %w", err)
+			}
+			if err := appendChangelog(ctx, tx, model.EntityShoppingItem, itemID, model.OpUpdate); err != nil {
+				return err
+			}
+		}
+
+		// Если незакупленных позиций не осталось, список завершён.
+		var remaining int
+		if err := tx.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM shopping_items WHERE list_id = ? AND status NOT IN (?, ?)`,
+			in.ListID, string(model.ShoppingItemPurchased), string(model.ShoppingItemSkipped)).Scan(&remaining); err != nil {
+			return fmt.Errorf("store: не удалось проверить остаток позиций: %w", err)
+		}
+		if remaining == 0 {
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE shopping_lists SET status = ?, updated_at = ? WHERE id = ? AND status != ?`,
+				string(model.ShoppingListCompleted), now, in.ListID, string(model.ShoppingListArchived)); err != nil {
+				return fmt.Errorf("store: не удалось завершить список покупок: %w", err)
+			}
+			if err := appendChangelog(ctx, tx, model.EntityShoppingList, in.ListID, model.OpUpdate); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	tr, err := db.Transaction(ctx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	return tr, created, nil
 }
 
 // CreateShoppingTemplate создаёт шаблон списка из базовых позиций.

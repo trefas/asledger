@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -424,6 +425,166 @@ func TestASL_15_WebShoppingCheckout(t *testing.T) {
 	if !strings.Contains(body, "59,90") || !strings.Contains(body, "80,00") {
 		t.Fatalf("при ошибке потеряны введённые суммы: %s", body)
 	}
+}
+
+// TestASL_15_WebShoppingPost проверяет проведение покупки из оформления:
+// запись проводки, статусы позиций, идемпотентный повтор и сохранение
+// неподтверждённых позиций в списке.
+func TestASL_15_WebShoppingPost(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+	userID := w.userID(t)
+	accountID := w.accountID(t, "Расходы:Продукты")
+	cashID := w.accountID(t, "Активы:Наличные")
+	ctx := context.Background()
+
+	list, err := w.db.CreateShoppingList(ctx, store.ShoppingListInput{
+		Name: "Покупки", OwnerID: userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateShoppingList: %v", err)
+	}
+	add := func(name string, in store.ShoppingItemInput) *model.ShoppingListItem {
+		t.Helper()
+		in.Name = name
+		in.AccountID = &accountID
+		item, err := w.db.AddShoppingItem(ctx, list.ID, in)
+		if err != nil {
+			t.Fatalf("AddShoppingItem(%q): %v", name, err)
+		}
+		return item
+	}
+	bread := add("Хлеб", store.ShoppingItemInput{
+		ActualPrice: money.FromKopecks(5990), InCart: true, Status: model.ShoppingItemConfirmed,
+	})
+	milk := add("Молоко", store.ShoppingItemInput{
+		ActualPrice: money.FromKopecks(8000), InCart: true, Status: model.ShoppingItemConfirmed,
+	})
+	cheese := add("Сыр", store.ShoppingItemInput{PlannedPrice: money.FromKopecks(3000)})
+
+	checkoutPath := "/shopping-lists/" + strconv.FormatInt(list.ID, 10) + "/checkout"
+	rec := w.get(t, checkoutPath)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("экран оформления: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	requestID := hiddenValue(t, rec.Body.String(), "request_id")
+	if requestID == "" {
+		t.Fatal("на экране оформления нет request_id")
+	}
+
+	form := url.Values{
+		"request_id": {requestID},
+		"item_account_" + strconv.FormatInt(bread.ID, 10): {strconv.FormatInt(accountID, 10)},
+		"item_amount_" + strconv.FormatInt(bread.ID, 10):  {"59,90"},
+		"item_account_" + strconv.FormatInt(milk.ID, 10):  {strconv.FormatInt(accountID, 10)},
+		"item_amount_" + strconv.FormatInt(milk.ID, 10):   {"80,00"},
+		"source_amount_" + strconv.FormatInt(cashID, 10):  {""},
+		"date":        {time.Now().UTC().Format(time.DateOnly)},
+		"actor_id":    {strconv.FormatInt(userID, 10)},
+		"description": {"Покупки"},
+	}
+
+	// Предпросмотр не записывает книгу и сохраняет request_id.
+	preview := w.postForm(t, checkoutPath, form)
+	if preview.Code != http.StatusOK {
+		t.Fatalf("предпросмотр: код %d (тело %s)", preview.Code, preview.Body.String())
+	}
+	if !strings.Contains(preview.Body.String(), `name="request_id" value="`+requestID+`"`) {
+		t.Fatalf("предпросмотр потерял request_id")
+	}
+	if count, err := w.db.CountTransactions(ctx, store.TransactionFilter{}); err != nil || count != 0 {
+		t.Fatalf("предпросмотр записал %d проводок (err %v)", count, err)
+	}
+
+	// Проведение покупки: одна проводка и статусы purchased.
+	rec = w.postForm(t, checkoutPath+"/post", form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("проведение: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	if path := redirectPath(t, rec); path != shoppingListPath(list.ID) {
+		t.Fatalf("переадресация на %q", path)
+	}
+	if flash := redirectFlash(t, rec); !strings.Contains(flash, "Покупка проведена") {
+		t.Fatalf("сообщение об успехе = %q", flash)
+	}
+	count, err := w.db.CountTransactions(ctx, store.TransactionFilter{})
+	if err != nil {
+		t.Fatalf("CountTransactions: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("проведено %d проводок, ожидалась 1", count)
+	}
+	tr, err := w.db.TransactionByUUID(ctx, requestID)
+	if err != nil {
+		t.Fatalf("TransactionByUUID: %v", err)
+	}
+	var debit, credit money.Kop
+	for _, line := range tr.Lines {
+		if line.Side == model.SideDebit {
+			debit += line.Amount
+		} else {
+			credit += line.Amount
+		}
+	}
+	if debit != money.FromKopecks(13990) || debit != credit {
+		t.Fatalf("ΣDEBIT = %s, ΣCREDIT = %s", debit, credit)
+	}
+	for _, id := range []int64{bread.ID, milk.ID} {
+		item, err := w.db.ShoppingItem(ctx, id)
+		if err != nil {
+			t.Fatalf("ShoppingItem(%d): %v", id, err)
+		}
+		if item.Status != model.ShoppingItemPurchased {
+			t.Fatalf("позиция %d не куплена: %q", id, item.Status)
+		}
+	}
+	// Неподтверждённый сыр остаётся в списке.
+	got, err := w.db.ShoppingItem(ctx, cheese.ID)
+	if err != nil {
+		t.Fatalf("ShoppingItem(Сыр): %v", err)
+	}
+	if got.Status == model.ShoppingItemPurchased {
+		t.Fatal("неподтверждённая позиция отмечена купленной")
+	}
+
+	// Повтор того же запроса не создаёт дубль.
+	rec = w.postForm(t, checkoutPath+"/post", form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("повтор: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	if flash := redirectFlash(t, rec); !strings.Contains(flash, "уже проведена") {
+		t.Fatalf("сообщение повтора = %q", flash)
+	}
+	if count, err := w.db.CountTransactions(ctx, store.TransactionFilter{}); err != nil || count != 1 {
+		t.Fatalf("после повтора проводок %d (err %v), ожидалась 1", count, err)
+	}
+
+	// Купленные позиции больше не предлагаются к оформлению.
+	rec = w.get(t, checkoutPath)
+	if body := rec.Body.String(); !strings.Contains(body, "Нет подтверждённых позиций") {
+		t.Fatalf("купленные позиции остались в оформлении: %s", body)
+	}
+}
+
+// hiddenValue возвращает значение скрытого поля формы.
+func hiddenValue(t *testing.T, body, name string) string {
+	t.Helper()
+	re := regexp.MustCompile(`name="` + regexp.QuoteMeta(name) + `" value="([^"]*)"`)
+	match := re.FindStringSubmatch(body)
+	if len(match) != 2 {
+		return ""
+	}
+	return match[1]
+}
+
+// redirectFlash возвращает flash-сообщение из заголовка Location.
+func redirectFlash(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	parsed, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("разбор Location: %v", err)
+	}
+	return parsed.Query().Get("flash")
 }
 
 // TestASL_15_WebShoppingShop проверяет режим магазина: подтверждение ценой и

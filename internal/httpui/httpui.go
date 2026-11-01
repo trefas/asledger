@@ -200,6 +200,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /shopping-lists/{id}/shop/{item}", s.handleShoppingShopUpdate)
 	mux.HandleFunc("GET /shopping-lists/{id}/checkout", s.handleShoppingCheckout)
 	mux.HandleFunc("POST /shopping-lists/{id}/checkout", s.handleShoppingCheckoutPreview)
+	mux.HandleFunc("POST /shopping-lists/{id}/checkout/post", s.handleShoppingCheckoutPost)
 	mux.HandleFunc("POST /shopping-lists/{id}/status", s.handleShoppingListStatus)
 	mux.HandleFunc("POST /shopping-lists/{id}/archive", s.handleShoppingListArchive)
 	mux.HandleFunc("POST /shopping-items/{id}", s.handleShoppingItemUpdate)

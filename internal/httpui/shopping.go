@@ -160,6 +160,7 @@ type checkoutView struct {
 	ActorID     int64
 	Date        string
 	Description string
+	RequestID   string
 	Total       money.Kop
 	Error       string
 	Preview     *checkoutPreview
@@ -173,6 +174,8 @@ type checkoutSubmitted struct {
 	Date          string
 	Description   string
 	ActorID       int64
+	// RequestID — uuid будущей проводки: повторная отправка не создаёт дубль.
+	RequestID string
 }
 
 // shoppingListStatuses — варианты статуса списка с подписями.
@@ -727,20 +730,11 @@ func (s *Server) handleShoppingCheckoutPreview(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	in := &checkoutSubmitted{
-		ItemAccounts:  make(map[int64]int64),
-		ItemAmounts:   make(map[int64]string),
-		SourceAmounts: make(map[int64]string),
-		Date:          strings.TrimSpace(r.FormValue("date")),
-		Description:   strings.TrimSpace(r.FormValue("description")),
-		ActorID:       parseID(r.FormValue("actor_id"), list.OwnerID),
-	}
-	if in.Date == "" {
-		in.Date = todayString()
-	}
 	names := userNames(users)
-	if _, ok := names[in.ActorID]; !ok {
-		in.ActorID = list.OwnerID
+	in, err := checkoutSubmittedFromForm(r, list, names)
+	if err != nil {
+		s.fail(w, err)
+		return
 	}
 
 	entries, total, err := checkoutItemEntries(r, list, in)
@@ -760,14 +754,9 @@ func (s *Server) handleShoppingCheckoutPreview(w http.ResponseWriter, r *http.Re
 		s.checkoutFailure(w, r, id, in, err.Error())
 		return
 	}
-	opUUID, err := uuid.New()
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
 	prepared, err := s.engine.Prepare(ctx, engine.Operation{
 		OpType:      model.OpExpense,
-		UUID:        opUUID,
+		UUID:        in.RequestID,
 		Date:        date,
 		Description: in.Description,
 		Source:      "web",
@@ -791,6 +780,143 @@ func (s *Server) handleShoppingCheckoutPreview(w http.ResponseWriter, r *http.Re
 	view.Error = ""
 	view.Preview = preview
 	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", "shopping", view, http.StatusOK)
+}
+
+// checkoutSubmittedFromForm разбирает форму оформления и сохраняет значения
+// для повторной отрисовки. request_id переносится из формы: повторная отправка
+// того же оформления остаётся идемпотентной.
+func checkoutSubmittedFromForm(r *http.Request, list *model.ShoppingList, names map[int64]string) (*checkoutSubmitted, error) {
+	in := &checkoutSubmitted{
+		ItemAccounts:  make(map[int64]int64),
+		ItemAmounts:   make(map[int64]string),
+		SourceAmounts: make(map[int64]string),
+		Date:          strings.TrimSpace(r.FormValue("date")),
+		Description:   strings.TrimSpace(r.FormValue("description")),
+		ActorID:       parseID(r.FormValue("actor_id"), list.OwnerID),
+		RequestID:     strings.TrimSpace(r.FormValue("request_id")),
+	}
+	if in.Date == "" {
+		in.Date = todayString()
+	}
+	if _, ok := names[in.ActorID]; !ok {
+		in.ActorID = list.OwnerID
+	}
+	if in.RequestID == "" {
+		id, err := uuid.New()
+		if err != nil {
+			return nil, err
+		}
+		in.RequestID = id
+	}
+	return in, nil
+}
+
+// checkoutItemIDs возвращает позиции, которые попадут в проводку.
+func checkoutItemIDs(list *model.ShoppingList) []int64 {
+	var ids []int64
+	for i := range list.Items {
+		if !checkoutable(&list.Items[i]) {
+			continue
+		}
+		ids = append(ids, list.Items[i].ID)
+	}
+	return ids
+}
+
+// checkoutable сообщает, участвует ли позиция в оформлении покупки.
+func checkoutable(item *model.ShoppingListItem) bool {
+	switch item.Status {
+	case model.ShoppingItemPurchased, model.ShoppingItemSkipped:
+		return false
+	}
+	return item.Confirmed()
+}
+
+// handleShoppingCheckoutPost проводит покупку: записывает проводку и отмечает
+// позиции купленными одной транзакцией БД.
+func (s *Server) handleShoppingCheckoutPost(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := s.shoppingID(w, r, "/shopping-lists")
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.fail(w, err)
+		return
+	}
+	list, err := s.db.ShoppingList(ctx, id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.renderError(w, r, http.StatusNotFound, "Список покупок не найден.")
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	users, err := s.db.ListUsers(ctx)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	names := userNames(users)
+	in, err := checkoutSubmittedFromForm(r, list, names)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	// Повторная отправка того же оформления: проводка уже есть, дубль не нужен.
+	if _, err := s.db.TransactionByUUID(ctx, in.RequestID); err == nil {
+		s.redirectOK(w, r, shoppingListPath(id), "Эта покупка уже проведена: повтор не создал дубль")
+		return
+	} else if !errors.Is(err, store.ErrNotFound) {
+		s.fail(w, err)
+		return
+	}
+
+	entries, total, err := checkoutItemEntries(r, list, in)
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, err.Error())
+		return
+	}
+	sourceEntries, err := s.checkoutSourceEntries(ctx, r, total, in)
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, err.Error())
+		return
+	}
+	entries = append(entries, sourceEntries...)
+	date, err := parseDate(in.Date)
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, err.Error())
+		return
+	}
+	prepared, err := s.engine.Prepare(ctx, engine.Operation{
+		OpType:      model.OpExpense,
+		UUID:        in.RequestID,
+		Date:        date,
+		Description: in.Description,
+		Source:      "web",
+		Entries:     entries,
+	}, in.ActorID)
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, statusMessage(err))
+		return
+	}
+
+	_, created, err := s.db.PostShoppingPurchase(ctx, store.ShoppingPurchaseInput{
+		ListID:      id,
+		ItemIDs:     checkoutItemIDs(list),
+		Transaction: prepared.Transaction,
+	})
+	if err != nil {
+		s.checkoutFailure(w, r, id, in, shoppingErrorMessage(err))
+		return
+	}
+	if created {
+		s.redirectOK(w, r, shoppingListPath(id), "Покупка проведена: позиции отмечены купленными")
+		return
+	}
+	s.redirectOK(w, r, shoppingListPath(id), "Эта покупка уже проведена: повтор не создал дубль")
 }
 
 // checkoutFailure перерисовывает оформление с сообщением и введёнными данными.
@@ -839,6 +965,14 @@ func (s *Server) shoppingCheckoutView(ctx context.Context, id int64, in *checkou
 		view.Date = in.Date
 		view.Description = in.Description
 		view.ActorID = in.ActorID
+		view.RequestID = in.RequestID
+	}
+	if view.RequestID == "" {
+		requestID, err := uuid.New()
+		if err != nil {
+			return checkoutView{}, err
+		}
+		view.RequestID = requestID
 	}
 
 	var assetAccounts []model.Account
@@ -857,6 +991,9 @@ func (s *Server) shoppingCheckoutView(ctx context.Context, id int64, in *checkou
 
 	for i := range list.Items {
 		item := &list.Items[i]
+		if item.Status == model.ShoppingItemPurchased || item.Status == model.ShoppingItemSkipped {
+			continue
+		}
 		if !item.Confirmed() {
 			view.Unconfirmed = append(view.Unconfirmed, toShoppingItemRow(item, paths, names))
 			continue
@@ -905,7 +1042,7 @@ func checkoutItemEntries(r *http.Request, list *model.ShoppingList, in *checkout
 	var total money.Kop
 	for i := range list.Items {
 		item := &list.Items[i]
-		if !item.Confirmed() {
+		if !checkoutable(item) {
 			continue
 		}
 		key := strconv.FormatInt(item.ID, 10)
@@ -930,7 +1067,24 @@ func checkoutItemEntries(r *http.Request, list *model.ShoppingList, in *checkout
 	if len(entries) == 0 {
 		return nil, 0, errors.New("в списке нет подтверждённых позиций для оформления")
 	}
-	return entries, total, nil
+	return aggregateEntries(entries), total, nil
+}
+
+// aggregateEntries складывает строки одного счёта: таблица проводок хранит
+// не больше одной строки на счёт и сторону, поэтому несколько позиций с общей
+// статьёй расходов дают одну строку с суммарной суммой.
+func aggregateEntries(entries []engine.Entry) []engine.Entry {
+	merged := make([]engine.Entry, 0, len(entries))
+	index := make(map[int64]int, len(entries))
+	for _, entry := range entries {
+		if pos, ok := index[entry.AccountID]; ok {
+			merged[pos].Amount += entry.Amount
+			continue
+		}
+		index[entry.AccountID] = len(merged)
+		merged = append(merged, entry)
+	}
+	return merged
 }
 
 // checkoutSourceEntries собирает строки источников и распределяет итог.
@@ -1022,7 +1176,7 @@ func (s *Server) checkoutSourceEntries(ctx context.Context, r *http.Request, tot
 	if sum != total {
 		return nil, errors.New("сумма источников не равна итогу покупки")
 	}
-	return entries, nil
+	return aggregateEntries(entries), nil
 }
 
 // checkoutPreview переводит подготовленную проводку в строки предпросмотра.

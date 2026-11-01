@@ -410,5 +410,211 @@ func TestASL_15_ShoppingAccountSuggest(t *testing.T) {
 	}
 }
 
+// shoppingPurchaseTransaction собирает сбалансированную проводку покупки:
+// дебет статей расхода и кредит источников оплаты.
+func shoppingPurchaseTransaction(uuid string, actor int64, debits, credits map[int64]money.Kop) *model.Transaction {
+	tr := &model.Transaction{
+		UUID:        uuid,
+		OpType:      model.OpExpense,
+		Date:        time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+		Description: "покупка по списку",
+		ActorID:     actor,
+	}
+	for account, amount := range debits {
+		tr.Lines = append(tr.Lines, model.TransactionLine{
+			AccountID: account, Amount: amount, Side: model.SideDebit,
+		})
+	}
+	for account, amount := range credits {
+		tr.Lines = append(tr.Lines, model.TransactionLine{
+			AccountID: account, Amount: amount, Side: model.SideCredit,
+		})
+	}
+	return tr
+}
+
+// TestASL_15_ShoppingPurchase проверяет проведение покупки по списку:
+// одну и несколько позиций, несколько источников, откат при ошибке,
+// идемпотентный повтор и завершение списка.
+func TestASL_15_ShoppingPurchase(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	userID := mustCreateUser(t, db, "Андрей")
+	products := mustCreateAccount(t, db, "Продукты", model.TypeExpense, nil)
+	household := mustCreateAccount(t, db, "Хозяйство", model.TypeExpense, nil)
+	cash := mustCreateAccount(t, db, "Наличные", model.TypeAsset, nil)
+	card := mustCreateAccount(t, db, "Карта", model.TypeAsset, nil)
+
+	list, err := db.CreateShoppingList(ctx, ShoppingListInput{
+		Name:    "На выходные",
+		OwnerID: userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateShoppingList: %v", err)
+	}
+	bread, err := db.AddShoppingItem(ctx, list.ID, ShoppingItemInput{
+		Name: "Хлеб", AccountID: &products.ID, ActualPrice: money.FromKopecks(5000),
+		Status: model.ShoppingItemConfirmed,
+	})
+	if err != nil {
+		t.Fatalf("AddShoppingItem(Хлеб): %v", err)
+	}
+	milk, err := db.AddShoppingItem(ctx, list.ID, ShoppingItemInput{
+		Name: "Молоко", AccountID: &household.ID, ActualPrice: money.FromKopecks(8000),
+		InCart: true, Status: model.ShoppingItemConfirmed,
+	})
+	if err != nil {
+		t.Fatalf("AddShoppingItem(Молоко): %v", err)
+	}
+	cheese, err := db.AddShoppingItem(ctx, list.ID, ShoppingItemInput{
+		Name: "Сыр", AccountID: &products.ID, PlannedPrice: money.FromKopecks(3000),
+	})
+	if err != nil {
+		t.Fatalf("AddShoppingItem(Сыр): %v", err)
+	}
+
+	purchase := shoppingPurchaseTransaction("purchase-1", userID,
+		map[int64]money.Kop{products.ID: money.FromKopecks(5000), household.ID: money.FromKopecks(8000)},
+		map[int64]money.Kop{cash.ID: money.FromKopecks(10000), card.ID: money.FromKopecks(3000)},
+	)
+
+	// Неподтверждённая позиция откатывает всё: проводки нет, статусы прежние.
+	_, _, err = db.PostShoppingPurchase(ctx, ShoppingPurchaseInput{
+		ListID: list.ID, ItemIDs: []int64{bread.ID, cheese.ID}, Transaction: purchase,
+	})
+	var ve *ValidationError
+	if !errors.As(err, &ve) || ve.Code != CodeShoppingItemNotConfirmed {
+		t.Fatalf("ошибка = %v, ожидался код %s", err, CodeShoppingItemNotConfirmed)
+	}
+	if count, err := db.CountTransactions(ctx, TransactionFilter{}); err != nil || count != 0 {
+		t.Fatalf("после отката транзакций = %d (err %v), ожидалось 0", count, err)
+	}
+	unchanged, err := db.ShoppingItem(ctx, bread.ID)
+	if err != nil {
+		t.Fatalf("ShoppingItem: %v", err)
+	}
+	if unchanged.Status != model.ShoppingItemConfirmed || unchanged.Version != bread.Version {
+		t.Fatalf("позиция изменилась при откате: статус %q, версия %d", unchanged.Status, unchanged.Version)
+	}
+
+	// Несколько позиций и несколько источников: одна сбалансированная проводка.
+	tr, created, err := db.PostShoppingPurchase(ctx, ShoppingPurchaseInput{
+		ListID: list.ID, ItemIDs: []int64{bread.ID, milk.ID}, Transaction: purchase,
+	})
+	if err != nil {
+		t.Fatalf("PostShoppingPurchase: %v", err)
+	}
+	if !created || tr.UUID != "purchase-1" || len(tr.Lines) != 4 {
+		t.Fatalf("проводка = %+v, created = %v", tr, created)
+	}
+	var debit, credit money.Kop
+	for _, line := range tr.Lines {
+		switch line.Side {
+		case model.SideDebit:
+			debit += line.Amount
+		case model.SideCredit:
+			credit += line.Amount
+		}
+	}
+	if debit != credit || debit != money.FromKopecks(13000) {
+		t.Fatalf("ΣDEBIT = %s, ΣCREDIT = %s", debit, credit)
+	}
+	for _, id := range []int64{bread.ID, milk.ID} {
+		item, err := db.ShoppingItem(ctx, id)
+		if err != nil {
+			t.Fatalf("ShoppingItem(%d): %v", id, err)
+		}
+		if item.Status != model.ShoppingItemPurchased {
+			t.Fatalf("позиция %d не отмечена купленной: %q", id, item.Status)
+		}
+	}
+
+	// Сыр остался запланированным, поэтому список ещё не завершён.
+	got, err := db.ShoppingList(ctx, list.ID)
+	if err != nil {
+		t.Fatalf("ShoppingList: %v", err)
+	}
+	if got.Status == model.ShoppingListCompleted {
+		t.Fatalf("список завершён, хотя осталась незакупленная позиция")
+	}
+
+	// Повтор с тем же uuid не создаёт дубль и не двигает версии.
+	repeat, created, err := db.PostShoppingPurchase(ctx, ShoppingPurchaseInput{
+		ListID: list.ID, ItemIDs: []int64{bread.ID, milk.ID}, Transaction: purchase,
+	})
+	if err != nil {
+		t.Fatalf("повтор PostShoppingPurchase: %v", err)
+	}
+	if created || repeat.ID != tr.ID {
+		t.Fatalf("повтор создал новую проводку: id %d против %d, created %v", repeat.ID, tr.ID, created)
+	}
+	if count, err := db.CountTransactions(ctx, TransactionFilter{}); err != nil || count != 1 {
+		t.Fatalf("после повтора транзакций = %d (err %v), ожидалась 1", count, err)
+	}
+	afterRepeat, err := db.ShoppingItem(ctx, bread.ID)
+	if err != nil {
+		t.Fatalf("ShoppingItem after repeat: %v", err)
+	}
+	if afterRepeat.Version != unchanged.Version+1 {
+		t.Fatalf("версия после повтора = %d, ожидалась %d", afterRepeat.Version, unchanged.Version+1)
+	}
+
+	// Покупка уже купленной позиции с новым uuid отклоняется.
+	_, _, err = db.PostShoppingPurchase(ctx, ShoppingPurchaseInput{
+		ListID: list.ID, ItemIDs: []int64{bread.ID},
+		Transaction: shoppingPurchaseTransaction("purchase-2", userID,
+			map[int64]money.Kop{products.ID: money.FromKopecks(5000)},
+			map[int64]money.Kop{cash.ID: money.FromKopecks(5000)}),
+	})
+	if !errors.As(err, &ve) || ve.Code != CodeShoppingItemPurchased {
+		t.Fatalf("ошибка повторной покупки = %v, ожидался код %s", err, CodeShoppingItemPurchased)
+	}
+
+	// Позиция из чужого списка не принимается.
+	other, err := db.CreateShoppingList(ctx, ShoppingListInput{Name: "Другой", OwnerID: userID})
+	if err != nil {
+		t.Fatalf("CreateShoppingList(other): %v", err)
+	}
+	foreign, err := db.AddShoppingItem(ctx, other.ID, ShoppingItemInput{
+		Name: "Чужой", AccountID: &products.ID, ActualPrice: money.FromKopecks(100),
+		Status: model.ShoppingItemConfirmed,
+	})
+	if err != nil {
+		t.Fatalf("AddShoppingItem(foreign): %v", err)
+	}
+	_, _, err = db.PostShoppingPurchase(ctx, ShoppingPurchaseInput{
+		ListID: list.ID, ItemIDs: []int64{foreign.ID},
+		Transaction: shoppingPurchaseTransaction("purchase-3", userID,
+			map[int64]money.Kop{products.ID: money.FromKopecks(100)},
+			map[int64]money.Kop{cash.ID: money.FromKopecks(100)}),
+	})
+	if !errors.As(err, &ve) || ve.Code != CodeShoppingItemNotFound {
+		t.Fatalf("ошибка чужой позиции = %v, ожидался код %s", err, CodeShoppingItemNotFound)
+	}
+
+	// После покупки последней позиции список завершается.
+	price := money.FromKopecks(3000)
+	if _, err := db.UpdateShoppingItem(ctx, cheese.ID, ShoppingItemPatch{
+		Version: cheese.Version, ActualPrice: &price, Status: statusPtr(model.ShoppingItemConfirmed),
+	}); err != nil {
+		t.Fatalf("UpdateShoppingItem(Сыр): %v", err)
+	}
+	if _, _, err := db.PostShoppingPurchase(ctx, ShoppingPurchaseInput{
+		ListID: list.ID, ItemIDs: []int64{cheese.ID},
+		Transaction: shoppingPurchaseTransaction("purchase-4", userID,
+			map[int64]money.Kop{products.ID: money.FromKopecks(3000)},
+			map[int64]money.Kop{cash.ID: money.FromKopecks(3000)}),
+	}); err != nil {
+		t.Fatalf("PostShoppingPurchase(Сыр): %v", err)
+	}
+	completed, err := db.ShoppingList(ctx, list.ID)
+	if err != nil {
+		t.Fatalf("ShoppingList completed: %v", err)
+	}
+	if completed.Status != model.ShoppingListCompleted {
+		t.Fatalf("список не завершён: статус %q", completed.Status)
+	}
+}
+
 func statusPtr(v model.ShoppingItemStatus) *model.ShoppingItemStatus { return &v }
 func strPtr(v string) *string                                        { return &v }

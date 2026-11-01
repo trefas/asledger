@@ -67,6 +67,10 @@ const (
 	CodeShoppingListArchived = "ERR_SHOPPING_LIST_ARCHIVED"
 	// CodeShoppingItemPurchased — купленную позицию нельзя удалить.
 	CodeShoppingItemPurchased = "ERR_SHOPPING_ITEM_PURCHASED"
+	// CodeShoppingItemNotFound — позиция не найдена или не принадлежит списку.
+	CodeShoppingItemNotFound = "ERR_SHOPPING_ITEM_NOT_FOUND"
+	// CodeShoppingItemNotConfirmed — позиция не подтверждена к покупке.
+	CodeShoppingItemNotConfirmed = "ERR_SHOPPING_ITEM_NOT_CONFIRMED"
 )
 
 // ValidationError описывает нарушение инварианта сохранения проводки.

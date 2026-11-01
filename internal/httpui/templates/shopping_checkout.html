@@ -2,11 +2,12 @@
 {{with .Data}}
 <p class="muted"><a href="/shopping-lists/{{.List.List.ID}}">← К списку</a></p>
 <h1>Оформить покупку</h1>
-<p class="muted">Проверьте подтверждённые позиции, при необходимости измените статью расходов и сумму, затем выберите счёт оплаты. Книга не изменится: это предпросмотр проводки.</p>
+<p class="muted">Проверьте подтверждённые позиции, при необходимости измените статью расходов и сумму, затем выберите счёт оплаты. Кнопка «Показать предпросмотр» книгу не меняет; запись происходит только по кнопке «Провести покупку».</p>
 
 {{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
 
 <form method="post" action="/shopping-lists/{{.List.List.ID}}/checkout">
+  <input type="hidden" name="request_id" value="{{.RequestID}}">
   <fieldset class="card">
     <legend>1. Подтверждённые позиции</legend>
     {{if .Items}}
@@ -96,34 +97,36 @@
   <div class="summary checkout-total">
     <span>Итог покупки: <strong>{{money .Total}}</strong></span>
   </div>
+
+  {{if .Preview}}
+  <div class="card checkout-preview" id="checkout-preview">
+    <h2>Предпросмотр проводки</h2>
+    <p class="muted">Дата {{.Preview.Date}} · {{.Preview.Description}} · автор {{.Preview.Actor}}</p>
+    <table class="report">
+      <thead><tr><th>Счёт</th><th>Сторона</th><th class="num">Сумма</th></tr></thead>
+      <tbody>
+      {{range .Preview.Lines}}
+        <tr>
+          <td>{{.AccountPath}}</td>
+          <td><span class="badge{{if eq .Side "кредит"}} badge-muted{{end}}">{{.Side}}</span></td>
+          <td class="num">{{money .Amount}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+      <tfoot>
+        <tr><th colspan="2">Дебет</th><td class="num">{{money .Preview.DebitTotal}}</td></tr>
+        <tr><th colspan="2">Кредит</th><td class="num">{{money .Preview.CreditTotal}}</td></tr>
+        <tr><th colspan="2">Итог покупки</th><td class="num"><strong>{{money .Preview.Total}}</strong></td></tr>
+      </tfoot>
+    </table>
+    <p class="muted">Это предпросмотр: проводка ещё не записана, книга не изменена.</p>
+  </div>
+  {{end}}
+
   <div class="form-actions">
-    <button class="btn" type="submit">Показать предпросмотр</button>
+    <button class="btn btn-secondary" type="submit">Показать предпросмотр</button>
+    <button class="btn" type="submit" formaction="/shopping-lists/{{.List.List.ID}}/checkout/post">Провести покупку</button>
   </div>
 </form>
-
-{{if .Preview}}
-<div class="card checkout-preview" id="checkout-preview">
-  <h2>Предпросмотр проводки</h2>
-  <p class="muted">Дата {{.Preview.Date}} · {{.Preview.Description}} · автор {{.Preview.Actor}}</p>
-  <table class="report">
-    <thead><tr><th>Счёт</th><th>Сторона</th><th class="num">Сумма</th></tr></thead>
-    <tbody>
-    {{range .Preview.Lines}}
-      <tr>
-        <td>{{.AccountPath}}</td>
-        <td><span class="badge{{if eq .Side "кредит"}} badge-muted{{end}}">{{.Side}}</span></td>
-        <td class="num">{{money .Amount}}</td>
-      </tr>
-    {{end}}
-    </tbody>
-    <tfoot>
-      <tr><th colspan="2">Дебет</th><td class="num">{{money .Preview.DebitTotal}}</td></tr>
-      <tr><th colspan="2">Кредит</th><td class="num">{{money .Preview.CreditTotal}}</td></tr>
-      <tr><th colspan="2">Итог покупки</th><td class="num"><strong>{{money .Preview.Total}}</strong></td></tr>
-    </tfoot>
-  </table>
-  <p class="muted">Это предпросмотр: проводка ещё не записана, книга не изменена.</p>
-</div>
-{{end}}
 {{end}}
 {{end}}
