@@ -280,6 +280,26 @@ func TestASL_15_ShoppingCRUD(t *testing.T) {
 		t.Fatal("ожидалась защита купленной позиции")
 	}
 
+	// Частичное изменение списка: имя, дата, владелец и статус.
+	renamed := "Выходные на даче"
+	planned := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
+	listStatus := model.ShoppingListShopping
+	updatedList, err := db.UpdateShoppingList(ctx, list.ID, ShoppingListPatch{
+		Name:        &renamed,
+		PlannedDate: &planned,
+		OwnerID:     &secondUserID,
+		Status:      &listStatus,
+	})
+	if err != nil {
+		t.Fatalf("UpdateShoppingList: %v", err)
+	}
+	if updatedList.Name != renamed || updatedList.OwnerID != secondUserID || updatedList.Status != model.ShoppingListShopping {
+		t.Fatalf("изменённый список: %+v", updatedList)
+	}
+	if !updatedList.PlannedDate.Equal(planned) {
+		t.Fatalf("дата списка = %s, ожидалась %s", updatedList.PlannedDate, planned)
+	}
+
 	// Архивация сохраняет позиции.
 	if err := db.ArchiveShoppingList(ctx, list.ID); err != nil {
 		t.Fatalf("ArchiveShoppingList: %v", err)
@@ -293,6 +313,58 @@ func TestASL_15_ShoppingCRUD(t *testing.T) {
 	}
 	if len(archived.Items) != 2 {
 		t.Fatalf("позиции потеряны при архивации: %d", len(archived.Items))
+	}
+
+	// Архивный список нельзя изменить.
+	if _, err := db.UpdateShoppingList(ctx, list.ID, ShoppingListPatch{Name: &renamed}); err == nil {
+		t.Fatal("ожидался запрет изменения архивного списка")
+	}
+
+	// Фильтры списков: архив скрыт по умолчанию.
+	lists, err := db.ListShoppingLists(ctx, ShoppingListFilter{})
+	if err != nil {
+		t.Fatalf("ListShoppingLists: %v", err)
+	}
+	if len(lists) != 0 {
+		t.Fatalf("без IncludeArchived получено %d списков", len(lists))
+	}
+	lists, err = db.ListShoppingLists(ctx, ShoppingListFilter{IncludeArchived: true})
+	if err != nil {
+		t.Fatalf("ListShoppingLists IncludeArchived: %v", err)
+	}
+	if len(lists) != 1 || lists[0].ID != list.ID {
+		t.Fatalf("списки с архивом: %+v", lists)
+	}
+	archivedStatus := model.ShoppingListArchived
+	lists, err = db.ListShoppingLists(ctx, ShoppingListFilter{Status: &archivedStatus})
+	if err != nil {
+		t.Fatalf("ListShoppingLists по статусу: %v", err)
+	}
+	if len(lists) != 1 {
+		t.Fatalf("списков в архиве = %d", len(lists))
+	}
+	lists, err = db.ListShoppingLists(ctx, ShoppingListFilter{OwnerID: &secondUserID, IncludeArchived: true})
+	if err != nil {
+		t.Fatalf("ListShoppingLists по владельцу: %v", err)
+	}
+	if len(lists) != 1 {
+		t.Fatalf("списков владельца = %d", len(lists))
+	}
+	lists, err = db.ListShoppingLists(ctx, ShoppingListFilter{IncludeArchived: true, Limit: 1, Offset: 1})
+	if err != nil {
+		t.Fatalf("ListShoppingLists со смещением: %v", err)
+	}
+	if len(lists) != 0 {
+		t.Fatalf("со смещением получено %d списков", len(lists))
+	}
+
+	// Снапшот получает все позиции независимо от статуса списка.
+	allItems, err := db.ListAllShoppingItems(ctx)
+	if err != nil {
+		t.Fatalf("ListAllShoppingItems: %v", err)
+	}
+	if len(allItems) != 2 {
+		t.Fatalf("всех позиций = %d", len(allItems))
 	}
 
 	// В журнале изменений есть новые сущности.
@@ -383,6 +455,33 @@ func TestASL_15_ShoppingTemplates(t *testing.T) {
 	// Несуществующий шаблон — ErrNotFound.
 	if _, err := db.UpdateShoppingTemplate(ctx, 999999, ShoppingTemplatePatch{Name: &newName}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("UpdateShoppingTemplate(нет шаблона) = %v, ожидался ErrNotFound", err)
+	}
+
+	// Список шаблонов и полная выдача с позициями.
+	templates, err := db.ListShoppingTemplates(ctx)
+	if err != nil {
+		t.Fatalf("ListShoppingTemplates: %v", err)
+	}
+	if len(templates) != 2 {
+		t.Fatalf("шаблонов = %d", len(templates))
+	}
+	full, err := db.ListShoppingTemplatesFull(ctx)
+	if err != nil {
+		t.Fatalf("ListShoppingTemplatesFull: %v", err)
+	}
+	if len(full) != 2 || len(full[0].Items) == 0 {
+		t.Fatalf("полные шаблоны: %+v", full)
+	}
+
+	// Удаление шаблона и повторное удаление — ErrNotFound.
+	if err := db.DeleteShoppingTemplate(ctx, saved.ID); err != nil {
+		t.Fatalf("DeleteShoppingTemplate: %v", err)
+	}
+	if _, err := db.ShoppingTemplate(ctx, saved.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ShoppingTemplate после удаления = %v, ожидался ErrNotFound", err)
+	}
+	if err := db.DeleteShoppingTemplate(ctx, saved.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("повторное DeleteShoppingTemplate = %v, ожидался ErrNotFound", err)
 	}
 }
 
