@@ -450,7 +450,7 @@ func (s *Server) handleShoppingTemplateUpdate(w http.ResponseWriter, r *http.Req
 			shoppingTemplateRow{PriorityValue: string(model.ShoppingPriorityNormal)})
 		view.Template.Name = name
 		view.Error = shoppingErrorMessage(err)
-		s.renderPageWithStatus(w, r, "shopping_template", "Шаблон: "+view.Template.Name, view, http.StatusOK)
+		s.renderPage(w, r, "shopping_template", "Шаблон: "+view.Template.Name, view)
 		return
 	}
 	s.redirectOK(w, r, shoppingTemplatePath(tpl.ID), "Шаблон сохранён: "+tpl.Name)
@@ -881,7 +881,7 @@ func (s *Server) shopFailure(w http.ResponseWriter, r *http.Request, listID int6
 		return
 	}
 	view.Error = message
-	s.renderPageWithStatus(w, r, "shopping_shop", view.List.List.Name+" — в магазине", view, http.StatusOK)
+	s.renderPage(w, r, "shopping_shop", view.List.List.Name+" — в магазине", view)
 }
 
 // redirectShop переадресует на экран магазина к сохранённой позиции.
@@ -1058,7 +1058,7 @@ func (s *Server) handleShoppingCheckoutPreview(w http.ResponseWriter, r *http.Re
 	}
 	view.Error = ""
 	view.Preview = preview
-	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", view, http.StatusOK)
+	s.renderPage(w, r, "shopping_checkout", "Оформить покупку", view)
 }
 
 // checkoutSubmittedFromForm разбирает форму оформления и сохраняет значения
@@ -1210,7 +1210,7 @@ func (s *Server) checkoutFailure(w http.ResponseWriter, r *http.Request, id int6
 		return
 	}
 	view.Error = message
-	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", view, http.StatusOK)
+	s.renderPage(w, r, "shopping_checkout", "Оформить покупку", view)
 }
 
 // shoppingCheckoutView собирает данные экрана оформления покупки.

@@ -273,11 +273,11 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	}
 }
 
-// renderPageWithStatus отрисовывает страницу с заданным кодом ответа.
+// renderPage отрисовывает страницу из готовых данных.
 //
 // Используется там, где ошибку нужно показать в самой форме, а не отдельной
 // страницей: например, конфликт версий в режиме магазина.
-func (s *Server) renderPageWithStatus(w http.ResponseWriter, r *http.Request, name, title string, data any, status int) {
+func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, name, title string, data any) {
 	t, ok := s.pages[name]
 	if !ok {
 		s.fail(w, fmt.Errorf("httpui: нет шаблона страницы %q", name))
@@ -289,7 +289,6 @@ func (s *Server) renderPageWithStatus(w http.ResponseWriter, r *http.Request, na
 		page.HasChart = !needsSetup
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(status)
 	if err := t.ExecuteTemplate(w, "layout", page); err != nil {
 		s.logger.Error("не удалось отрисовать страницу", "page", name, "err", err)
 	}
