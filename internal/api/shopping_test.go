@@ -233,6 +233,116 @@ func TestASL_15_ShoppingSnapshotAndPull(t *testing.T) {
 	}
 }
 
+// TestASL_15_ShoppingTemplateAPI проверяет REST шаблонов и создание списка из
+// шаблона: сохранение, изменение, изоляцию и удаление.
+func TestASL_15_ShoppingTemplateAPI(t *testing.T) {
+	a := newTestAPI(t)
+	account := a.account(t, "Расходы:Продукты")
+
+	rec := a.do(t, http.MethodPost, "/api/v1/shopping-list-templates", a.token, map[string]any{
+		"name": "Еженедельные продукты",
+		"items": []map[string]any{
+			{"name": "Хлеб", "account_id": account.ID, "priority": model.ShoppingPriorityHigh},
+			{"name": "Молоко", "account_id": account.ID},
+		},
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("создание шаблона: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	var tpl shoppingTemplateDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &tpl); err != nil {
+		t.Fatalf("разбор шаблона: %v", err)
+	}
+	if tpl.ID == 0 || len(tpl.Items) != 2 {
+		t.Fatalf("шаблон: %+v", tpl)
+	}
+
+	// Список шаблонов отдаёт позиции.
+	rec = a.do(t, http.MethodGet, "/api/v1/shopping-list-templates", a.token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("список шаблонов: код %d", rec.Code)
+	}
+	var list struct {
+		Items []shoppingTemplateDTO `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("разбор списка шаблонов: %v", err)
+	}
+	if len(list.Items) != 1 || len(list.Items[0].Items) != 2 {
+		t.Fatalf("шаблоны: %+v", list.Items)
+	}
+
+	// PATCH заменяет название и набор позиций.
+	rec = a.do(t, http.MethodPatch, "/api/v1/shopping-list-templates/"+itoa(tpl.ID), a.token, map[string]any{
+		"name": "Продукты на неделю",
+		"items": []map[string]any{
+			{"name": "Сыр", "account_id": account.ID, "priority": model.ShoppingPriorityLow},
+		},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("изменение шаблона: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	var updated shoppingTemplateDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("разбор изменённого шаблона: %v", err)
+	}
+	if updated.Name != "Продукты на неделю" || len(updated.Items) != 1 || updated.Items[0].Name != "Сыр" {
+		t.Fatalf("изменённый шаблон: %+v", updated)
+	}
+
+	// Создание списка из шаблона: имя по умолчанию и независимые копии.
+	rec = a.do(t, http.MethodPost, "/api/v1/shopping-lists", a.token, map[string]any{
+		"template_id": tpl.ID,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("список из шаблона: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	var first shoppingListDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil {
+		t.Fatalf("разбор списка из шаблона: %v", err)
+	}
+	if first.Name != "Продукты на неделю" || len(first.Items) != 1 || first.Items[0].Name != "Сыр" {
+		t.Fatalf("список из шаблона: %+v", first)
+	}
+	if first.Items[0].ActualPrice != 0 || first.Items[0].InCart {
+		t.Fatalf("в список попали цены шаблона: %+v", first.Items[0])
+	}
+
+	rec = a.do(t, http.MethodPost, "/api/v1/shopping-lists", a.token, map[string]any{
+		"template_id": tpl.ID, "name": "Вторая неделя",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("второй список из шаблона: код %d", rec.Code)
+	}
+	var second shoppingListDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &second); err != nil {
+		t.Fatalf("разбор второго списка: %v", err)
+	}
+	if second.ID == first.ID || second.Name != "Вторая неделя" {
+		t.Fatalf("второй список: %+v", second)
+	}
+
+	// Шаблон не изменился при создании списков.
+	rec = a.do(t, http.MethodGet, "/api/v1/shopping-list-templates/"+itoa(tpl.ID), a.token, nil)
+	var fresh shoppingTemplateDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &fresh); err != nil {
+		t.Fatalf("разбор шаблона после создания списков: %v", err)
+	}
+	if len(fresh.Items) != 1 || fresh.Items[0].Name != "Сыр" {
+		t.Fatalf("шаблон изменился: %+v", fresh)
+	}
+
+	// Удаление шаблона.
+	rec = a.do(t, http.MethodDelete, "/api/v1/shopping-list-templates/"+itoa(tpl.ID), a.token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("удаление шаблона: код %d", rec.Code)
+	}
+	rec = a.do(t, http.MethodGet, "/api/v1/shopping-list-templates/"+itoa(tpl.ID), a.token, nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("чтение удалённого шаблона: код %d, ожидался 404", rec.Code)
+	}
+}
+
 // itoa переводит идентификатор в строку.
 func itoa(v int64) string {
 	return strconv.FormatInt(v, 10)

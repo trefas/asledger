@@ -57,6 +57,8 @@ type shoppingListRequest struct {
 	PlannedDate *time.Time               `json:"planned_date"`
 	Status      model.ShoppingListStatus `json:"status"`
 	OwnerID     int64                    `json:"owner_id"`
+	// TemplateID — создать список из шаблона; позиции копируются из него.
+	TemplateID int64 `json:"template_id"`
 }
 
 // shoppingListPatchRequest — тело частичного изменения списка.
@@ -99,6 +101,46 @@ type shoppingItemPatchRequest struct {
 	Comment       *string                   `json:"comment"`
 	Status        *model.ShoppingItemStatus `json:"status"`
 	Position      *int                      `json:"position"`
+}
+
+// shoppingTemplateDTO — шаблон списка покупок в ответе API.
+type shoppingTemplateDTO struct {
+	ID        int64                     `json:"id"`
+	UUID      string                    `json:"uuid"`
+	Name      string                    `json:"name"`
+	CreatedAt time.Time                 `json:"created_at"`
+	UpdatedAt time.Time                 `json:"updated_at"`
+	Items     []shoppingTemplateItemDTO `json:"items,omitempty"`
+}
+
+// shoppingTemplateItemDTO — базовая позиция шаблона в ответе API.
+type shoppingTemplateItemDTO struct {
+	ID         int64                  `json:"id"`
+	TemplateID int64                  `json:"template_id"`
+	Name       string                 `json:"name"`
+	AccountID  *int64                 `json:"account_id,omitempty"`
+	Priority   model.ShoppingPriority `json:"priority"`
+	Position   int                    `json:"position"`
+}
+
+// shoppingTemplateItemRequest — базовая позиция шаблона в запросе.
+type shoppingTemplateItemRequest struct {
+	Name      string                 `json:"name"`
+	AccountID *int64                 `json:"account_id"`
+	Priority  model.ShoppingPriority `json:"priority"`
+	Position  int                    `json:"position"`
+}
+
+// shoppingTemplateRequest — тело создания шаблона.
+type shoppingTemplateRequest struct {
+	Name  string                        `json:"name"`
+	Items []shoppingTemplateItemRequest `json:"items"`
+}
+
+// shoppingTemplatePatchRequest — тело частичного изменения шаблона.
+type shoppingTemplatePatchRequest struct {
+	Name  *string                        `json:"name"`
+	Items *[]shoppingTemplateItemRequest `json:"items"`
 }
 
 // handleShoppingLists отдаёт список списков или создаёт новый.
@@ -172,6 +214,15 @@ func (s *Server) createShoppingList(w http.ResponseWriter, r *http.Request) {
 	var planned time.Time
 	if req.PlannedDate != nil {
 		planned = *req.PlannedDate
+	}
+	if req.TemplateID > 0 {
+		list, err := s.db.CreateShoppingListFromTemplate(r.Context(), req.TemplateID, req.Name, ownerID, planned)
+		if err != nil {
+			s.shoppingError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, toShoppingListDTO(list))
+		return
 	}
 	list, err := s.db.CreateShoppingList(r.Context(), store.ShoppingListInput{
 		Name: req.Name, PlannedDate: planned, Status: req.Status, OwnerID: ownerID,
@@ -295,6 +346,111 @@ func (s *Server) handleShoppingItem(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "ERR_METHOD_NOT_ALLOWED", "метод не поддерживается")
 	}
+}
+
+// handleShoppingTemplates отдаёт список шаблонов или создаёт новый.
+func (s *Server) handleShoppingTemplates(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		templates, err := s.db.ListShoppingTemplatesFull(r.Context())
+		if err != nil {
+			s.shoppingError(w, err)
+			return
+		}
+		items := make([]shoppingTemplateDTO, 0, len(templates))
+		for i := range templates {
+			items = append(items, toShoppingTemplateDTO(&templates[i]))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	case http.MethodPost:
+		var req shoppingTemplateRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "ERR_REQUEST_INVALID", "не удалось разобрать запрос")
+			return
+		}
+		tpl, err := s.db.CreateShoppingTemplate(r.Context(), req.Name, toShoppingTemplateItemInputs(req.Items))
+		if err != nil {
+			s.shoppingError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, toShoppingTemplateDTO(tpl))
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "ERR_METHOD_NOT_ALLOWED", "метод не поддерживается")
+	}
+}
+
+// handleShoppingTemplate отдаёт, изменяет или удаляет шаблон.
+func (s *Server) handleShoppingTemplate(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "ERR_REQUEST_INVALID", "неверный идентификатор шаблона")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		tpl, err := s.db.ShoppingTemplate(r.Context(), id)
+		if err != nil {
+			s.shoppingError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, toShoppingTemplateDTO(tpl))
+	case http.MethodPatch:
+		var req shoppingTemplatePatchRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "ERR_REQUEST_INVALID", "не удалось разобрать запрос")
+			return
+		}
+		patch := store.ShoppingTemplatePatch{Name: req.Name}
+		if req.Items != nil {
+			inputs := toShoppingTemplateItemInputs(*req.Items)
+			patch.Items = &inputs
+		}
+		tpl, err := s.db.UpdateShoppingTemplate(r.Context(), id, patch)
+		if err != nil {
+			s.shoppingError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, toShoppingTemplateDTO(tpl))
+	case http.MethodDelete:
+		if err := s.db.DeleteShoppingTemplate(r.Context(), id); err != nil {
+			s.shoppingError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "deleted", "id": id})
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "ERR_METHOD_NOT_ALLOWED", "метод не поддерживается")
+	}
+}
+
+// toShoppingTemplateItemInputs переводит позиции запроса в входные данные store.
+func toShoppingTemplateItemInputs(items []shoppingTemplateItemRequest) []store.ShoppingTemplateItemInput {
+	inputs := make([]store.ShoppingTemplateItemInput, 0, len(items))
+	for _, item := range items {
+		inputs = append(inputs, store.ShoppingTemplateItemInput{
+			Name: item.Name, AccountID: item.AccountID,
+			Priority: item.Priority, Position: item.Position,
+		})
+	}
+	return inputs
+}
+
+// toShoppingTemplateDTO переводит шаблон в формат ответа.
+func toShoppingTemplateDTO(tpl *model.ShoppingListTemplate) shoppingTemplateDTO {
+	dto := shoppingTemplateDTO{
+		ID: tpl.ID, UUID: tpl.UUID, Name: tpl.Name,
+		CreatedAt: tpl.CreatedAt.UTC(), UpdatedAt: tpl.UpdatedAt.UTC(),
+	}
+	if tpl.Items != nil {
+		dto.Items = make([]shoppingTemplateItemDTO, 0, len(tpl.Items))
+		for i := range tpl.Items {
+			item := &tpl.Items[i]
+			dto.Items = append(dto.Items, shoppingTemplateItemDTO{
+				ID: item.ID, TemplateID: item.TemplateID, Name: item.Name,
+				AccountID: item.AccountID, Priority: item.Priority, Position: item.Position,
+			})
+		}
+	}
+	return dto
 }
 
 // shoppingError переводит ошибку store в ответ API.

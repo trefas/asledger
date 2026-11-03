@@ -1,0 +1,58 @@
+{{define "content"}}
+{{with .Data}}
+<p class="muted"><a href="/shopping-templates">← К шаблонам</a></p>
+<h1>Шаблон: {{.Template.Name}}</h1>
+<p class="muted">В шаблон входят только товар, статья расходов и приоритет. Пустые строки игнорируются; чтобы убрать позицию, очистите её название.</p>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+
+<form method="post" action="/shopping-templates/{{.Template.ID}}">
+  <input type="hidden" name="row_count" value="{{len .Rows}}">
+  <div class="card">
+    <label for="template-title">Название шаблона</label>
+    <input type="text" id="template-title" name="name" value="{{.Template.Name}}" required maxlength="200">
+  </div>
+
+  <fieldset class="card">
+    <legend>Позиции шаблона</legend>
+    <table class="report">
+      <thead>
+        <tr><th>Товар</th><th>Статья расходов</th><th>Приоритет</th></tr>
+      </thead>
+      <tbody>
+      {{range $i, $row := .Rows}}
+        <tr>
+          <td>
+            <input type="text" name="item_name_{{$i}}" value="{{$row.Name}}" maxlength="200" placeholder="например, Хлеб">
+          </td>
+          <td>
+            <select name="item_account_{{$i}}">
+              <option value="">без статьи</option>
+              {{range $.Data.Accounts}}<option value="{{.ID}}"{{if eq .ID $row.AccountID}} selected{{end}}>{{.FullPath}}</option>{{end}}
+            </select>
+          </td>
+          <td>
+            <select name="item_priority_{{$i}}">
+              {{range $.Data.Priorities}}<option value="{{.Value}}"{{if eq .Value $row.PriorityValue}} selected{{end}}>{{.Label}}</option>{{end}}
+            </select>
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </fieldset>
+
+  <div class="form-actions">
+    <button class="btn" type="submit">Сохранить шаблон</button>
+  </div>
+</form>
+
+<div class="card">
+  <h2>Удаление</h2>
+  <p class="muted">Созданные из шаблона списки останутся на месте: шаблон и списки независимы.</p>
+  <form method="post" action="/shopping-templates/{{.Template.ID}}/delete" class="inline-form" onsubmit="return confirm('Удалить шаблон «{{.Template.Name}}»?')">
+    <button class="btn btn-secondary" type="submit">Удалить шаблон</button>
+  </form>
+</div>
+{{end}}
+{{end}}

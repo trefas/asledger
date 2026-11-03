@@ -355,6 +355,35 @@ func TestASL_15_ShoppingTemplates(t *testing.T) {
 	if len(saved.Items) != 2 {
 		t.Fatalf("позиций сохранённого шаблона = %d", len(saved.Items))
 	}
+
+	// Изменение шаблона: название и полная замена базовых позиций.
+	newName := "Обновлённый шаблон"
+	replacement := []ShoppingTemplateItemInput{
+		{Name: "Сыр", AccountID: &account.ID, Priority: model.ShoppingPriorityLow},
+	}
+	updated, err := db.UpdateShoppingTemplate(ctx, saved.ID, ShoppingTemplatePatch{
+		Name: &newName, Items: &replacement,
+	})
+	if err != nil {
+		t.Fatalf("UpdateShoppingTemplate: %v", err)
+	}
+	if updated.Name != newName || len(updated.Items) != 1 || updated.Items[0].Name != "Сыр" {
+		t.Fatalf("обновлённый шаблон: %+v", updated)
+	}
+
+	// Пустое название списка берётся из шаблона.
+	unnamed, err := db.CreateShoppingListFromTemplate(ctx, saved.ID, "  ", userID, time.Time{})
+	if err != nil {
+		t.Fatalf("CreateShoppingListFromTemplate без имени: %v", err)
+	}
+	if unnamed.Name != newName || len(unnamed.Items) != 1 {
+		t.Fatalf("список без имени: %+v", unnamed)
+	}
+
+	// Несуществующий шаблон — ErrNotFound.
+	if _, err := db.UpdateShoppingTemplate(ctx, 999999, ShoppingTemplatePatch{Name: &newName}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("UpdateShoppingTemplate(нет шаблона) = %v, ожидался ErrNotFound", err)
+	}
 }
 
 // TestASL_15_ShoppingAccountSuggest проверяет подсказку статей расходов

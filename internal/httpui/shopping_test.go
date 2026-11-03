@@ -3,6 +3,7 @@ package httpui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -585,6 +586,138 @@ func redirectFlash(t *testing.T, rec *httptest.ResponseRecorder) string {
 		t.Fatalf("разбор Location: %v", err)
 	}
 	return parsed.Query().Get("flash")
+}
+
+// TestASL_15_WebShoppingTemplates проверяет шаблоны в web: создание, правку,
+// создание списка из шаблона, сохранение списка как шаблона и удаление.
+func TestASL_15_WebShoppingTemplates(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+	userID := w.userID(t)
+	accountID := w.accountID(t, "Расходы:Продукты")
+	ctx := context.Background()
+
+	rec := w.get(t, "/shopping-templates")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Новый шаблон") {
+		t.Fatalf("страница шаблонов: код %d", rec.Code)
+	}
+
+	rec = w.postForm(t, "/shopping-templates", url.Values{"name": {"Еженедельные продукты"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("создание шаблона: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	templatePath := redirectPath(t, rec)
+	if !strings.HasPrefix(templatePath, "/shopping-templates/") {
+		t.Fatalf("переадресация на %q", templatePath)
+	}
+	templateID, err := strconv.ParseInt(strings.TrimPrefix(templatePath, "/shopping-templates/"), 10, 64)
+	if err != nil {
+		t.Fatalf("идентификатор шаблона из %q: %v", templatePath, err)
+	}
+
+	rec = w.get(t, templatePath)
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, "Еженедельные продукты") || !strings.Contains(body, "Позиции шаблона") {
+		t.Fatalf("страница шаблона: код %d", rec.Code)
+	}
+
+	// Сохранение позиций: пустая вторая строка игнорируется.
+	rec = w.postForm(t, templatePath, url.Values{
+		"name":            {"Еженедельные продукты"},
+		"row_count":       {"2"},
+		"item_name_0":     {"Хлеб"},
+		"item_account_0":  {strconv.FormatInt(accountID, 10)},
+		"item_priority_0": {string(model.ShoppingPriorityHigh)},
+		"item_name_1":     {""},
+		"item_account_1":  {""},
+		"item_priority_1": {string(model.ShoppingPriorityNormal)},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("сохранение шаблона: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	tpl, err := w.db.ShoppingTemplate(ctx, templateID)
+	if err != nil {
+		t.Fatalf("ShoppingTemplate: %v", err)
+	}
+	if len(tpl.Items) != 1 || tpl.Items[0].Name != "Хлеб" || tpl.Items[0].Priority != model.ShoppingPriorityHigh {
+		t.Fatalf("позиции шаблона: %+v", tpl.Items)
+	}
+
+	// Список из шаблона: имя по умолчанию, независимая копия без цен.
+	rec = w.postForm(t, "/shopping-lists/from-template", url.Values{
+		"template_id":  {strconv.FormatInt(templateID, 10)},
+		"name":         {""},
+		"planned_date": {""},
+		"owner_id":     {strconv.FormatInt(userID, 10)},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("создание списка из шаблона: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	listPath := redirectPath(t, rec)
+	listID := listIDFromPath(t, listPath)
+	list, err := w.db.ShoppingList(ctx, listID)
+	if err != nil {
+		t.Fatalf("ShoppingList: %v", err)
+	}
+	if list.Name != "Еженедельные продукты" || len(list.Items) != 1 || list.Items[0].Name != "Хлеб" {
+		t.Fatalf("список из шаблона: %+v", list)
+	}
+	if list.Items[0].ActualPrice != 0 || list.Items[0].InCart {
+		t.Fatalf("в список попали цены шаблона: %+v", list.Items[0])
+	}
+
+	// Повторное создание даёт независимый список.
+	rec = w.postForm(t, "/shopping-lists/from-template", url.Values{
+		"template_id": {strconv.FormatInt(templateID, 10)},
+		"name":        {"Вторая неделя"},
+		"owner_id":    {strconv.FormatInt(userID, 10)},
+	})
+	secondID := listIDFromPath(t, redirectPath(t, rec))
+	if secondID == listID {
+		t.Fatal("создан тот же список")
+	}
+	second, err := w.db.ShoppingList(ctx, secondID)
+	if err != nil {
+		t.Fatalf("ShoppingList second: %v", err)
+	}
+	if second.Name != "Вторая неделя" {
+		t.Fatalf("имя второго списка = %q", second.Name)
+	}
+
+	// Список на странице шаблонов виден.
+	rec = w.get(t, "/shopping-lists")
+	if body := rec.Body.String(); !strings.Contains(body, "Список из шаблона") || !strings.Contains(body, "Еженедельные продукты") {
+		t.Fatalf("на странице списков нет блока шаблонов")
+	}
+
+	// Сохранение списка как шаблона.
+	rec = w.postForm(t, listPath+"/save-template", url.Values{"name": {"Шаблон из списка"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("сохранение списка как шаблона: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	savedID, err := strconv.ParseInt(strings.TrimPrefix(redirectPath(t, rec), "/shopping-templates/"), 10, 64)
+	if err != nil {
+		t.Fatalf("идентификатор сохранённого шаблона: %v", err)
+	}
+	saved, err := w.db.ShoppingTemplate(ctx, savedID)
+	if err != nil {
+		t.Fatalf("ShoppingTemplate saved: %v", err)
+	}
+	if saved.Name != "Шаблон из списка" || len(saved.Items) != 1 {
+		t.Fatalf("сохранённый шаблон: %+v", saved)
+	}
+
+	// Удаление шаблона не трогает созданные списки.
+	rec = w.postForm(t, templatePath+"/delete", url.Values{})
+	if rec.Code != http.StatusSeeOther || redirectPath(t, rec) != "/shopping-templates" {
+		t.Fatalf("удаление шаблона: код %d", rec.Code)
+	}
+	if _, err := w.db.ShoppingTemplate(ctx, templateID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("шаблон не удалён: %v", err)
+	}
+	if _, err := w.db.ShoppingList(ctx, listID); err != nil {
+		t.Fatalf("список удалён вместе с шаблоном: %v", err)
+	}
 }
 
 // TestASL_15_WebShoppingShop проверяет режим магазина: подтверждение ценой и

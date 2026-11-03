@@ -134,6 +134,20 @@
 <p class="empty" id="shopping-empty">В списке пока нет позиций. Добавьте первый товар.</p>
 {{end}}
 
+{{if .Items}}
+<div class="card">
+  <h2>Сохранить как шаблон</h2>
+  <p class="muted">В шаблон попадут только названия товаров, статьи расходов и приоритеты — без цен, ответственных и статусов.</p>
+  <form method="post" action="/shopping-lists/{{.List.List.ID}}/save-template" class="row">
+    <div>
+      <label for="save-template-name">Название шаблона</label>
+      <input type="text" id="save-template-name" name="name" value="{{.List.List.Name}}" maxlength="200" placeholder="по умолчанию — название списка">
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Сохранить шаблон</button></div>
+  </form>
+</div>
+{{end}}
+
 <div class="card">
   <h2>Завершение списка</h2>
   <p class="muted">Архивация сохраняет позиции и историю: список можно посмотреть позже, выбрав фильтр «архив».</p>

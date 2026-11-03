@@ -80,6 +80,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/shopping-lists/{id}/items", s.auth(http.HandlerFunc(s.handleShoppingListItems)))
 	mux.Handle("PATCH /api/v1/shopping-items/{id}", s.auth(http.HandlerFunc(s.handleShoppingItem)))
 	mux.Handle("DELETE /api/v1/shopping-items/{id}", s.auth(http.HandlerFunc(s.handleShoppingItem)))
+	mux.Handle("GET /api/v1/shopping-list-templates", s.auth(http.HandlerFunc(s.handleShoppingTemplates)))
+	mux.Handle("POST /api/v1/shopping-list-templates", s.auth(http.HandlerFunc(s.handleShoppingTemplates)))
+	mux.Handle("GET /api/v1/shopping-list-templates/{id}", s.auth(http.HandlerFunc(s.handleShoppingTemplate)))
+	mux.Handle("PATCH /api/v1/shopping-list-templates/{id}", s.auth(http.HandlerFunc(s.handleShoppingTemplate)))
+	mux.Handle("DELETE /api/v1/shopping-list-templates/{id}", s.auth(http.HandlerFunc(s.handleShoppingTemplate)))
 
 	mux.Handle("GET /api/v1/accounts/suggest", s.auth(http.HandlerFunc(s.handleSuggest)))
 	mux.Handle("GET /api/v1/engine/roles", s.auth(http.HandlerFunc(s.handleEngineRoles)))

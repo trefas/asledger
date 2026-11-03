@@ -28,6 +28,38 @@
   {{end}}
 </div>
 
+{{if .Templates}}
+<div class="card">
+  <h2>Список из шаблона</h2>
+  <form method="post" action="/shopping-lists/from-template" class="row">
+    <div>
+      <label for="from-template-id">Шаблон</label>
+      <select id="from-template-id" name="template_id" required>
+        {{range .Templates}}<option value="{{.Template.ID}}">{{.Template.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div>
+      <label for="from-template-name">Название списка</label>
+      <input type="text" id="from-template-name" name="name" maxlength="200" placeholder="по умолчанию — название шаблона">
+    </div>
+    <div>
+      <label for="from-template-date">Дата похода</label>
+      <input type="date" id="from-template-date" name="planned_date">
+    </div>
+    <div>
+      <label for="from-template-owner">Владелец</label>
+      <select id="from-template-owner" name="owner_id">
+        {{range .Users}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Создать из шаблона</button></div>
+  </form>
+  <p class="muted"><a href="/shopping-templates">Управление шаблонами</a></p>
+</div>
+{{else}}
+<p class="muted"><a href="/shopping-templates">Шаблоны покупок</a> — сохраните частый список и создавайте его в один клик.</p>
+{{end}}
+
 <form class="filters" method="get" action="/shopping-lists">
   <label>Статус
     <select name="status">

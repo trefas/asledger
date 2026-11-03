@@ -82,21 +82,23 @@ type pageData struct {
 
 // pageFiles сопоставляет имя страницы файлу шаблона.
 var pageFiles = map[string]string{
-	"journal":           "journal.html",
-	"entry":             "entry.html",
-	"setup":             "setup.html",
-	"data":              "data.html",
-	"chart":             "chart.html",
-	"users":             "users.html",
-	"devices":           "devices.html",
-	"initial":           "initial.html",
-	"reports":           "reports.html",
-	"reconcile":         "reconcile.html",
-	"shopping":          "shopping.html",
-	"shopping_detail":   "shopping_detail.html",
-	"shopping_shop":     "shopping_shop.html",
-	"shopping_checkout": "shopping_checkout.html",
-	"error":             "error.html",
+	"journal":            "journal.html",
+	"entry":              "entry.html",
+	"setup":              "setup.html",
+	"data":               "data.html",
+	"chart":              "chart.html",
+	"users":              "users.html",
+	"devices":            "devices.html",
+	"initial":            "initial.html",
+	"reports":            "reports.html",
+	"reconcile":          "reconcile.html",
+	"shopping":           "shopping.html",
+	"shopping_detail":    "shopping_detail.html",
+	"shopping_shop":      "shopping_shop.html",
+	"shopping_checkout":  "shopping_checkout.html",
+	"shopping_templates": "shopping_templates.html",
+	"shopping_template":  "shopping_template.html",
+	"error":              "error.html",
 }
 
 // New создаёт web-интерфейс и разбирает шаблоны.
@@ -194,6 +196,12 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /shopping-lists", s.handleShoppingLists)
 	mux.HandleFunc("POST /shopping-lists", s.handleShoppingListCreate)
+	mux.HandleFunc("POST /shopping-lists/from-template", s.handleShoppingListFromTemplate)
+	mux.HandleFunc("GET /shopping-templates", s.handleShoppingTemplates)
+	mux.HandleFunc("POST /shopping-templates", s.handleShoppingTemplateCreate)
+	mux.HandleFunc("GET /shopping-templates/{id}", s.handleShoppingTemplateDetail)
+	mux.HandleFunc("POST /shopping-templates/{id}", s.handleShoppingTemplateUpdate)
+	mux.HandleFunc("POST /shopping-templates/{id}/delete", s.handleShoppingTemplateDelete)
 	mux.HandleFunc("GET /shopping-lists/{id}", s.handleShoppingListDetail)
 	mux.HandleFunc("POST /shopping-lists/{id}/items", s.handleShoppingItemCreate)
 	mux.HandleFunc("GET /shopping-lists/{id}/shop", s.handleShoppingShop)
@@ -203,6 +211,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /shopping-lists/{id}/checkout/post", s.handleShoppingCheckoutPost)
 	mux.HandleFunc("POST /shopping-lists/{id}/status", s.handleShoppingListStatus)
 	mux.HandleFunc("POST /shopping-lists/{id}/archive", s.handleShoppingListArchive)
+	mux.HandleFunc("POST /shopping-lists/{id}/save-template", s.handleShoppingListSaveTemplate)
 	mux.HandleFunc("POST /shopping-items/{id}", s.handleShoppingItemUpdate)
 	mux.HandleFunc("POST /shopping-items/{id}/delete", s.handleShoppingItemDelete)
 	mux.HandleFunc("GET /shopping/suggest.json", s.handleShoppingSuggestJSON)

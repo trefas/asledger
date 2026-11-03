@@ -1,0 +1,42 @@
+{{define "content"}}
+{{with .Data}}
+<p class="muted"><a href="/shopping-lists">← К спискам покупок</a></p>
+<h1>Шаблоны покупок</h1>
+<p class="muted">Шаблон хранит только базовые позиции: товар, статью расходов и приоритет. Цены, ответственные и статусы в шаблон не попадают, поэтому из него можно создавать независимые списки.</p>
+
+<div class="card">
+  <h2>Новый шаблон</h2>
+  <form method="post" action="/shopping-templates" class="row">
+    <div>
+      <label for="template-name">Название</label>
+      <input type="text" id="template-name" name="name" required maxlength="200" placeholder="например, Еженедельные продукты">
+    </div>
+    <div style="align-self:end"><button class="btn" type="submit">Создать шаблон</button></div>
+  </form>
+  <p class="muted">После создания добавьте позиции на странице шаблона.</p>
+</div>
+
+{{if .Templates}}
+<table class="report">
+  <thead>
+    <tr><th>Шаблон</th><th class="num">Позиций</th><th></th></tr>
+  </thead>
+  <tbody>
+  {{range .Templates}}
+    <tr>
+      <td><a href="/shopping-templates/{{.Template.ID}}">{{.Template.Name}}</a></td>
+      <td class="num">{{len .Template.Items}}</td>
+      <td>
+        <form method="post" action="/shopping-templates/{{.Template.ID}}/delete" class="inline-form" onsubmit="return confirm('Удалить шаблон «{{.Template.Name}}»?')">
+          <button class="btn btn-secondary btn-small" type="submit">Удалить</button>
+        </form>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="empty">Шаблонов пока нет. Создайте первый — например, «Еженедельные продукты».</p>
+{{end}}
+{{end}}
+{{end}}

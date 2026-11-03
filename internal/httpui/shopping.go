@@ -52,6 +52,7 @@ type shoppingListCard struct {
 // shoppingListView — данные страницы списков покупок.
 type shoppingListView struct {
 	Lists           []shoppingListCard
+	Templates       []shoppingTemplateCard
 	Status          string
 	IncludeArchived bool
 	Statuses        []shoppingStatusOption
@@ -82,6 +83,33 @@ type shoppingDetailView struct {
 	Accounts   []model.Account
 	Priorities []shoppingPriorityOption
 	Statuses   []shoppingStatusOption
+}
+
+// shoppingTemplateCard — шаблон в списке шаблонов.
+type shoppingTemplateCard struct {
+	Template model.ShoppingListTemplate
+}
+
+// shoppingTemplateRow — базовая позиция шаблона в форме.
+type shoppingTemplateRow struct {
+	Name          string
+	AccountID     int64
+	PriorityValue string
+}
+
+// shoppingTemplatesView — страница списка шаблонов.
+type shoppingTemplatesView struct {
+	Templates []shoppingTemplateCard
+	Users     []model.User
+}
+
+// shoppingTemplateView — страница редактирования шаблона.
+type shoppingTemplateView struct {
+	Template   model.ShoppingListTemplate
+	Rows       []shoppingTemplateRow
+	Accounts   []model.Account
+	Priorities []shoppingPriorityOption
+	Error      string
 }
 
 // shopDraft — введённые в магазине значения, которые нужно сохранить при
@@ -281,6 +309,14 @@ func (s *Server) handleShoppingLists(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Users = users
 	names := userNames(users)
+	templates, err := s.db.ListShoppingTemplatesFull(ctx)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	for i := range templates {
+		view.Templates = append(view.Templates, shoppingTemplateCard{Template: templates[i]})
+	}
 	for i := range lists {
 		view.Lists = append(view.Lists, toShoppingListCard(&lists[i], names))
 	}
@@ -314,6 +350,248 @@ func (s *Server) handleShoppingListCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 	s.redirectOK(w, r, shoppingListPath(list.ID), "Список создан: "+list.Name)
+}
+
+// handleShoppingTemplates показывает шаблоны списков.
+func (s *Server) handleShoppingTemplates(w http.ResponseWriter, r *http.Request) {
+	templates, err := s.db.ListShoppingTemplatesFull(r.Context())
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	users, err := s.db.ListUsers(r.Context())
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	view := shoppingTemplatesView{Users: users}
+	for i := range templates {
+		view.Templates = append(view.Templates, shoppingTemplateCard{Template: templates[i]})
+	}
+	s.render(w, r, "shopping_templates", pageData{
+		Title: "Шаблоны покупок", Active: "shopping", Data: view,
+	})
+}
+
+// handleShoppingTemplateCreate создаёт пустой шаблон и открывает его правку.
+func (s *Server) handleShoppingTemplateCreate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.fail(w, err)
+		return
+	}
+	tpl, err := s.db.CreateShoppingTemplate(r.Context(), r.FormValue("name"), nil)
+	if err != nil {
+		s.mutationError(w, r, "/shopping-templates", shoppingErrorMessage(err))
+		return
+	}
+	s.redirectOK(w, r, shoppingTemplatePath(tpl.ID), "Шаблон создан: "+tpl.Name)
+}
+
+// handleShoppingTemplateDetail показывает форму правки шаблона.
+func (s *Server) handleShoppingTemplateDetail(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.shoppingID(w, r, "/shopping-templates")
+	if !ok {
+		return
+	}
+	view, err := s.shoppingTemplateFormView(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.renderError(w, r, http.StatusNotFound, "Шаблон покупок не найден.")
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	s.render(w, r, "shopping_template", pageData{
+		Title: "Шаблон: " + view.Template.Name, Active: "shopping", Data: view,
+	})
+}
+
+// handleShoppingTemplateUpdate сохраняет название и позиции шаблона.
+func (s *Server) handleShoppingTemplateUpdate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := s.shoppingID(w, r, "/shopping-templates")
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.fail(w, err)
+		return
+	}
+	rows := parseTemplateRows(r)
+	name := r.FormValue("name")
+	inputs := make([]store.ShoppingTemplateItemInput, 0, len(rows))
+	for i, row := range rows {
+		var accountID *int64
+		if row.AccountID > 0 {
+			value := row.AccountID
+			accountID = &value
+		}
+		inputs = append(inputs, store.ShoppingTemplateItemInput{
+			Name: row.Name, AccountID: accountID,
+			Priority: model.ShoppingPriority(row.PriorityValue), Position: i + 1,
+		})
+	}
+	tpl, err := s.db.UpdateShoppingTemplate(ctx, id, store.ShoppingTemplatePatch{
+		Name: &name, Items: &inputs,
+	})
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.renderError(w, r, http.StatusNotFound, "Шаблон покупок не найден.")
+			return
+		}
+		view, viewErr := s.shoppingTemplateFormView(ctx, id)
+		if viewErr != nil {
+			s.fail(w, viewErr)
+			return
+		}
+		view.Rows = append(rows, shoppingTemplateRow{PriorityValue: string(model.ShoppingPriorityNormal)},
+			shoppingTemplateRow{PriorityValue: string(model.ShoppingPriorityNormal)})
+		view.Template.Name = name
+		view.Error = shoppingErrorMessage(err)
+		s.renderPageWithStatus(w, r, "shopping_template", "Шаблон: "+view.Template.Name, "shopping", view, http.StatusOK)
+		return
+	}
+	s.redirectOK(w, r, shoppingTemplatePath(tpl.ID), "Шаблон сохранён: "+tpl.Name)
+}
+
+// handleShoppingTemplateDelete удаляет шаблон.
+func (s *Server) handleShoppingTemplateDelete(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.shoppingID(w, r, "/shopping-templates")
+	if !ok {
+		return
+	}
+	if err := s.db.DeleteShoppingTemplate(r.Context(), id); err != nil {
+		s.mutationError(w, r, shoppingTemplatePath(id), shoppingErrorMessage(err))
+		return
+	}
+	s.redirectOK(w, r, "/shopping-templates", "Шаблон удалён")
+}
+
+// handleShoppingListFromTemplate создаёт список из шаблона.
+func (s *Server) handleShoppingListFromTemplate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		s.fail(w, err)
+		return
+	}
+	templateID := parseID(r.FormValue("template_id"), 0)
+	if templateID <= 0 {
+		s.mutationError(w, r, "/shopping-lists", "Выберите шаблон покупок")
+		return
+	}
+	planned, err := parseFormDate(r.FormValue("planned_date"))
+	if err != nil {
+		s.mutationError(w, r, "/shopping-lists", err.Error())
+		return
+	}
+	ownerID, err := s.shoppingOwner(ctx, r.FormValue("owner_id"))
+	if err != nil {
+		s.mutationError(w, r, "/shopping-lists", err.Error())
+		return
+	}
+	list, err := s.db.CreateShoppingListFromTemplate(ctx, templateID, r.FormValue("name"), ownerID, planned)
+	if err != nil {
+		s.mutationError(w, r, "/shopping-lists", shoppingErrorMessage(err))
+		return
+	}
+	s.redirectOK(w, r, shoppingListPath(list.ID), "Список создан из шаблона: "+list.Name)
+}
+
+// handleShoppingListSaveTemplate сохраняет позиции списка как шаблон.
+func (s *Server) handleShoppingListSaveTemplate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := s.shoppingID(w, r, "/shopping-lists")
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.fail(w, err)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		list, err := s.db.ShoppingList(ctx, id)
+		if err != nil {
+			s.mutationError(w, r, shoppingListPath(id), shoppingErrorMessage(err))
+			return
+		}
+		name = list.Name
+	}
+	tpl, err := s.db.SaveShoppingListAsTemplate(ctx, id, name)
+	if err != nil {
+		s.mutationError(w, r, shoppingListPath(id), shoppingErrorMessage(err))
+		return
+	}
+	s.redirectOK(w, r, shoppingTemplatePath(tpl.ID), "Список сохранён как шаблон: "+tpl.Name)
+}
+
+// shoppingTemplatePath собирает адрес правки шаблона.
+func shoppingTemplatePath(id int64) string {
+	return "/shopping-templates/" + strconv.FormatInt(id, 10)
+}
+
+// shoppingTemplateFormView собирает форму правки шаблона.
+func (s *Server) shoppingTemplateFormView(ctx context.Context, id int64) (shoppingTemplateView, error) {
+	tpl, err := s.db.ShoppingTemplate(ctx, id)
+	if err != nil {
+		return shoppingTemplateView{}, err
+	}
+	accounts, err := s.db.ListAccounts(ctx, store.AccountFilter{OnlyLeaves: true})
+	if err != nil {
+		return shoppingTemplateView{}, err
+	}
+	view := shoppingTemplateView{
+		Template:   *tpl,
+		Priorities: shoppingPriorities(),
+	}
+	for i := range accounts {
+		if accounts[i].Type == model.TypeExpense {
+			view.Accounts = append(view.Accounts, accounts[i])
+		}
+	}
+	for _, item := range tpl.Items {
+		row := shoppingTemplateRow{
+			Name:          item.Name,
+			PriorityValue: string(item.Priority),
+		}
+		if item.AccountID != nil {
+			row.AccountID = *item.AccountID
+		}
+		view.Rows = append(view.Rows, row)
+	}
+	// Несколько пустых строк, чтобы шаблон можно было дополнить без JS.
+	for i := 0; i < 3; i++ {
+		view.Rows = append(view.Rows, shoppingTemplateRow{
+			PriorityValue: string(model.ShoppingPriorityNormal),
+		})
+	}
+	return view, nil
+}
+
+// parseTemplateRows разбирает строки формы шаблона, пропуская пустые.
+func parseTemplateRows(r *http.Request) []shoppingTemplateRow {
+	count, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("row_count")))
+	if count < 0 || count > 500 {
+		count = 0
+	}
+	rows := make([]shoppingTemplateRow, 0, count)
+	for i := 0; i < count; i++ {
+		key := strconv.Itoa(i)
+		name := strings.TrimSpace(r.FormValue("item_name_" + key))
+		accountID := parseID(r.FormValue("item_account_"+key), 0)
+		priority := strings.TrimSpace(r.FormValue("item_priority_" + key))
+		if priority == "" {
+			priority = string(model.ShoppingPriorityNormal)
+		}
+		if name == "" && accountID == 0 {
+			continue
+		}
+		rows = append(rows, shoppingTemplateRow{
+			Name: name, AccountID: accountID, PriorityValue: priority,
+		})
+	}
+	return rows
 }
 
 // handleShoppingListDetail показывает список покупок с позициями.

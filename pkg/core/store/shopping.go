@@ -134,6 +134,14 @@ type ShoppingTemplateItemInput struct {
 	Position  int
 }
 
+// ShoppingTemplatePatch — частичное изменение шаблона списка.
+//
+// Items == nil оставляет позиции без изменений; пустой срез очищает шаблон.
+type ShoppingTemplatePatch struct {
+	Name  *string
+	Items *[]ShoppingTemplateItemInput
+}
+
 // CreateShoppingList создаёт список покупок.
 func (db *DB) CreateShoppingList(ctx context.Context, in ShoppingListInput) (*model.ShoppingList, error) {
 	name, err := validateShoppingName(in.Name)
@@ -717,6 +725,56 @@ func (db *DB) CreateShoppingTemplate(ctx context.Context, name string, items []S
 	return db.ShoppingTemplate(ctx, id)
 }
 
+// UpdateShoppingTemplate меняет название и/или набор базовых позиций.
+func (db *DB) UpdateShoppingTemplate(ctx context.Context, id int64, patch ShoppingTemplatePatch) (*model.ShoppingListTemplate, error) {
+	var name string
+	if patch.Name != nil {
+		validated, err := validateShoppingName(*patch.Name)
+		if err != nil {
+			return nil, err
+		}
+		name = validated
+	}
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		var exists int
+		if err := tx.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM shopping_list_templates WHERE id = ?`, id).Scan(&exists); err != nil {
+			return fmt.Errorf("store: не удалось прочитать шаблон списка: %w", err)
+		}
+		if exists == 0 {
+			return fmt.Errorf("%w: шаблон списка %d", ErrNotFound, id)
+		}
+		now := Now()
+		if patch.Name != nil {
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE shopping_list_templates SET name = ?, updated_at = ? WHERE id = ?`,
+				name, now, id); err != nil {
+				return fmt.Errorf("store: не удалось переименовать шаблон списка: %w", err)
+			}
+		}
+		if patch.Items != nil {
+			if _, err := tx.ExecContext(ctx,
+				`DELETE FROM shopping_template_items WHERE template_id = ?`, id); err != nil {
+				return fmt.Errorf("store: не удалось очистить позиции шаблона: %w", err)
+			}
+			for i, item := range *patch.Items {
+				if err := insertShoppingTemplateItemTx(ctx, tx, id, item, i+1); err != nil {
+					return err
+				}
+			}
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE shopping_list_templates SET updated_at = ? WHERE id = ?`, now, id); err != nil {
+				return fmt.Errorf("store: не удалось обновить шаблон списка: %w", err)
+			}
+		}
+		return appendChangelog(ctx, tx, model.EntityShoppingTemplate, id, model.OpUpdate)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return db.ShoppingTemplate(ctx, id)
+}
+
 // ShoppingTemplate возвращает шаблон вместе с позициями.
 func (db *DB) ShoppingTemplate(ctx context.Context, id int64) (*model.ShoppingListTemplate, error) {
 	var (
@@ -816,13 +874,10 @@ func (db *DB) DeleteShoppingTemplate(ctx context.Context, id int64) error {
 //
 // В новый список копируются только базовые позиции: наименование, статья
 // расходов и приоритет. Цены, ответственные и статусы не копируются.
+// Пустое название списка заменяется названием шаблона.
 func (db *DB) CreateShoppingListFromTemplate(ctx context.Context, templateID int64, name string, ownerID int64, plannedDate time.Time) (*model.ShoppingList, error) {
-	name, err := validateShoppingName(name)
-	if err != nil {
-		return nil, err
-	}
 	var id int64
-	err = db.Tx(ctx, func(tx *sql.Tx) error {
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
 		if err := validateUserTx(ctx, tx, ownerID); err != nil {
 			return err
 		}
@@ -834,8 +889,14 @@ func (db *DB) CreateShoppingListFromTemplate(ctx context.Context, templateID int
 			}
 			return fmt.Errorf("store: не удалось прочитать шаблон списка: %w", err)
 		}
-		var err error
-		id, err = insertShoppingListTx(ctx, tx, "", name, plannedDate, model.ShoppingListActive, ownerID)
+		if strings.TrimSpace(name) == "" {
+			name = tplName
+		}
+		listName, err := validateShoppingName(name)
+		if err != nil {
+			return err
+		}
+		id, err = insertShoppingListTx(ctx, tx, "", listName, plannedDate, model.ShoppingListActive, ownerID)
 		if err != nil {
 			return err
 		}
