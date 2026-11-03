@@ -1484,11 +1484,6 @@ func (s *Server) checkoutPreview(ctx context.Context, tr *model.Transaction, tot
 	return preview, nil
 }
 
-// shoppingCheckoutPath собирает адрес экрана оформления покупки.
-func shoppingCheckoutPath(id int64) string {
-	return shoppingListPath(id) + "/checkout"
-}
-
 // shoppingDetailView собирает данные страницы списка.
 func (s *Server) shoppingDetailView(ctx context.Context, id int64) (shoppingDetailView, error) {
 	list, err := s.db.ShoppingList(ctx, id)
