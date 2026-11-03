@@ -102,7 +102,7 @@ argv/env. При первом запуске без книги или с 0-ба�
   `asledger-<версия>-linux-amd64.deb`; arm64 — аналогичные артефакты.
 - **Windows:** `asledger-<версия>-win-x64.exe` (NSIS) или
   `asledger-<версия>-win-x64-portable.exe`; есть ZIP без установки.
-- **macOS:** в `v1.3.3` не поддерживается: нет подписи и нотаризации.
+- **macOS:** в `v1.4.0` не поддерживается: нет подписи и нотаризации.
 
 В шапке desktop-клиента используется общий логотип asledger, как в webUI и
 Android-клиенте.
@@ -171,7 +171,7 @@ Windows-артефакты не подписаны, поэтому SmartScreen �
 Файл `asledger-<версия>.apk.sha256` содержит контрольную сумму APK. Проверка:
 
 ```bash
-sha256sum -c asledger-1.3.3.apk.sha256
+sha256sum -c asledger-1.4.0.apk.sha256
 ```
 
 Если проверка не проходит или установщик пишет «При анализе пакета произошла
@@ -207,7 +207,8 @@ web-браузер ───────────┘        │
   на экране совпадает с историей проводок.
 
 Архитектурные решения и контракты: [docs/api.md](docs/api.md),
-[docs/web.md](docs/web.md), [docs/hledger.md](docs/hledger.md),
+[docs/web.md](docs/web.md), [docs/shopping.md](docs/shopping.md),
+[docs/hledger.md](docs/hledger.md),
 [docs/testing.md](docs/testing.md), [docs/release.md](docs/release.md),
 [docs/android.md](docs/android.md), [docs/security.md](docs/security.md).
 
@@ -258,7 +259,7 @@ API, web и интеграционный стенд, `templates/` и `assets/` �
 - [x] S8 — Release
 
 Android-приложение (эпик [#90](https://github.com/trefas/asledger/issues/90))
-развивается с `v1.0.7` и входит в `v1.3.3`:
+развивается с `v1.0.7` и входит в `v1.4.0`:
 
 - [x] S9 — Каркас и бренд
 - [x] S10 — Подключение и первый запуск
@@ -270,7 +271,7 @@ Android-приложение (эпик [#90](https://github.com/trefas/asledger/
 - [x] S16 — Вынос оставшихся строк в ресурсы (1.1)
 
 Desktop-клиент (эпик [#137](https://github.com/trefas/asledger/issues/137))
-входит в `v1.3.3`:
+входит в `v1.4.0`:
 
 - [x] S17 — каркас, процесс `asledgerd`, конфигурация
 - [x] S18 — адреса, журнал, упаковка и CI
@@ -286,6 +287,13 @@ SQLCipher и пароль книги (эпик
 - [x] S24 — SQLCipher 4.19.0/SQLite 3.53.4 и патч `v1.3.2`
 - [x] S25 — выпуск `v1.3.2`
 - [x] S26 — первый запуск с пустой книгой и выпуск `v1.3.3`
+
+Списки покупок (эпик [#165](https://github.com/trefas/asledger/issues/165))
+входят в `v1.4.0`:
+
+- [x] S26 — данные и API
+- [x] S27 — UI и сценарий магазина
+- [x] S28 — проведение, шаблоны, релиз
 
 Ручные проверки миграции `1.2.0 → 1.3.x`, отката и Windows runtime из
 [#155](https://github.com/trefas/asledger/issues/155) были пропущены по решению

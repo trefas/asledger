@@ -282,7 +282,7 @@ Authorization: Bearer <токен>
 
 `GET /api/v1/sync/snapshot` и `GET /api/v1/sync/pull` дополнительно отдают
 массивы `shopping_lists`, `shopping_items` и `shopping_list_templates`.
-`format_version` остаётся `1`: Android-клиент `v1.3.3` игнорирует неизвестные
+`format_version` остаётся `1`: Android-клиент `v1.4.0` игнорирует неизвестные
 поля и продолжает работать без изменений.
 
 ## Отчёты и сверка

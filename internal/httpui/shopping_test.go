@@ -588,6 +588,100 @@ func redirectFlash(t *testing.T, rec *httptest.ResponseRecorder) string {
 	return parsed.Query().Get("flash")
 }
 
+// TestASL_15_ShoppingE2E проходит полный сценарий эпика: создать список,
+// добавить товар, отметить его в магазине, оформить и проверить журнал и отчёт.
+func TestASL_15_ShoppingE2E(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+	userID := w.userID(t)
+	accountID := w.accountID(t, "Расходы:Продукты")
+	cashID := w.accountID(t, "Активы:Наличные")
+	ctx := context.Background()
+
+	// 1. Создание списка.
+	rec := w.postForm(t, "/shopping-lists", url.Values{
+		"name":     {"Продукты на неделю"},
+		"owner_id": {strconv.FormatInt(userID, 10)},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("создание списка: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	listPath := redirectPath(t, rec)
+	listID := listIDFromPath(t, listPath)
+
+	// 2. Добавление позиции.
+	rec = w.postForm(t, listPath+"/items", url.Values{
+		"name":          {"Хлеб"},
+		"account_id":    {strconv.FormatInt(accountID, 10)},
+		"priority":      {string(model.ShoppingPriorityNormal)},
+		"planned_price": {"59,90"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("добавление позиции: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	items, err := w.db.ListShoppingItems(ctx, listID)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("позиции списка: %d (%v)", len(items), err)
+	}
+	bread := items[0]
+
+	// 3. Режим магазина: фактическая цена и отметка «в корзине».
+	rec = w.postForm(t, listPath+"/shop/"+strconv.FormatInt(bread.ID, 10), url.Values{
+		"version":      {strconv.FormatInt(bread.Version, 10)},
+		"actual_price": {"59,90"},
+		"in_cart":      {"1"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("сохранение цены: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+
+	// 4. Оформление: предпросмотр и проведение.
+	checkoutPath := listPath + "/checkout"
+	rec = w.get(t, checkoutPath)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("экран оформления: код %d", rec.Code)
+	}
+	requestID := hiddenValue(t, rec.Body.String(), "request_id")
+	if requestID == "" {
+		t.Fatal("на экране оформления нет request_id")
+	}
+	form := url.Values{
+		"request_id": {requestID},
+		"item_account_" + strconv.FormatInt(bread.ID, 10): {strconv.FormatInt(accountID, 10)},
+		"item_amount_" + strconv.FormatInt(bread.ID, 10):  {"59,90"},
+		"source_amount_" + strconv.FormatInt(cashID, 10):  {""},
+		"date":        {time.Now().UTC().Format(time.DateOnly)},
+		"actor_id":    {strconv.FormatInt(userID, 10)},
+		"description": {"Продукты на неделю"},
+	}
+	rec = w.postForm(t, checkoutPath+"/post", form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("проведение покупки: код %d (тело %s)", rec.Code, rec.Body.String())
+	}
+	if flash := redirectFlash(t, rec); !strings.Contains(flash, "Покупка проведена") {
+		t.Fatalf("сообщение о проведении = %q", flash)
+	}
+
+	// 5. Список завершён, позиция куплена.
+	list, err := w.db.ShoppingList(ctx, listID)
+	if err != nil {
+		t.Fatalf("ShoppingList: %v", err)
+	}
+	if list.Status != model.ShoppingListCompleted || len(list.Items) != 1 || list.Items[0].Status != model.ShoppingItemPurchased {
+		t.Fatalf("список после покупки: статус %q, позиции %+v", list.Status, list.Items)
+	}
+
+	// 6. История видна в журнале и отчёте.
+	rec = w.get(t, "/")
+	if body := rec.Body.String(); !strings.Contains(body, "Продукты на неделю") || !strings.Contains(body, "59,90") {
+		t.Fatalf("в журнале нет проведённой покупки")
+	}
+	rec = w.get(t, "/reports")
+	if body := rec.Body.String(); !strings.Contains(body, "Расходы:Продукты") || !strings.Contains(body, "59,90") {
+		t.Fatalf("в отчёте нет расхода по статье «Продукты»")
+	}
+}
+
 // TestASL_15_WebShoppingTemplates проверяет шаблоны в web: создание, правку,
 // создание списка из шаблона, сохранение списка как шаблона и удаление.
 func TestASL_15_WebShoppingTemplates(t *testing.T) {

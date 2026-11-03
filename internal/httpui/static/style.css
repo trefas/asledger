@@ -266,6 +266,9 @@ tr.total td { font-weight: 600; }
 .checkout-unconfirmed { margin: .25rem 0 0; padding-left: 1.2rem; }
 .checkout-preview { margin-top: 1rem; }
 .checkout-preview h2 { margin-top: 0; }
+.onboarding h2 { margin-top: 0; }
+.shopping-steps { margin: .25rem 0 .5rem; padding-left: 1.3rem; display: grid; gap: .35rem; }
+.shopping-steps strong { color: var(--green-700); }
 @media (max-width: 560px) {
   .checkout-items select { min-width: 0; width: 100%; }
   .checkout-amount { width: 100%; text-align: left; }
