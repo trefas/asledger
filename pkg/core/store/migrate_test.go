@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -101,6 +102,30 @@ func TestSplitStatements(t *testing.T) {
 	}
 	if got[0] != "CREATE TABLE a (id INTEGER)" {
 		t.Fatalf("первая инструкция = %q", got[0])
+	}
+}
+
+// TestSplitStatementsTrigger проверяет, что тело триггера с BEGIN…END и
+// точками с запятой в строках остаётся одной инструкцией.
+func TestSplitStatementsTrigger(t *testing.T) {
+	got := splitStatements(`-- триггер
+CREATE TRIGGER t BEFORE INSERT ON a
+BEGIN
+  SELECT RAISE(ABORT, 'x;y');
+END;
+CREATE TABLE b (id INTEGER);
+`)
+	if len(got) != 2 {
+		t.Fatalf("получено %d инструкций, ожидалось 2: %#v", len(got), got)
+	}
+	if !strings.Contains(got[0], "RAISE(ABORT, 'x;y')") {
+		t.Fatalf("тело триггера потеряно: %q", got[0])
+	}
+	if !strings.HasSuffix(strings.TrimSpace(got[0]), "END") {
+		t.Fatalf("триггер не завершён: %q", got[0])
+	}
+	if !strings.HasPrefix(got[1], "CREATE TABLE b") {
+		t.Fatalf("вторая инструкция = %q", got[1])
 	}
 }
 

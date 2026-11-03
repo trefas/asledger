@@ -135,23 +135,116 @@ func (db *DB) applyMigration(ctx context.Context, m migration) error {
 	})
 }
 
-// splitStatements делит текст миграции на отдельные инструкции, отбрасывая
-// строчные комментарии «--».
+// splitStatements делит текст миграции на отдельные инструкции.
+//
+// Точка с запятой внутри строки, комментария или блока BEGIN…END (тело
+// триггера) не завершает инструкцию. Строчные комментарии «--» и блочные
+// «/* */» отбрасываются, чтобы инструкции оставались читаемыми в тестах.
 func splitStatements(sqlText string) []string {
-	var b strings.Builder
-	for _, line := range strings.Split(sqlText, "\n") {
-		if i := strings.Index(line, "--"); i >= 0 {
-			line = line[:i]
+	var (
+		b          strings.Builder
+		statements []string
+		blocks     []string
+	)
+	runes := []rune(sqlText)
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
+		switch {
+		case c == '\'':
+			b.WriteRune(c)
+			for i++; i < len(runes); i++ {
+				b.WriteRune(runes[i])
+				if runes[i] != '\'' {
+					continue
+				}
+				if i+1 < len(runes) && runes[i+1] == '\'' {
+					i++
+					b.WriteRune(runes[i])
+					continue
+				}
+				break
+			}
+		case c == '"':
+			b.WriteRune(c)
+			for i++; i < len(runes); i++ {
+				b.WriteRune(runes[i])
+				if runes[i] != '"' {
+					continue
+				}
+				if i+1 < len(runes) && runes[i+1] == '"' {
+					i++
+					b.WriteRune(runes[i])
+					continue
+				}
+				break
+			}
+		case c == '`':
+			b.WriteRune(c)
+			for i++; i < len(runes); i++ {
+				b.WriteRune(runes[i])
+				if runes[i] == '`' {
+					break
+				}
+			}
+		case c == '[':
+			b.WriteRune(c)
+			for i++; i < len(runes); i++ {
+				b.WriteRune(runes[i])
+				if runes[i] == ']' {
+					break
+				}
+			}
+		case c == '-' && i+1 < len(runes) && runes[i+1] == '-':
+			for i < len(runes) && runes[i] != '\n' {
+				i++
+			}
+			if i < len(runes) {
+				b.WriteRune('\n')
+			}
+		case c == '/' && i+1 < len(runes) && runes[i+1] == '*':
+			i += 2
+			for i+1 < len(runes) && !(runes[i] == '*' && runes[i+1] == '/') {
+				i++
+			}
+			i++
+			b.WriteRune(' ')
+		case c == ';' && len(blocks) == 0:
+			if s := strings.TrimSpace(b.String()); s != "" {
+				statements = append(statements, s)
+			}
+			b.Reset()
+		case isWordStart(c):
+			start := i
+			for i+1 < len(runes) && isWordPart(runes[i+1]) {
+				i++
+			}
+			word := strings.ToUpper(string(runes[start : i+1]))
+			switch word {
+			case "BEGIN", "CASE":
+				blocks = append(blocks, word)
+			case "END":
+				if len(blocks) > 0 {
+					blocks = blocks[:len(blocks)-1]
+				}
+			}
+			b.WriteString(string(runes[start : i+1]))
+		default:
+			b.WriteRune(c)
 		}
-		b.WriteString(line)
-		b.WriteString("\n")
 	}
-
-	var statements []string
-	for _, stmt := range strings.Split(b.String(), ";") {
-		if s := strings.TrimSpace(stmt); s != "" {
-			statements = append(statements, s)
-		}
+	if s := strings.TrimSpace(b.String()); s != "" {
+		statements = append(statements, s)
 	}
 	return statements
+}
+
+// isWordStart сообщает, может ли руна начинать слово SQL.
+func isWordStart(r rune) bool {
+	return r == '_' ||
+		(r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')
+}
+
+// isWordPart сообщает, может ли руна продолжать слово SQL.
+func isWordPart(r rune) bool {
+	return isWordStart(r) || (r >= '0' && r <= '9')
 }

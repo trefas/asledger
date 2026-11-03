@@ -37,7 +37,7 @@ func TestASL_15_ShoppingMigration(t *testing.T) {
 }
 
 // TestASL_15_ShoppingMigrationFromV133 проверяет инкрементальную миграцию
-// книги версии 1.3.3: схема 0001–0005 уже есть, 0006 добавляется Migrate.
+// книги версии 1.3.3: схема 0001–0005 уже есть, 0006 и 0007 добавляются Migrate.
 func TestASL_15_ShoppingMigrationFromV133(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(ctx, filepath.Join(t.TempDir(), "v133.db"), WithKey(testKey))
@@ -101,8 +101,8 @@ func TestASL_15_ShoppingMigrationFromV133(t *testing.T) {
 		`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatalf("версия схемы после миграции: %v", err)
 	}
-	if version != 6 {
-		t.Fatalf("версия схемы = %d, ожидалась 6", version)
+	if version != 7 {
+		t.Fatalf("версия схемы = %d, ожидалась 7", version)
 	}
 
 	// Данные книги не пострадали, списки создаются на существующей книге.
