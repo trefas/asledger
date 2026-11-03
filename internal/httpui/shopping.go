@@ -445,11 +445,12 @@ func (s *Server) handleShoppingTemplateUpdate(w http.ResponseWriter, r *http.Req
 			s.fail(w, viewErr)
 			return
 		}
-		view.Rows = append(rows, shoppingTemplateRow{PriorityValue: string(model.ShoppingPriorityNormal)},
+		view.Rows = rows
+		view.Rows = append(view.Rows, shoppingTemplateRow{PriorityValue: string(model.ShoppingPriorityNormal)},
 			shoppingTemplateRow{PriorityValue: string(model.ShoppingPriorityNormal)})
 		view.Template.Name = name
 		view.Error = shoppingErrorMessage(err)
-		s.renderPageWithStatus(w, r, "shopping_template", "Шаблон: "+view.Template.Name, "shopping", view, http.StatusOK)
+		s.renderPageWithStatus(w, r, "shopping_template", "Шаблон: "+view.Template.Name, view, http.StatusOK)
 		return
 	}
 	s.redirectOK(w, r, shoppingTemplatePath(tpl.ID), "Шаблон сохранён: "+tpl.Name)
@@ -880,7 +881,7 @@ func (s *Server) shopFailure(w http.ResponseWriter, r *http.Request, listID int6
 		return
 	}
 	view.Error = message
-	s.renderPageWithStatus(w, r, "shopping_shop", view.List.List.Name+" — в магазине", "shopping", view, http.StatusOK)
+	s.renderPageWithStatus(w, r, "shopping_shop", view.List.List.Name+" — в магазине", view, http.StatusOK)
 }
 
 // redirectShop переадресует на экран магазина к сохранённой позиции.
@@ -1057,7 +1058,7 @@ func (s *Server) handleShoppingCheckoutPreview(w http.ResponseWriter, r *http.Re
 	}
 	view.Error = ""
 	view.Preview = preview
-	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", "shopping", view, http.StatusOK)
+	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", view, http.StatusOK)
 }
 
 // checkoutSubmittedFromForm разбирает форму оформления и сохраняет значения
@@ -1209,7 +1210,7 @@ func (s *Server) checkoutFailure(w http.ResponseWriter, r *http.Request, id int6
 		return
 	}
 	view.Error = message
-	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", "shopping", view, http.StatusOK)
+	s.renderPageWithStatus(w, r, "shopping_checkout", "Оформить покупку", view, http.StatusOK)
 }
 
 // shoppingCheckoutView собирает данные экрана оформления покупки.

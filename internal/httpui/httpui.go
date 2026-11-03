@@ -277,13 +277,13 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 //
 // Используется там, где ошибку нужно показать в самой форме, а не отдельной
 // страницей: например, конфликт версий в режиме магазина.
-func (s *Server) renderPageWithStatus(w http.ResponseWriter, r *http.Request, name, title, active string, data any, status int) {
+func (s *Server) renderPageWithStatus(w http.ResponseWriter, r *http.Request, name, title string, data any, status int) {
 	t, ok := s.pages[name]
 	if !ok {
 		s.fail(w, fmt.Errorf("httpui: нет шаблона страницы %q", name))
 		return
 	}
-	page := pageData{Title: title, Active: active, Version: s.cfg.Version, Data: data}
+	page := pageData{Title: title, Active: "shopping", Version: s.cfg.Version, Data: data}
 	if needsSetup, err := s.needsSetup(r.Context()); err == nil {
 		page.Setup = needsSetup
 		page.HasChart = !needsSetup
