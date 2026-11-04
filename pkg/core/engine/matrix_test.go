@@ -7,16 +7,17 @@ import (
 	"github.com/trefas/asledger/pkg/core/model"
 )
 
-// TestASL_6_MatrixHasEightRows проверяет, что закодированы все восемь строк
-// матрицы ASL-2.2 в порядке эпика.
-func TestASL_6_MatrixHasEightRows(t *testing.T) {
+// TestASL_6_MatrixHasAllRows проверяет, что закодированы все строки матрицы
+// ASL-2.2 и расширение эпика кредитов в порядке добавления.
+func TestASL_6_MatrixHasAllRows(t *testing.T) {
 	rules := Rules()
-	if len(rules) != 8 {
-		t.Fatalf("строк матрицы %d, ожидалось 8", len(rules))
+	if len(rules) != 9 {
+		t.Fatalf("строк матрицы %d, ожидалось 9", len(rules))
 	}
 	want := []model.OpType{
 		model.OpExpense, model.OpIncome, model.OpTransfer, model.OpDebtPayment,
 		model.OpLoan, model.OpInitial, model.OpRevaluation, model.OpAdjustment,
+		model.OpInterestAccrual,
 	}
 	for i, op := range want {
 		if rules[i].Op != op {
@@ -50,7 +51,13 @@ func TestASL_6_MatrixCells(t *testing.T) {
 		{"перевод: актив в дебете", model.OpTransfer, model.TypeAsset, model.SideDebit, true},
 		{"перевод: расход недопустим", model.OpTransfer, model.TypeExpense, "", false},
 		{"погашение долга: пассив в дебете", model.OpDebtPayment, model.TypeLiability, model.SideDebit, true},
+		{"погашение долга: проценты в дебете", model.OpDebtPayment, model.TypeExpense, model.SideDebit, true},
 		{"погашение долга: доход недопустим", model.OpDebtPayment, model.TypeIncome, "", false},
+		{"начисление процентов: расход в дебете", model.OpInterestAccrual, model.TypeExpense, model.SideDebit, true},
+		{"начисление процентов: актив в дебете", model.OpInterestAccrual, model.TypeAsset, model.SideDebit, true},
+		{"начисление процентов: пассив в кредите", model.OpInterestAccrual, model.TypeLiability, model.SideCredit, true},
+		{"начисление процентов: доход в кредите", model.OpInterestAccrual, model.TypeIncome, model.SideCredit, true},
+		{"начисление процентов: капитал недопустим", model.OpInterestAccrual, model.TypeCapital, "", false},
 		{"начальные остатки: актив в дебете", model.OpInitial, model.TypeAsset, model.SideDebit, true},
 		{"начальные остатки: пассив в кредите", model.OpInitial, model.TypeLiability, model.SideCredit, true},
 		{"начальные остатки: доход недопустим", model.OpInitial, model.TypeIncome, "", false},
@@ -95,6 +102,7 @@ func TestASL_6_MVPOperations(t *testing.T) {
 	want := map[model.OpType]bool{
 		model.OpExpense: true, model.OpIncome: true, model.OpTransfer: true, model.OpInitial: true,
 		model.OpDebtPayment: false, model.OpLoan: false, model.OpRevaluation: false, model.OpAdjustment: false,
+		model.OpInterestAccrual: false,
 	}
 	for op, mvp := range want {
 		rule, ok := RuleFor(op)

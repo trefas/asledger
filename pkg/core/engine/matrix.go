@@ -32,6 +32,12 @@ const (
 	RoleLiability Role = "пассив"
 	// RoleDebtor — счёт выданного займа (DEBIT, только ветка «Дебиторка»).
 	RoleDebtor Role = "дебитор"
+	// RoleInterestExpense — статья расходов на проценты (DEBIT).
+	RoleInterestExpense Role = "проценты_расход"
+	// RoleInterestIncome — статья доходов по процентам (CREDIT).
+	RoleInterestIncome Role = "проценты_доход"
+	// RoleInterest — статья расходов на проценты при погашении долга (DEBIT).
+	RoleInterest Role = "проценты"
 	// RoleAdjust — корректируемый счёт (сторона по направлению).
 	RoleAdjust Role = "корректируемый"
 )
@@ -80,9 +86,9 @@ var matrix = []Rule{
 	},
 	{
 		Op: model.OpDebtPayment, Title: "Погашение долга",
-		Debit: []model.AccountType{model.TypeLiability}, Credit: []model.AccountType{model.TypeAsset},
+		Debit: []model.AccountType{model.TypeLiability, model.TypeExpense}, Credit: []model.AccountType{model.TypeAsset},
 		MinDebit: 1, MinCredit: 1,
-		Notes: "Σ(погашение) = Σ(источники); уменьшает обязательство.",
+		Notes: "Σ(погашение) = Σ(источники); уменьшает обязательство. Проценты — отдельной строкой расхода.",
 	},
 	{
 		Op: model.OpLoan, Title: "Выдача займа",
@@ -110,6 +116,13 @@ var matrix = []Rule{
 		Credit:   []model.AccountType{model.TypeAsset, model.TypeLiability, model.TypeCapital},
 		MinDebit: 1, MinCredit: 1,
 		Notes: "Ровно 2 строки: счёт пользователя и «Капитал:Корректировка» с противоположных сторон.",
+	},
+	{
+		Op: model.OpInterestAccrual, Title: "Начисление процентов",
+		Debit:    []model.AccountType{model.TypeExpense, model.TypeAsset},
+		Credit:   []model.AccountType{model.TypeLiability, model.TypeIncome},
+		MinDebit: 1, MinCredit: 1,
+		Notes: "Проценты по кредиту: расход DEBIT, пассив CREDIT. По вкладу: актив DEBIT, доход CREDIT.",
 	},
 }
 
@@ -247,6 +260,7 @@ var roleSpecs = map[model.OpType]map[Role]roleSpec{
 	},
 	model.OpDebtPayment: {
 		RoleLiability: {side: model.SideDebit, types: []model.AccountType{model.TypeLiability}},
+		RoleInterest:  {side: model.SideDebit, types: []model.AccountType{model.TypeExpense}},
 		RoleSource:    {side: model.SideCredit, types: []model.AccountType{model.TypeAsset}},
 	},
 	model.OpLoan: {
@@ -256,6 +270,12 @@ var roleSpecs = map[model.OpType]map[Role]roleSpec{
 	model.OpInitial: {
 		RoleAsset:     {side: model.SideDebit, types: []model.AccountType{model.TypeAsset}},
 		RoleLiability: {side: model.SideCredit, types: []model.AccountType{model.TypeLiability}},
+	},
+	model.OpInterestAccrual: {
+		RoleInterestExpense: {side: model.SideDebit, types: []model.AccountType{model.TypeExpense}},
+		RoleAsset:           {side: model.SideDebit, types: []model.AccountType{model.TypeAsset}},
+		RoleInterestIncome:  {side: model.SideCredit, types: []model.AccountType{model.TypeIncome}},
+		RoleLiability:       {side: model.SideCredit, types: []model.AccountType{model.TypeLiability}},
 	},
 }
 

@@ -53,13 +53,13 @@ func TestASL_16_CreditDepositMigration(t *testing.T) {
 	if err := db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatalf("версия схемы: %v", err)
 	}
-	if version != 7 {
-		t.Fatalf("версия схемы = %d, ожидалась 7", version)
+	if version != 8 {
+		t.Fatalf("версия схемы = %d, ожидалась 8", version)
 	}
 }
 
 // TestASL_16_CreditDepositMigrationFromV133 проверяет обновление книги v1.3.3:
-// схема 0001–0005 уже есть, 0006 и 0007 применяются без потери данных.
+// схема 0001–0005 уже есть, 0006–0008 применяются без потери данных.
 func TestASL_16_CreditDepositMigrationFromV133(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(ctx, filepath.Join(t.TempDir(), "v133.db"), WithKey(testKey))
@@ -106,8 +106,8 @@ func TestASL_16_CreditDepositMigrationFromV133(t *testing.T) {
 		`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatalf("версия схемы после миграции: %v", err)
 	}
-	if version != 7 {
-		t.Fatalf("версия схемы = %d, ожидалась 7", version)
+	if version != 8 {
+		t.Fatalf("версия схемы = %d, ожидалась 8", version)
 	}
 
 	var userName string

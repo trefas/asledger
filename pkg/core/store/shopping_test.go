@@ -101,8 +101,8 @@ func TestASL_15_ShoppingMigrationFromV133(t *testing.T) {
 		`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatalf("версия схемы после миграции: %v", err)
 	}
-	if version != 7 {
-		t.Fatalf("версия схемы = %d, ожидалась 7", version)
+	if version != 8 {
+		t.Fatalf("версия схемы = %d, ожидалась 8", version)
 	}
 
 	// Данные книги не пострадали, списки создаются на существующей книге.

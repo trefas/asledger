@@ -8,7 +8,7 @@ import (
 )
 
 // TestASL_6_MatrixAllCells прогоняет по одной допустимой и одной недопустимой
-// ячейке для каждой из восьми строк матрицы ASL-2.2.
+// ячейке для каждой строки матрицы ASL-2.2 и её расширений.
 func TestASL_6_MatrixAllCells(t *testing.T) {
 	kop := money.FromKopecks
 
@@ -155,6 +155,25 @@ func TestASL_6_MatrixAllCells(t *testing.T) {
 			build: func(f *fixture) Operation {
 				return Operation{OpType: model.OpAdjustment, UUID: "cell-adj-bad", Date: opDate(), Direction: DirectionUp,
 					Entries: []Entry{{AccountID: f.expense.ID, Amount: kop(10000), Role: RoleAdjust}}}
+			},
+			wantCode: CodeMatrixCell,
+		},
+		{
+			name: "начисление процентов: расход DEBIT + пассив CREDIT",
+			build: func(f *fixture) Operation {
+				return Operation{OpType: model.OpInterestAccrual, UUID: "cell-interest-ok", Date: opDate(), Entries: []Entry{
+					{AccountID: f.expense.ID, Amount: kop(10000), Role: RoleInterestExpense},
+					{AccountID: f.credit.ID, Amount: kop(10000), Role: RoleLiability},
+				}}
+			},
+		},
+		{
+			name: "начисление процентов: доход в расходе",
+			build: func(f *fixture) Operation {
+				return Operation{OpType: model.OpInterestAccrual, UUID: "cell-interest-bad", Date: opDate(), Entries: []Entry{
+					{AccountID: f.income.ID, Amount: kop(10000), Role: RoleInterestExpense},
+					{AccountID: f.credit.ID, Amount: kop(10000), Role: RoleLiability},
+				}}
 			},
 			wantCode: CodeMatrixCell,
 		},

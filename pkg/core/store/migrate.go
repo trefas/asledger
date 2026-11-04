@@ -119,6 +119,9 @@ func (db *DB) migrationApplied(ctx context.Context, version int) (bool, error) {
 
 // applyMigration применяет одну миграцию в отдельной транзакции.
 func (db *DB) applyMigration(ctx context.Context, m migration) error {
+	if migrationDisablesForeignKeys(m.body) {
+		return db.applyMigrationForeignKeysOff(ctx, m)
+	}
 	return db.Tx(ctx, func(tx *sql.Tx) error {
 		for _, stmt := range splitStatements(m.body) {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
@@ -133,6 +136,67 @@ func (db *DB) applyMigration(ctx context.Context, m migration) error {
 		}
 		return nil
 	})
+}
+
+// applyMigrationForeignKeysOff применяет миграцию на отдельном соединении с
+// выключенными внешними ключами.
+//
+// Это нужно при пересоздании таблицы, на которую ссылаются дочерние таблицы:
+// PRAGMA foreign_keys не действует внутри транзакции, поэтому его выставляют
+// до BEGIN и возвращают после COMMIT. Миграция всё равно атомарна.
+func (db *DB) applyMigrationForeignKeysOff(ctx context.Context, m migration) error {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: не удалось получить соединение для миграции %s: %w", m.name, err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+		return fmt.Errorf("store: не удалось выключить внешние ключи для миграции %s: %w", m.name, err)
+	}
+	restore := func() error {
+		if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
+			return fmt.Errorf("store: не удалось включить внешние ключи после миграции %s: %w", m.name, err)
+		}
+		return nil
+	}
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		_ = restore()
+		return fmt.Errorf("store: не удалось начать транзакцию миграции %s: %w", m.name, err)
+	}
+	for _, stmt := range splitStatements(m.body) {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			_ = tx.Rollback()
+			_ = restore()
+			return fmt.Errorf("store: миграция %s не применилась: %w", m.name, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`,
+		m.version, m.name, Now()); err != nil {
+		_ = tx.Rollback()
+		_ = restore()
+		return fmt.Errorf("store: не удалось записать миграцию %s: %w", m.name, err)
+	}
+	if err := tx.Commit(); err != nil {
+		_ = restore()
+		return fmt.Errorf("store: не удалось зафиксировать миграцию %s: %w", m.name, err)
+	}
+	return restore()
+}
+
+// migrationDisablesForeignKeys сообщает, требует ли миграция выключить внешние
+// ключи на время выполнения.
+func migrationDisablesForeignKeys(body string) bool {
+	for _, stmt := range splitStatements(body) {
+		normalized := strings.Join(strings.Fields(stmt), " ")
+		if strings.EqualFold(normalized, "PRAGMA foreign_keys = OFF") {
+			return true
+		}
+	}
+	return false
 }
 
 // splitStatements делит текст миграции на отдельные инструкции.

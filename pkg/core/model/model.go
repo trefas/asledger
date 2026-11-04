@@ -71,13 +71,15 @@ const (
 	OpInitial     OpType = "начальные_остатки"
 	OpRevaluation OpType = "переоценка"
 	OpAdjustment  OpType = "корректировка"
+	// OpInterestAccrual — начисление процентов по кредиту или вкладу.
+	OpInterestAccrual OpType = "начисление_процентов"
 )
 
 // OpTypes возвращает все допустимые типы операций.
 func OpTypes() []OpType {
 	return []OpType{
 		OpExpense, OpIncome, OpTransfer, OpDebtPayment, OpLoan,
-		OpInitial, OpRevaluation, OpAdjustment,
+		OpInitial, OpRevaluation, OpAdjustment, OpInterestAccrual,
 	}
 }
 
@@ -88,7 +90,7 @@ func MVPOpTypes() []OpType { return []OpType{OpExpense, OpIncome, OpTransfer, Op
 func (o OpType) Valid() bool {
 	switch o {
 	case OpExpense, OpIncome, OpTransfer, OpDebtPayment, OpLoan,
-		OpInitial, OpRevaluation, OpAdjustment:
+		OpInitial, OpRevaluation, OpAdjustment, OpInterestAccrual:
 		return true
 	default:
 		return false
