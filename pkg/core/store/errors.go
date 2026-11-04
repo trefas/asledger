@@ -71,6 +71,30 @@ const (
 	CodeShoppingItemNotFound = "ERR_SHOPPING_ITEM_NOT_FOUND"
 	// CodeShoppingItemNotConfirmed — позиция не подтверждена к покупке.
 	CodeShoppingItemNotConfirmed = "ERR_SHOPPING_ITEM_NOT_CONFIRMED"
+	// CodeCreditAccountInvalid — счёт не является листовым пассивом.
+	CodeCreditAccountInvalid = "ERR_CREDIT_ACCOUNT_INVALID"
+	// CodeCreditRate — ставка кредита вне диапазона 0…1 000 000 ppm.
+	CodeCreditRate = "ERR_CREDIT_RATE"
+	// CodeCreditInterestType — недопустимый способ расчёта процентов.
+	CodeCreditInterestType = "ERR_CREDIT_INTEREST_TYPE"
+	// CodeCreditRepaymentOrder — недопустимый порядок погашения.
+	CodeCreditRepaymentOrder = "ERR_CREDIT_REPAYMENT_ORDER"
+	// CodeCreditGraceDate — беспроцентный период включён без даты окончания.
+	CodeCreditGraceDate = "ERR_CREDIT_GRACE_DATE"
+	// CodeDepositAccountInvalid — счёт не является листовым активом.
+	CodeDepositAccountInvalid = "ERR_DEPOSIT_ACCOUNT_INVALID"
+	// CodeDepositRate — ставка вклада вне диапазона 0…1 000 000 ppm.
+	CodeDepositRate = "ERR_DEPOSIT_RATE"
+	// CodeDepositMinBalance — отрицательный минимальный остаток.
+	CodeDepositMinBalance = "ERR_DEPOSIT_MIN_BALANCE"
+	// CodeDepositBonus — недопустимый вид или параметры бонуса.
+	CodeDepositBonus = "ERR_DEPOSIT_BONUS"
+	// CodeDepositFrequency — недопустимая частота начисления.
+	CodeDepositFrequency = "ERR_DEPOSIT_FREQUENCY"
+	// CodeDepositDates — дата закрытия раньше даты открытия.
+	CodeDepositDates = "ERR_DEPOSIT_DATES"
+	// CodeDepositSteps — пересекающиеся или некорректные ступени.
+	CodeDepositSteps = "ERR_DEPOSIT_STEPS"
 )
 
 // ValidationError описывает нарушение инварианта сохранения проводки.
