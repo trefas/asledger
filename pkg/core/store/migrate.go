@@ -149,7 +149,7 @@ func (db *DB) applyMigrationForeignKeysOff(ctx context.Context, m migration) err
 	if err != nil {
 		return fmt.Errorf("store: не удалось получить соединение для миграции %s: %w", m.name, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
 		return fmt.Errorf("store: не удалось выключить внешние ключи для миграции %s: %w", m.name, err)
