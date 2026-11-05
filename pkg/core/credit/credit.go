@@ -113,7 +113,7 @@ func (s *Service) Preview(ctx context.Context, in RepaymentInput) (*Preview, err
 		return nil, err
 	}
 	in.UUID = id
-	preview, _, err := s.prepare(ctx, in)
+	preview, err := s.prepare(ctx, in)
 	return preview, err
 }
 
@@ -139,7 +139,7 @@ func (s *Service) Post(ctx context.Context, in RepaymentInput) (*Posted, error) 
 	}
 	in.UUID = id
 
-	preview, _, err := s.prepare(ctx, in)
+	preview, err := s.prepare(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -179,70 +179,70 @@ func (s *Service) Post(ctx context.Context, in RepaymentInput) (*Posted, error) 
 }
 
 // prepare проверяет счета и рассчитывает разбивку платежа.
-func (s *Service) prepare(ctx context.Context, in RepaymentInput) (*Preview, *model.CreditSettings, error) {
+func (s *Service) prepare(ctx context.Context, in RepaymentInput) (*Preview, error) {
 	if in.Amount <= 0 {
-		return nil, nil, repaymentError(store.CodeCreditAmount, "сумма погашения должна быть положительной")
+		return nil, repaymentError(store.CodeCreditAmount, "сумма погашения должна быть положительной")
 	}
 	date, err := repaymentDate(in.Date)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	account, err := s.db.Account(ctx, in.AccountID)
 	if errors.Is(err, store.ErrNotFound) {
-		return nil, nil, repaymentError(store.CodeCreditAccountInvalid, "счёт кредита не найден")
+		return nil, repaymentError(store.CodeCreditAccountInvalid, "счёт кредита не найден")
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if account.IsArchived || !account.IsLeaf || account.Type != model.TypeLiability {
-		return nil, nil, repaymentError(store.CodeCreditAccountInvalid,
+		return nil, repaymentError(store.CodeCreditAccountInvalid,
 			"погашение возможно только по листовому счёту типа «пассив»: "+account.FullPath)
 	}
 
 	settings, err := s.db.CreditSettings(ctx, in.AccountID)
 	if errors.Is(err, store.ErrNotFound) {
-		return nil, nil, repaymentError(store.CodeCreditSettingsMissing,
+		return nil, repaymentError(store.CodeCreditSettingsMissing,
 			"у счёта нет настроек кредита: "+account.FullPath)
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	source, err := s.db.Account(ctx, in.SourceAccountID)
 	if errors.Is(err, store.ErrNotFound) {
-		return nil, nil, repaymentError(store.CodeCreditSourceInvalid, "счёт-источник не найден")
+		return nil, repaymentError(store.CodeCreditSourceInvalid, "счёт-источник не найден")
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if source.IsArchived || !source.IsLeaf || source.Type != model.TypeAsset {
-		return nil, nil, repaymentError(store.CodeCreditSourceInvalid,
+		return nil, repaymentError(store.CodeCreditSourceInvalid,
 			"источник погашения должен быть листовым счётом типа «актив»: "+source.FullPath)
 	}
 
 	if in.InterestAccountID != 0 {
 		interestAccount, err := s.db.Account(ctx, in.InterestAccountID)
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, nil, repaymentError(store.CodeCreditInterestAccountInvalid,
+			return nil, repaymentError(store.CodeCreditInterestAccountInvalid,
 				"статья процентов не найдена")
 		}
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if interestAccount.IsArchived || !interestAccount.IsLeaf || interestAccount.Type != model.TypeExpense {
-			return nil, nil, repaymentError(store.CodeCreditInterestAccountInvalid,
+			return nil, repaymentError(store.CodeCreditInterestAccountInvalid,
 				"статья процентов должна быть листовым счётом типа «расход»: "+interestAccount.FullPath)
 		}
 	}
 
 	debt, err := s.db.Balance(ctx, in.AccountID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	accrued, err := s.db.AccruedInterest(ctx, in.AccountID, model.InterestAccrualCredit)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	payment, err := s.calc.Preview(interest.CreditAccount{
@@ -252,17 +252,17 @@ func (s *Service) prepare(ctx context.Context, in RepaymentInput) (*Preview, *mo
 	}, in.Amount, date)
 	if err != nil {
 		if errors.Is(err, interest.ErrPaymentAmount) {
-			return nil, nil, repaymentError(store.CodeCreditAmount, "сумма погашения должна быть положительной")
+			return nil, repaymentError(store.CodeCreditAmount, "сумма погашения должна быть положительной")
 		}
-		return nil, nil, repaymentError(store.CodeCreditAccountInvalid,
+		return nil, repaymentError(store.CodeCreditAccountInvalid,
 			"не удалось рассчитать погашение: "+err.Error())
 	}
 	if payment.Total == 0 {
-		return nil, nil, repaymentError(store.CodeCreditNothingToPay,
+		return nil, repaymentError(store.CodeCreditNothingToPay,
 			"погашать нечего: долг и начисленные проценты равны нулю")
 	}
 	if payment.Interest > 0 && in.InterestAccountID == 0 {
-		return nil, nil, repaymentError(store.CodeCreditInterestAccountInvalid,
+		return nil, repaymentError(store.CodeCreditInterestAccountInvalid,
 			"для погашения процентов выберите статью расходов")
 	}
 
@@ -281,7 +281,7 @@ func (s *Service) prepare(ctx context.Context, in RepaymentInput) (*Preview, *mo
 		RemainingDebt:     debt - payment.Principal,
 		RemainingInterest: accrued - payment.Interest,
 		InGrace:           s.calc.InGrace(*settings, date),
-	}, settings, nil
+	}, nil
 }
 
 // postedFromTransaction восстанавливает разбивку из сохранённой проводки.
