@@ -21,6 +21,7 @@
   <nav class="nav" aria-label="Разделы">
     <a href="/"{{if eq .Active "journal"}} class="active" aria-current="page"{{end}}>Журнал</a>
     <a href="/entry"{{if eq .Active "entry"}} class="active" aria-current="page"{{end}}>Ввод</a>
+    {{if .HasChart}}<a href="/credits"{{if eq .Active "credits"}} class="active" aria-current="page"{{end}}>Кредиты</a>{{end}}
     {{if .HasChart}}<a href="/shopping-lists"{{if eq .Active "shopping"}} class="active" aria-current="page"{{end}}>Покупки</a>{{end}}
     {{if .HasChart}}<a href="/chart"{{if eq .Active "chart"}} class="active" aria-current="page"{{end}}>План счетов</a>{{end}}
     {{if .HasChart}}<a href="/reports"{{if eq .Active "reports"}} class="active" aria-current="page"{{end}}>Отчёты</a>{{end}}

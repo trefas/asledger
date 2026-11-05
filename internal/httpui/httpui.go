@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"time"
 
+	creditsvc "github.com/trefas/asledger/pkg/core/credit"
 	"github.com/trefas/asledger/pkg/core/engine"
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
@@ -53,6 +54,7 @@ type Server struct {
 	cfg    Config
 	db     *store.DB
 	engine *engine.Engine
+	credit *creditsvc.Service
 	sync   *syncsvc.Service
 	recon  *reconcilesvc.Service
 	logger *slog.Logger
@@ -98,6 +100,7 @@ var pageFiles = map[string]string{
 	"shopping_checkout":  "shopping_checkout.html",
 	"shopping_templates": "shopping_templates.html",
 	"shopping_template":  "shopping_template.html",
+	"credits":            "credits.html",
 	"error":              "error.html",
 }
 
@@ -116,6 +119,7 @@ func New(cfg Config) (*Server, error) {
 		logger: logger,
 		pages:  make(map[string]*template.Template),
 	}
+	s.credit = creditsvc.NewWithEngine(cfg.DB, s.engine)
 	static, err := fs.Sub(staticFS, "static")
 	if err != nil {
 		return nil, err
@@ -193,6 +197,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /reconcile", s.handleReconcileForm)
 	mux.HandleFunc("POST /reconcile", s.handleReconcileSubmit)
 	mux.HandleFunc("POST /journal/reverse", s.handleJournalReverse)
+
+	mux.HandleFunc("GET /credits", s.handleCredits)
+	mux.HandleFunc("POST /credits/preview", s.handleCreditPreview)
+	mux.HandleFunc("POST /credits/post", s.handleCreditPost)
 
 	mux.HandleFunc("GET /shopping-lists", s.handleShoppingLists)
 	mux.HandleFunc("POST /shopping-lists", s.handleShoppingListCreate)
@@ -374,6 +382,11 @@ func statusMessage(err error) string {
 			message += "; ячейка матрицы " + ee.Cell
 		}
 		return message
+	}
+	// Ошибки валидации слоя данных и сервисов несут готовое сообщение без кода.
+	var ve *store.ValidationError
+	if errors.As(err, &ve) {
+		return ve.Message
 	}
 	return err.Error()
 }

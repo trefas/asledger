@@ -1,0 +1,104 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Погашение кредита</h1>
+<p class="muted">Выберите кредит и сумму платежа. Сервер сам разделит сумму на тело долга и начисленные проценты по настройкам кредита и порядку погашения. Кнопка «Рассчитать» книгу не меняет; проводка создаётся только по кнопке «Подтвердить погашение».</p>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+
+<form method="post" action="/credits/preview">
+  <input type="hidden" name="uuid" value="{{.UUID}}">
+
+  <fieldset class="card">
+    <legend>1. Платёж</legend>
+    <div class="row">
+      <div>
+        <label for="credit-account">Кредит</label>
+        <select id="credit-account" name="account_id" required>
+          {{if .Accounts}}
+            {{range .Accounts}}
+              <option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.FullPath}}{{if not .HasSettings}} — без настроек{{end}}</option>
+            {{end}}
+          {{else}}
+            <option value="">нет листовых счетов-пассивов</option>
+          {{end}}
+        </select>
+      </div>
+      <div>
+        <label for="credit-amount">Сумма, ₽</label>
+        <input type="text" id="credit-amount" name="amount" inputmode="decimal"
+               value="{{.Amount}}" placeholder="например 20 000,00" required>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="credit-source">Источник средств</label>
+        <select id="credit-source" name="source_account_id" required>
+          {{if .Sources}}
+            {{range .Sources}}
+              <option value="{{.ID}}"{{if eq .ID $.Data.SourceAccountID}} selected{{end}}>{{.FullPath}}</option>
+            {{end}}
+          {{else}}
+            <option value="">нет листовых счетов-активов</option>
+          {{end}}
+        </select>
+      </div>
+      <div>
+        <label for="credit-interest">Статья процентов</label>
+        <select id="credit-interest" name="interest_account_id">
+          <option value="0">не выбрана</option>
+          {{range .Interests}}
+            <option value="{{.ID}}"{{if eq .ID $.Data.InterestAccountID}} selected{{end}}>{{.FullPath}}</option>
+          {{end}}
+        </select>
+        <p class="muted">Нужна, если в платёж попадут проценты.</p>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>2. Дата и описание</legend>
+    <div class="row">
+      <div>
+        <label for="credit-date">Дата погашения</label>
+        <input type="date" id="credit-date" name="date" value="{{.Date}}" required>
+      </div>
+      <div>
+        <label for="credit-actor">Автор проводки</label>
+        <select id="credit-actor" name="actor_id">
+          {{range .Users}}<option value="{{.ID}}"{{if eq .ID $.Data.ActorID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <label for="credit-description">Описание</label>
+    <input type="text" id="credit-description" name="description" value="{{.Description}}"
+           placeholder="необязательно, по умолчанию «Погашение кредита»" maxlength="500">
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-secondary">Рассчитать</button>
+    <button type="submit" class="btn" formaction="/credits/post">Подтвердить погашение</button>
+  </div>
+</form>
+
+{{with .Preview}}
+<div class="card" id="credit-preview">
+  <h2>Разбивка платежа на {{.Date}}</h2>
+  {{if .InGrace}}<div class="flash flash-ok" role="status">Действует беспроцентный период: вся сумма идёт в тело долга.</div>{{end}}
+  {{if .Overpayment}}<div class="flash flash-warn" role="status">Сумма больше остатка долга и процентов: спишется только {{money .Total}}, остаток {{money .Overpayment}} не будет списан.</div>{{end}}
+  <table class="report">
+    <tbody>
+      <tr><td>Долг до платежа</td><td class="num">{{money .Debt}}</td></tr>
+      <tr><td>Начисленные проценты</td><td class="num">{{money .Accrued}}</td></tr>
+      <tr><td>Внесено</td><td class="num">{{money .Requested}}</td></tr>
+      <tr class="total"><td>В погашение тела долга</td><td class="num">{{money .Principal}}</td></tr>
+      <tr class="total"><td>В погашение процентов</td><td class="num">{{money .Interest}}</td></tr>
+      <tr><td>Итого к списанию</td><td class="num"><strong>{{money .Total}}</strong></td></tr>
+      <tr><td>Остаток долга после платежа</td><td class="num">{{money .RemainingDebt}}</td></tr>
+      <tr><td>Остаток процентов после платежа</td><td class="num">{{money .RemainingInterest}}</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Проводка: тело долга — дебет пассива, проценты — дебет расхода, источник — кредит актива. Сумма дебета равна сумме кредита.</p>
+</div>
+{{end}}
+{{end}}
+{{end}}

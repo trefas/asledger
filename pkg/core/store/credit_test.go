@@ -294,6 +294,56 @@ func TestASL_16_DepositSettingsCRUD(t *testing.T) {
 	}
 }
 
+// TestASL_17_AccruedInterest проверяет сумму начисленных процентов по счёту.
+func TestASL_17_AccruedInterest(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	credit := mustCreateAccount(t, db, "Кредит", model.TypeLiability, nil)
+	if _, err := db.SetCreditSettings(ctx, credit.ID, CreditSettingsInput{RatePPM: 150000}); err != nil {
+		t.Fatalf("SetCreditSettings: %v", err)
+	}
+
+	insertAccrual := func(uuid string, kind model.InterestAccrualKind, amount int64,
+		status model.InterestAccrualStatus) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, `
+			INSERT INTO interest_accruals(uuid, account_id, date, kind, amount_kop,
+			                              status, created_at, updated_at)
+			VALUES(?, ?, 1700000000, ?, ?, ?, 1, 1)`,
+			uuid, credit.ID, string(kind), amount, string(status)); err != nil {
+			t.Fatalf("interest_accruals %s: %v", uuid, err)
+		}
+	}
+	insertAccrual("accrued-1", model.InterestAccrualCredit, 100, model.InterestAccrued)
+	insertAccrual("accrued-2", model.InterestAccrualCredit, 250, model.InterestAccrued)
+	insertAccrual("paid", model.InterestAccrualCredit, 999, model.InterestPaid)
+	insertAccrual("deposit", model.InterestAccrualDeposit, 777, model.InterestAccrued)
+
+	got, err := db.AccruedInterest(ctx, credit.ID, model.InterestAccrualCredit)
+	if err != nil {
+		t.Fatalf("AccruedInterest: %v", err)
+	}
+	if got != money.FromKopecks(350) {
+		t.Fatalf("начисленные проценты = %s, ожидалось 3,50 ₽", got)
+	}
+
+	got, err = db.AccruedInterest(ctx, credit.ID, model.InterestAccrualDeposit)
+	if err != nil {
+		t.Fatalf("AccruedInterest(вклад): %v", err)
+	}
+	if got != money.FromKopecks(777) {
+		t.Fatalf("начисленные проценты вклада = %s, ожидалось 7,77 ₽", got)
+	}
+
+	if _, err := db.AccruedInterest(ctx, credit.ID, model.InterestAccrualKind("fee")); err == nil {
+		t.Fatal("недопустимый вид начисления принят")
+	}
+	if _, err := db.AccruedInterest(ctx, 999999, model.InterestAccrualCredit); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("неизвестный счёт: err = %v, ожидалась ErrNotFound", err)
+	}
+}
+
 // ptrKop возвращает указатель на сумму в копейках.
 func ptrKop(v int64) *money.Kop {
 	value := money.FromKopecks(v)

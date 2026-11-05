@@ -73,6 +73,8 @@ const (
 	CodeShoppingItemNotConfirmed = "ERR_SHOPPING_ITEM_NOT_CONFIRMED"
 	// CodeCreditAccountInvalid — счёт не является листовым пассивом.
 	CodeCreditAccountInvalid = "ERR_CREDIT_ACCOUNT_INVALID"
+	// CodeCreditSettingsMissing — у счёта нет настроек кредита.
+	CodeCreditSettingsMissing = "ERR_CREDIT_SETTINGS_MISSING"
 	// CodeCreditRate — ставка кредита вне диапазона 0…1 000 000 ppm.
 	CodeCreditRate = "ERR_CREDIT_RATE"
 	// CodeCreditInterestType — недопустимый способ расчёта процентов.
@@ -95,6 +97,16 @@ const (
 	CodeDepositDates = "ERR_DEPOSIT_DATES"
 	// CodeDepositSteps — пересекающиеся или некорректные ступени.
 	CodeDepositSteps = "ERR_DEPOSIT_STEPS"
+	// CodeCreditAmount — сумма погашения не положительна.
+	CodeCreditAmount = "ERR_CREDIT_AMOUNT"
+	// CodeCreditSourceInvalid — счёт-источник не является листовым активом.
+	CodeCreditSourceInvalid = "ERR_CREDIT_SOURCE_INVALID"
+	// CodeCreditInterestAccountInvalid — статья процентов не является листовым расходом.
+	CodeCreditInterestAccountInvalid = "ERR_CREDIT_INTEREST_ACCOUNT_INVALID"
+	// CodeCreditNothingToPay — погашать нечего: долг и проценты равны нулю.
+	CodeCreditNothingToPay = "ERR_CREDIT_NOTHING_TO_PAY"
+	// CodeCreditDate — не задана дата погашения.
+	CodeCreditDate = "ERR_CREDIT_DATE"
 )
 
 // ValidationError описывает нарушение инварианта сохранения проводки.

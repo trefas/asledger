@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	creditsvc "github.com/trefas/asledger/pkg/core/credit"
 	"github.com/trefas/asledger/pkg/core/engine"
 	reconcilesvc "github.com/trefas/asledger/pkg/core/reconcile"
 	"github.com/trefas/asledger/pkg/core/store"
@@ -36,6 +37,7 @@ type Config struct {
 type Server struct {
 	db        *store.DB
 	sync      *syncsvc.Service
+	credit    *creditsvc.Service
 	reconcile *reconcilesvc.Service
 	cfg       Config
 	logger    *slog.Logger
@@ -47,9 +49,11 @@ func New(db *store.DB, cfg Config) *Server {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
+	syncService := syncsvc.New(db)
 	return &Server{
 		db:        db,
-		sync:      syncsvc.New(db),
+		sync:      syncService,
+		credit:    creditsvc.NewWithEngine(db, syncService.Engine()),
 		reconcile: reconcilesvc.New(db),
 		cfg:       cfg,
 		logger:    logger,
@@ -66,6 +70,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/auth/token", s.auth(http.HandlerFunc(s.handleRevokeToken)))
 
 	mux.Handle("POST /api/v1/transactions", s.auth(http.HandlerFunc(s.handleTransactions)))
+	mux.Handle("POST /api/v1/transactions/credit-repayment", s.auth(http.HandlerFunc(s.handleCreditRepayment)))
+	mux.Handle("POST /api/v1/transactions/credit-repayment/preview", s.auth(http.HandlerFunc(s.handleCreditRepaymentPreview)))
 	mux.Handle("POST /api/v1/transactions/{uuid}/reverse", s.auth(http.HandlerFunc(s.handleReverse)))
 
 	mux.Handle("GET /api/v1/sync/snapshot", s.auth(http.HandlerFunc(s.handleSnapshot)))

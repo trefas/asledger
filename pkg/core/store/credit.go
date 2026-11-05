@@ -246,6 +246,29 @@ func (db *DB) DeleteDepositSettings(ctx context.Context, accountID int64) error 
 	})
 }
 
+// AccruedInterest возвращает сумму начисленных, но ещё не погашенных процентов
+// по счёту указанного вида.
+//
+// Учитываются только начисления со статусом «accrued»: выплаченные и
+// капитализированные проценты в остаток не входят.
+func (db *DB) AccruedInterest(ctx context.Context, accountID int64, kind model.InterestAccrualKind) (money.Kop, error) {
+	if !kind.Valid() {
+		return 0, fmt.Errorf("store: недопустимый вид начисления %q", kind)
+	}
+	if _, err := db.Account(ctx, accountID); err != nil {
+		return 0, err
+	}
+	var total int64
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(amount_kop), 0)
+		  FROM interest_accruals
+		 WHERE account_id = ? AND kind = ? AND status = ?`,
+		accountID, string(kind), string(model.InterestAccrued)).Scan(&total); err != nil {
+		return 0, fmt.Errorf("store: не удалось прочитать начисленные проценты: %w", err)
+	}
+	return money.FromKopecks(total), nil
+}
+
 // depositStepRates читает ступени вклада по возрастанию нижней границы.
 func (db *DB) depositStepRates(ctx context.Context, accountID int64) ([]model.DepositStepRate, error) {
 	rows, err := db.QueryContext(ctx,
