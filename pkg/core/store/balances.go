@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
@@ -38,6 +39,39 @@ func (db *DB) Balance(ctx context.Context, accountID int64) (money.Kop, error) {
 	}
 	if err != nil {
 		return 0, fmt.Errorf("store: не удалось посчитать остаток счёта: %w", err)
+	}
+	return balanceFor(model.AccountType(accountType), money.FromKopecks(debit), money.FromKopecks(credit)), nil
+}
+
+// BalanceAt возвращает остаток счёта на начало дня date.
+//
+// Учитываются проводки с датой строго раньше date: движение в сам день date
+// относится к расчётному периоду, начинающемуся с этой даты.
+func (db *DB) BalanceAt(ctx context.Context, accountID int64, date time.Time) (money.Kop, error) {
+	if date.IsZero() {
+		return db.Balance(ctx, accountID)
+	}
+	var (
+		accountType   string
+		debit, credit int64
+	)
+	err := db.QueryRowContext(ctx, `
+		SELECT a.type,
+			COALESCE((SELECT SUM(l.amount_kop)
+			            FROM transaction_lines l
+			            JOIN transactions t ON t.id = l.transaction_id
+			           WHERE l.account_id = a.id AND l.side = 'DEBIT' AND t.date < ?), 0),
+			COALESCE((SELECT SUM(l.amount_kop)
+			            FROM transaction_lines l
+			            JOIN transactions t ON t.id = l.transaction_id
+			           WHERE l.account_id = a.id AND l.side = 'CREDIT' AND t.date < ?), 0)
+		  FROM accounts a
+		 WHERE a.id = ?`, toUnix(date), toUnix(date), accountID).Scan(&accountType, &debit, &credit)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("%w: счёт %d", ErrNotFound, accountID)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: не удалось посчитать остаток на дату: %w", err)
 	}
 	return balanceFor(model.AccountType(accountType), money.FromKopecks(debit), money.FromKopecks(credit)), nil
 }

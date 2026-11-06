@@ -107,6 +107,44 @@ const (
 	CodeCreditNothingToPay = "ERR_CREDIT_NOTHING_TO_PAY"
 	// CodeCreditDate — не задана дата погашения.
 	CodeCreditDate = "ERR_CREDIT_DATE"
+	// CodeInterestUUID — не задан uuid начисления.
+	CodeInterestUUID = "ERR_INTEREST_UUID"
+	// CodeInterestAccount — не задан счёт начисления.
+	CodeInterestAccount = "ERR_INTEREST_ACCOUNT"
+	// CodeInterestDate — не задана дата начисления.
+	CodeInterestDate = "ERR_INTEREST_DATE"
+	// CodeInterestKind — недопустимый вид начисления.
+	CodeInterestKind = "ERR_INTEREST_KIND"
+	// CodeInterestAmount — сумма начисления не положительна.
+	CodeInterestAmount = "ERR_INTEREST_AMOUNT"
+	// CodeInterestRate — ставка начисления вне диапазона.
+	CodeInterestRate = "ERR_INTEREST_RATE"
+	// CodeInterestStatus — недопустимый статус начисления.
+	CodeInterestStatus = "ERR_INTEREST_STATUS"
+	// CodeInterestPeriod — некорректный период начисления.
+	CodeInterestPeriod = "ERR_INTEREST_PERIOD"
+	// CodeInterestAccountInvalid — счёт не подходит для начисления.
+	CodeInterestAccountInvalid = "ERR_INTEREST_ACCOUNT_INVALID"
+	// CodeInterestSettingsMissing — у счёта нет настроек кредита или вклада.
+	CodeInterestSettingsMissing = "ERR_INTEREST_SETTINGS_MISSING"
+	// CodeInterestIncomeAccount — статья доходов не листовая или не «доход».
+	CodeInterestIncomeAccount = "ERR_INTEREST_INCOME_ACCOUNT"
+	// CodeInterestExpenseAccount — статья расходов не листовая или не «расход».
+	CodeInterestExpenseAccount = "ERR_INTEREST_EXPENSE_ACCOUNT"
+	// CodeInterestNothing — за период нечего начислять.
+	CodeInterestNothing = "ERR_INTEREST_NOTHING"
+	// CodeDepositAmount — сумма снятия не положительна.
+	CodeDepositAmount = "ERR_DEPOSIT_AMOUNT"
+	// CodeDepositDestinationInvalid — счёт-получатель не является листовым активом.
+	CodeDepositDestinationInvalid = "ERR_DEPOSIT_DESTINATION_INVALID"
+	// CodeDepositIncomeInvalid — статья доходов не является листовым доходом.
+	CodeDepositIncomeInvalid = "ERR_DEPOSIT_INCOME_INVALID"
+	// CodeDepositNothingToWithdraw — снимать нечего: остаток и проценты равны нулю.
+	CodeDepositNothingToWithdraw = "ERR_DEPOSIT_NOTHING_TO_WITHDRAW"
+	// CodeDepositDate — не задана дата снятия.
+	CodeDepositDate = "ERR_DEPOSIT_DATE"
+	// CodeDepositSettingsMissing — у счёта нет настроек вклада.
+	CodeDepositSettingsMissing = "ERR_DEPOSIT_SETTINGS_MISSING"
 )
 
 // ValidationError описывает нарушение инварианта сохранения проводки.

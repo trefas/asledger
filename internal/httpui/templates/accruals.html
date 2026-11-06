@@ -1,0 +1,145 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Начисление процентов</h1>
+<p class="muted">Начислите проценты по кредиту или вкладу за период или вручную. Проценты по кредиту проводятся как расход и увеличивают долг; проценты вклада без капитализации остаются в субледжере до снятия, а с капитализацией добавляются к остатку вклада. Кнопка «Рассчитать» книгу не меняет; начисление записывается только по кнопке «Начислить».</p>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+
+<form method="post" action="/accruals/preview">
+  <input type="hidden" name="uuid" value="{{.UUID}}">
+
+  <fieldset class="card">
+    <legend>1. Счёт и режим</legend>
+    <div class="row">
+      <div>
+        <label for="accrual-account">Кредит или вклад</label>
+        <select id="accrual-account" name="account_id" required>
+          {{if .Accounts}}
+            {{range .Accounts}}
+              <option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.FullPath}}{{if not .HasSettings}} — без настроек{{else if .Capitalization}} — с капитализацией{{end}}</option>
+            {{end}}
+          {{else}}
+            <option value="">нет листовых счетов кредитов и вкладов</option>
+          {{end}}
+        </select>
+      </div>
+      <div>
+        <label>Режим начисления</label>
+        <label class="inline"><input type="radio" name="mode" value="period"{{if ne .Mode "manual"}} checked{{end}}> за период</label>
+        <label class="inline"><input type="radio" name="mode" value="manual"{{if eq .Mode "manual"}} checked{{end}}> вручную</label>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="accrual-income">Статья доходов</label>
+        <select id="accrual-income" name="income_account_id">
+          <option value="0">не выбрана</option>
+          {{range .Incomes}}
+            <option value="{{.ID}}"{{if eq .ID $.Data.IncomeAccountID}} selected{{end}}>{{.FullPath}}</option>
+          {{end}}
+        </select>
+        <p class="muted">Для капитализации процентов вклада.</p>
+      </div>
+      <div>
+        <label for="accrual-expense">Статья расходов</label>
+        <select id="accrual-expense" name="expense_account_id">
+          <option value="0">не выбрана</option>
+          {{range .Expenses}}
+            <option value="{{.ID}}"{{if eq .ID $.Data.ExpenseAccountID}} selected{{end}}>{{.FullPath}}</option>
+          {{end}}
+        </select>
+        <p class="muted">Для процентов по кредиту.</p>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>2. Период или сумма</legend>
+    <div class="row">
+      <div>
+        <label for="accrual-from">Начало периода</label>
+        <input type="date" id="accrual-from" name="period_from" value="{{.PeriodFrom}}">
+      </div>
+      <div>
+        <label for="accrual-to">Конец периода (не включается)</label>
+        <input type="date" id="accrual-to" name="period_to" value="{{.PeriodTo}}">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="accrual-date">Дата ручного начисления</label>
+        <input type="date" id="accrual-date" name="date" value="{{.Date}}">
+      </div>
+      <div>
+        <label for="accrual-amount">Сумма ручного начисления, ₽</label>
+        <input type="text" id="accrual-amount" name="amount" inputmode="decimal"
+               value="{{.Amount}}" placeholder="например 1 250,00">
+      </div>
+    </div>
+    <p class="muted">Для режима «за период» заполняются границы периода, для режима «вручную» — дата и сумма. Повтор за тот же период или с тем же идентификатором не создаёт дубль.</p>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>3. Автор и описание</legend>
+    <div class="row">
+      <div>
+        <label for="accrual-actor">Автор проводки</label>
+        <select id="accrual-actor" name="actor_id">
+          {{range .Users}}<option value="{{.ID}}"{{if eq .ID $.Data.ActorID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div>
+        <label for="accrual-description">Описание</label>
+        <input type="text" id="accrual-description" name="description" value="{{.Description}}"
+               placeholder="необязательно, по умолчанию «Начисление процентов»" maxlength="500">
+      </div>
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-secondary">Рассчитать</button>
+    <button type="submit" class="btn" formaction="/accruals/apply">Начислить</button>
+  </div>
+</form>
+
+{{with .Preview}}
+<div class="card" id="accrual-preview">
+  <h2>Рассчитанные начисления</h2>
+  {{if .PeriodFrom}}<p class="muted">Период: {{.PeriodFrom}} — {{.PeriodTo}}.{{if .Capitalization}} Проценты капитализируются, то есть добавляются к остатку вклада.{{end}}</p>{{end}}
+  {{if .Items}}
+  <table class="report">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Вид</th>
+        <th>Период</th>
+        <th class="num">База</th>
+        <th class="num">Ставка</th>
+        <th class="num">Сумма</th>
+        <th>Статус</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr>
+        <td>{{.Date}}</td>
+        <td>{{kind .Kind}}</td>
+        <td>{{.Period}}</td>
+        <td class="num">{{money .Base}}</td>
+        <td class="num">{{rate .RatePPM}}</td>
+        <td class="num">{{money .Amount}}</td>
+        <td>{{status .Status}}{{if .Existing}} · уже в книге{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+    <tfoot>
+      <tr class="total"><td colspan="5">Итого</td><td class="num"><strong>{{money .Total}}</strong></td><td></td></tr>
+    </tfoot>
+  </table>
+  {{else}}
+  <p class="muted">За указанный период начислять нечего.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}

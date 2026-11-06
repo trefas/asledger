@@ -20,7 +20,9 @@ import (
 	"net/http"
 	"time"
 
+	accrualsvc "github.com/trefas/asledger/pkg/core/accrual"
 	creditsvc "github.com/trefas/asledger/pkg/core/credit"
+	depositsvc "github.com/trefas/asledger/pkg/core/deposit"
 	"github.com/trefas/asledger/pkg/core/engine"
 	"github.com/trefas/asledger/pkg/core/model"
 	"github.com/trefas/asledger/pkg/core/money"
@@ -51,15 +53,17 @@ type Config struct {
 
 // Server — обработчики web-интерфейса.
 type Server struct {
-	cfg    Config
-	db     *store.DB
-	engine *engine.Engine
-	credit *creditsvc.Service
-	sync   *syncsvc.Service
-	recon  *reconcilesvc.Service
-	logger *slog.Logger
-	pages  map[string]*template.Template
-	static http.Handler
+	cfg     Config
+	db      *store.DB
+	engine  *engine.Engine
+	credit  *creditsvc.Service
+	deposit *depositsvc.Service
+	accrual *accrualsvc.Service
+	sync    *syncsvc.Service
+	recon   *reconcilesvc.Service
+	logger  *slog.Logger
+	pages   map[string]*template.Template
+	static  http.Handler
 }
 
 // pageData — общие данные страницы (layout + содержимое).
@@ -101,6 +105,8 @@ var pageFiles = map[string]string{
 	"shopping_templates": "shopping_templates.html",
 	"shopping_template":  "shopping_template.html",
 	"credits":            "credits.html",
+	"deposits":           "deposits.html",
+	"accruals":           "accruals.html",
 	"error":              "error.html",
 }
 
@@ -120,6 +126,8 @@ func New(cfg Config) (*Server, error) {
 		pages:  make(map[string]*template.Template),
 	}
 	s.credit = creditsvc.NewWithEngine(cfg.DB, s.engine)
+	s.deposit = depositsvc.NewWithEngine(cfg.DB, s.engine)
+	s.accrual = accrualsvc.NewWithEngine(cfg.DB, s.engine)
 	static, err := fs.Sub(staticFS, "static")
 	if err != nil {
 		return nil, err
@@ -139,6 +147,9 @@ func (s *Server) loadTemplates() error {
 		"date":       func(t time.Time) string { return t.Format("02.01.2006") },
 		"side":       sideLabel,
 		"indent":     indent,
+		"rate":       rateLabel,
+		"kind":       kindLabel,
+		"status":     statusLabel,
 	}
 	for name, file := range pageFiles {
 		t, err := template.New("layout").Funcs(funcs).
@@ -201,6 +212,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /credits", s.handleCredits)
 	mux.HandleFunc("POST /credits/preview", s.handleCreditPreview)
 	mux.HandleFunc("POST /credits/post", s.handleCreditPost)
+
+	mux.HandleFunc("GET /deposits", s.handleDeposits)
+	mux.HandleFunc("POST /deposits/preview", s.handleDepositPreview)
+	mux.HandleFunc("POST /deposits/post", s.handleDepositPost)
+
+	mux.HandleFunc("GET /accruals", s.handleAccruals)
+	mux.HandleFunc("POST /accruals/preview", s.handleAccrualPreview)
+	mux.HandleFunc("POST /accruals/apply", s.handleAccrualApply)
 
 	mux.HandleFunc("GET /shopping-lists", s.handleShoppingLists)
 	mux.HandleFunc("POST /shopping-lists", s.handleShoppingListCreate)

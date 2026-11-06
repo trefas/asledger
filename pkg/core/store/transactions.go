@@ -64,6 +64,35 @@ func (db *DB) InsertTransaction(ctx context.Context, tr *model.Transaction) (int
 	return id, nil
 }
 
+// InsertTransactions сохраняет несколько проводок одной транзакцией БД.
+//
+// Используется составными операциями (например, снятием с вклада), где тело
+// и проценты оформляются отдельными проводками: любая ошибка отменяет весь
+// набор. Проверки баланса и листовых счетов выполняются до записи.
+func (db *DB) InsertTransactions(ctx context.Context, transactions []*model.Transaction) ([]int64, error) {
+	for _, tr := range transactions {
+		if err := validateTransaction(tr); err != nil {
+			return nil, err
+		}
+	}
+
+	ids := make([]int64, 0, len(transactions))
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		for _, tr := range transactions {
+			id, err := insertTransactionTx(ctx, tx, tr)
+			if err != nil {
+				return err
+			}
+			ids = append(ids, id)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 // insertTransactionTx сохраняет транзакцию вместе со строками в готовой
 // транзакции БД: используется и одиночной записью, и пакетом коммита.
 func insertTransactionTx(ctx context.Context, tx *sql.Tx, tr *model.Transaction) (int64, error) {

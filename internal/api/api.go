@@ -16,7 +16,9 @@ import (
 	"strings"
 	"time"
 
+	accrualsvc "github.com/trefas/asledger/pkg/core/accrual"
 	creditsvc "github.com/trefas/asledger/pkg/core/credit"
+	depositsvc "github.com/trefas/asledger/pkg/core/deposit"
 	"github.com/trefas/asledger/pkg/core/engine"
 	reconcilesvc "github.com/trefas/asledger/pkg/core/reconcile"
 	"github.com/trefas/asledger/pkg/core/store"
@@ -38,6 +40,8 @@ type Server struct {
 	db        *store.DB
 	sync      *syncsvc.Service
 	credit    *creditsvc.Service
+	deposit   *depositsvc.Service
+	accrual   *accrualsvc.Service
 	reconcile *reconcilesvc.Service
 	cfg       Config
 	logger    *slog.Logger
@@ -54,6 +58,8 @@ func New(db *store.DB, cfg Config) *Server {
 		db:        db,
 		sync:      syncService,
 		credit:    creditsvc.NewWithEngine(db, syncService.Engine()),
+		deposit:   depositsvc.NewWithEngine(db, syncService.Engine()),
+		accrual:   accrualsvc.NewWithEngine(db, syncService.Engine()),
 		reconcile: reconcilesvc.New(db),
 		cfg:       cfg,
 		logger:    logger,
@@ -72,6 +78,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/transactions", s.auth(http.HandlerFunc(s.handleTransactions)))
 	mux.Handle("POST /api/v1/transactions/credit-repayment", s.auth(http.HandlerFunc(s.handleCreditRepayment)))
 	mux.Handle("POST /api/v1/transactions/credit-repayment/preview", s.auth(http.HandlerFunc(s.handleCreditRepaymentPreview)))
+	mux.Handle("POST /api/v1/transactions/deposit-withdrawal", s.auth(http.HandlerFunc(s.handleDepositWithdrawal)))
+	mux.Handle("POST /api/v1/transactions/deposit-withdrawal/preview", s.auth(http.HandlerFunc(s.handleDepositWithdrawalPreview)))
+	mux.Handle("POST /api/v1/interests/calculate", s.auth(http.HandlerFunc(s.handleInterestCalculate)))
+	mux.Handle("POST /api/v1/interests/apply", s.auth(http.HandlerFunc(s.handleInterestApply)))
 	mux.Handle("POST /api/v1/transactions/{uuid}/reverse", s.auth(http.HandlerFunc(s.handleReverse)))
 
 	mux.Handle("GET /api/v1/sync/snapshot", s.auth(http.HandlerFunc(s.handleSnapshot)))

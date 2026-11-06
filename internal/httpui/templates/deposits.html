@@ -1,0 +1,103 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Снятие с вклада</h1>
+<p class="muted">Выберите вклад, счёт-получатель и сумму. Сервер сам разделит сумму на тело вклада и начисленные проценты: тело переводится на получателя, проценты признаются доходом. Кнопка «Рассчитать» книгу не меняет; проводки создаются только по кнопке «Подтвердить снятие».</p>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+
+<form method="post" action="/deposits/preview">
+  <input type="hidden" name="uuid" value="{{.UUID}}">
+
+  <fieldset class="card">
+    <legend>1. Снятие</legend>
+    <div class="row">
+      <div>
+        <label for="deposit-account">Вклад</label>
+        <select id="deposit-account" name="account_id" required>
+          {{if .Accounts}}
+            {{range .Accounts}}
+              <option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.FullPath}}{{if not .HasSettings}} — без настроек{{end}}</option>
+            {{end}}
+          {{else}}
+            <option value="">нет листовых счетов-активов</option>
+          {{end}}
+        </select>
+      </div>
+      <div>
+        <label for="deposit-amount">Сумма, ₽</label>
+        <input type="text" id="deposit-amount" name="amount" inputmode="decimal"
+               value="{{.Amount}}" placeholder="например 20 000,00" required>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="deposit-destination">Получатель</label>
+        <select id="deposit-destination" name="destination_account_id" required>
+          {{if .Destinations}}
+            {{range .Destinations}}
+              <option value="{{.ID}}"{{if eq .ID $.Data.DestinationAccountID}} selected{{end}}>{{.FullPath}}</option>
+            {{end}}
+          {{else}}
+            <option value="">нет листовых счетов-активов</option>
+          {{end}}
+        </select>
+      </div>
+      <div>
+        <label for="deposit-income">Статья доходов по процентам</label>
+        <select id="deposit-income" name="income_account_id">
+          <option value="0">не выбрана</option>
+          {{range .Incomes}}
+            <option value="{{.ID}}"{{if eq .ID $.Data.IncomeAccountID}} selected{{end}}>{{.FullPath}}</option>
+          {{end}}
+        </select>
+        <p class="muted">Нужна, если в сумму снятия попадут проценты.</p>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>2. Дата и описание</legend>
+    <div class="row">
+      <div>
+        <label for="deposit-date">Дата снятия</label>
+        <input type="date" id="deposit-date" name="date" value="{{.Date}}" required>
+      </div>
+      <div>
+        <label for="deposit-actor">Автор проводок</label>
+        <select id="deposit-actor" name="actor_id">
+          {{range .Users}}<option value="{{.ID}}"{{if eq .ID $.Data.ActorID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <label for="deposit-description">Описание</label>
+    <input type="text" id="deposit-description" name="description" value="{{.Description}}"
+           placeholder="необязательно, по умолчанию «Снятие с вклада»" maxlength="500">
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-secondary">Рассчитать</button>
+    <button type="submit" class="btn" formaction="/deposits/post">Подтвердить снятие</button>
+  </div>
+</form>
+
+{{with .Preview}}
+<div class="card" id="deposit-preview">
+  <h2>Разбивка снятия на {{.Date}}</h2>
+  {{if .Overpayment}}<div class="flash flash-warn" role="status">Сумма больше остатка вклада и процентов: спишется только {{money .Total}}, остаток {{money .Overpayment}} не будет снят.</div>{{end}}
+  <table class="report">
+    <tbody>
+      <tr><td>Остаток вклада до снятия</td><td class="num">{{money .Balance}}</td></tr>
+      <tr><td>Начисленные проценты</td><td class="num">{{money .Accrued}}</td></tr>
+      <tr><td>Запрошено</td><td class="num">{{money .Requested}}</td></tr>
+      <tr class="total"><td>С тела вклада</td><td class="num">{{money .Principal}}</td></tr>
+      <tr class="total"><td>Проценты (доход)</td><td class="num">{{money .Interest}}</td></tr>
+      <tr><td>Итого к снятию</td><td class="num"><strong>{{money .Total}}</strong></td></tr>
+      <tr><td>Остаток вклада после снятия</td><td class="num">{{money .RemainingBalance}}</td></tr>
+      <tr><td>Остаток процентов после снятия</td><td class="num">{{money .RemainingInterest}}</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Проводки: тело — кредит вклада и дебет получателя; проценты — дебет получателя и кредит статьи доходов. Обе проводки сохраняются вместе.</p>
+</div>
+{{end}}
+{{end}}
+{{end}}
