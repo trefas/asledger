@@ -1,0 +1,64 @@
+{{define "content"}}
+<h1>Продукты</h1>
+{{with .Data}}
+<p class="muted">Кредит — это листовой счёт типа «пассив», вклад — листовой счёт типа «актив». Настройки привязаны к счёту и не меняют его тип: проводки и Android-клиент продолжают работать как раньше.</p>
+
+<section class="card">
+  <h2>Кредиты</h2>
+  {{if .Credits}}
+  <div class="table-scroll">
+    <table class="report">
+      <thead><tr><th>Счёт</th><th>Настройки</th><th></th></tr></thead>
+      <tbody>
+      {{range .Credits}}
+        <tr>
+          <td class="account">{{.Path}}</td>
+          <td>
+            {{if .HasSettings}}
+              {{range $i, $detail := .Details}}{{if $i}} · {{end}}{{$detail}}{{end}}
+            {{else}}
+              <span class="badge badge-muted">не настроен</span>
+            {{end}}
+          </td>
+          <td class="num"><a class="btn btn-secondary btn-small" href="/products/{{.ID}}">Настроить</a></td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty">Нет листовых счетов типа «пассив».</p>
+  {{end}}
+  <p class="muted">Погашение кредита с предпросмотром — на странице <a href="/credits">Кредиты</a>.</p>
+</section>
+
+<section class="card">
+  <h2>Вклады</h2>
+  {{if .Deposits}}
+  <div class="table-scroll">
+    <table class="report">
+      <thead><tr><th>Счёт</th><th>Настройки</th><th></th></tr></thead>
+      <tbody>
+      {{range .Deposits}}
+        <tr>
+          <td class="account">{{.Path}}</td>
+          <td>
+            {{if .HasSettings}}
+              {{range $i, $detail := .Details}}{{if $i}} · {{end}}{{$detail}}{{end}}
+            {{else}}
+              <span class="badge badge-muted">не настроен</span>
+            {{end}}
+          </td>
+          <td class="num"><a class="btn btn-secondary btn-small" href="/products/{{.ID}}">Настроить</a></td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty">Нет листовых счетов типа «актив».</p>
+  {{end}}
+  <p class="muted">Снятие с вклада с предпросмотром — на странице <a href="/deposits">Вклады</a>.</p>
+</section>
+{{end}}
+{{end}}

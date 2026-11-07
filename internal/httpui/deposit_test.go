@@ -137,6 +137,13 @@ func TestASL_18_DepositPost(t *testing.T) {
 	incomeID := w.accountID(t, "Доходы:Зарплата")
 
 	form := depositFormValues("post-1", depositID, destinationID, incomeID, "20 000,00")
+	previewRec := w.postForm(t, "/deposits/preview", form)
+	if previewRec.Code != http.StatusOK {
+		t.Fatalf("POST /deposits/preview: код %d, тело %s", previewRec.Code, previewRec.Body.String())
+	}
+	for key, value := range previewValues(t, previewRec.Body.String()) {
+		form.Set(key, value[0])
+	}
 	rec := w.postForm(t, "/deposits/post", form)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("POST /deposits/post: код %d, тело %s", rec.Code, rec.Body.String())

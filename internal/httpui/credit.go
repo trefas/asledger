@@ -65,6 +65,11 @@ type creditPreviewView struct {
 	Interest money.Kop
 	// Total — фактически распределённая сумма.
 	Total money.Kop
+	// PrincipalKop, InterestKop и TotalKop — те же суммы в копейках для
+	// скрытых полей формы: сервер сверит их перед проведением.
+	PrincipalKop int64
+	InterestKop  int64
+	TotalKop     int64
 	// Debt и Accrued — остатки до платежа.
 	Debt    money.Kop
 	Accrued money.Kop
@@ -87,6 +92,11 @@ type creditForm struct {
 	InterestAccountID int64
 	ActorID           int64
 	Amount            string
+	// PreviewPrincipal, PreviewInterest и PreviewTotal — разбивка из
+	// предпросмотра; без них проведение отклоняется.
+	PreviewPrincipal int64
+	PreviewInterest  int64
+	PreviewTotal     int64
 }
 
 // handleCredits показывает форму погашения кредита.
@@ -162,28 +172,43 @@ func (s *Server) handleCreditPost(w http.ResponseWriter, r *http.Request) {
 	}
 	form = form.resolve(view)
 
+	// Повторная отправка того же погашения не должна создавать дубль.
+	// Проверка идёт до сверки предпросмотра: после проведения разбивка
+	// изменится, и повтор без нового расчёта не должен считаться ошибкой.
+	if _, err := s.db.TransactionByUUID(ctx, form.UUID); err == nil {
+		s.redirectOK(w, r, "/credits", "Это погашение уже проведено: повтор не создал дубль")
+		return
+	} else if !errors.Is(err, store.ErrNotFound) {
+		s.fail(w, err)
+		return
+	}
+
 	input, err := s.creditInput(form)
 	if err != nil {
 		s.creditFailure(w, r, view, err.Error())
 		return
 	}
-
-	// Повторная отправка того же погашения не должна создавать дубль.
-	existing := false
-	if _, err := s.db.TransactionByUUID(ctx, form.UUID); err == nil {
-		existing = true
-	} else if !errors.Is(err, store.ErrNotFound) {
-		s.fail(w, err)
+	if !form.hasPreview() {
+		s.creditFailure(w, r, view,
+			"Сначала рассчитайте разбивку платежа кнопкой «Рассчитать»: без предпросмотра проведение недоступно.")
+		return
+	}
+	preview, err := s.credit.Preview(ctx, input)
+	if err != nil {
+		s.creditFailure(w, r, view, statusMessage(err))
+		return
+	}
+	if form.PreviewPrincipal != preview.Principal.Kopecks() ||
+		form.PreviewInterest != preview.Interest.Kopecks() ||
+		form.PreviewTotal != preview.Total.Kopecks() {
+		s.creditFailure(w, r, view,
+			"Сумма или счета изменились после расчёта. Нажмите «Рассчитать» ещё раз и проверьте разбивку.")
 		return
 	}
 
 	posted, err := s.credit.Post(ctx, input)
 	if err != nil {
 		s.creditFailure(w, r, view, statusMessage(err))
-		return
-	}
-	if existing {
-		s.redirectOK(w, r, "/credits", "Это погашение уже проведено: повтор не создал дубль")
 		return
 	}
 	s.redirectOK(w, r, "/credits", fmt.Sprintf(
@@ -283,6 +308,9 @@ func creditFormFromRequest(r *http.Request) creditForm {
 		InterestAccountID: parseID(r.FormValue("interest_account_id"), 0),
 		ActorID:           parseID(r.FormValue("actor_id"), 0),
 		Amount:            strings.TrimSpace(r.FormValue("amount")),
+		PreviewPrincipal:  parseKopField(r.FormValue("preview_principal")),
+		PreviewInterest:   parseKopField(r.FormValue("preview_interest")),
+		PreviewTotal:      parseKopField(r.FormValue("preview_total")),
 	}
 	if form.UUID == "" {
 		form.UUID = newUUID()
@@ -328,6 +356,9 @@ func creditPreviewFrom(preview *creditsvc.Preview) *creditPreviewView {
 		Principal:         preview.Principal,
 		Interest:          preview.Interest,
 		Total:             preview.Total,
+		PrincipalKop:      preview.Principal.Kopecks(),
+		InterestKop:       preview.Interest.Kopecks(),
+		TotalKop:          preview.Total.Kopecks(),
 		Debt:              preview.Debt,
 		Accrued:           preview.AccruedInterest,
 		RemainingDebt:     preview.RemainingDebt,
@@ -335,6 +366,11 @@ func creditPreviewFrom(preview *creditsvc.Preview) *creditPreviewView {
 		InGrace:           preview.InGrace,
 		Overpayment:       overpayment,
 	}
+}
+
+// hasPreview сообщает, что форма пришла после предпросмотра.
+func (f creditForm) hasPreview() bool {
+	return f.PreviewTotal != 0 || f.PreviewPrincipal != 0 || f.PreviewInterest != 0
 }
 
 // creditFailure перерисовывает форму с сообщением об ошибке и кодом 422.

@@ -1,7 +1,7 @@
 {{define "content"}}
 {{with .Data}}
 <h1>Снятие с вклада</h1>
-<p class="muted">Выберите вклад, счёт-получатель и сумму. Сервер сам разделит сумму на тело вклада и начисленные проценты: тело переводится на получателя, проценты признаются доходом. Кнопка «Рассчитать» книгу не меняет; проводки создаются только по кнопке «Подтвердить снятие».</p>
+<p class="muted">Выберите вклад, счёт-получатель и сумму. Сервер сам разделит сумму на тело вклада и начисленные проценты: тело переводится на получателя, проценты признаются доходом. Кнопка «Рассчитать» книгу не меняет; проводки создаются только по кнопке «Подтвердить снятие» после предпросмотра. Ставку и бонусы можно изменить в <a href="/products">настройках продуктов</a>.</p>
 
 {{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
 
@@ -76,8 +76,13 @@
 
   <div class="form-actions">
     <button type="submit" class="btn btn-secondary">Рассчитать</button>
-    <button type="submit" class="btn" formaction="/deposits/post">Подтвердить снятие</button>
+    <button type="submit" class="btn" formaction="/deposits/post" data-requires-preview="deposit-preview">Подтвердить снятие</button>
   </div>
+  {{with .Preview}}
+  <input type="hidden" name="preview_principal" value="{{.PrincipalKop}}">
+  <input type="hidden" name="preview_interest" value="{{.InterestKop}}">
+  <input type="hidden" name="preview_total" value="{{.TotalKop}}">
+  {{end}}
 </form>
 
 {{with .Preview}}

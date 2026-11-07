@@ -89,5 +89,131 @@
   <p class="empty">За период расходов нет.</p>
   {{end}}
 </section>
+
+<section class="card" id="credits">
+  <h2>Сводка по кредитам</h2>
+  {{if .CreditSummary.Rows}}
+  <p class="muted">На {{date .CreditSummary.AsOf}} · прогноз на {{.CreditSummary.HorizonDays}} дней. Нажмите на счёт, чтобы изменить ставку и порядок погашения.</p>
+  <div class="table-scroll">
+    <table class="report">
+      <thead><tr><th>Счёт</th><th>Ставка</th><th>Долг</th><th>Проценты</th><th>Всего</th><th>Прогноз</th><th>Условия</th></tr></thead>
+      <tbody>
+      {{range .CreditSummary.Rows}}
+        <tr>
+          <td class="account"><a href="/products/{{.AccountID}}">{{.Path}}</a></td>
+          <td class="num">{{rate .RatePPM}}</td>
+          <td class="num">{{money .Debt}}</td>
+          <td class="num">{{money .AccruedInterest}}</td>
+          <td class="num">{{money .TotalDebt}}</td>
+          <td class="num">{{money .UpcomingInterest}}</td>
+          <td>
+            {{if .InGrace}}<span class="badge">беспроцентный период</span> {{end}}
+            {{repayment .RepaymentOrder}}
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+      <tfoot>
+        <tr><th colspan="2">Итого</th><td class="num">{{money .CreditSummary.Debt}}</td><td class="num">{{money .CreditSummary.AccruedInterest}}</td><td class="num">{{money .CreditSummary.TotalDebt}}</td><td class="num">{{money .CreditSummary.UpcomingInterest}}</td><td></td></tr>
+      </tfoot>
+    </table>
+  </div>
+  {{template "barchart" .CreditChart}}
+  {{else}}
+  <p class="empty">Кредитов с настройками нет. Настройте продукт на странице <a href="/products">Продукты</a>.</p>
+  {{end}}
+</section>
+
+<section class="card" id="deposits">
+  <h2>Сводка по вкладам</h2>
+  {{if .DepositSummary.Rows}}
+  <p class="muted">На {{date .DepositSummary.AsOf}} · прогноз на {{.DepositSummary.HorizonDays}} дней. Проценты и бонусы показаны отдельно.</p>
+  <div class="table-scroll">
+    <table class="report">
+      <thead><tr><th>Счёт</th><th>Ставка</th><th>Остаток</th><th>Проценты</th><th>Всего</th><th>Прогноз</th><th>Условия</th></tr></thead>
+      <tbody>
+      {{range .DepositSummary.Rows}}
+        <tr>
+          <td class="account"><a href="/products/{{.AccountID}}">{{.Path}}</a></td>
+          <td class="num">{{rate .BaseRatePPM}}</td>
+          <td class="num">{{money .Balance}}</td>
+          <td class="num">{{money .AccruedInterest}}</td>
+          <td class="num">{{money .Total}}</td>
+          <td class="num">{{money .UpcomingTotal}}</td>
+          <td>
+            {{frequency .AccrualFrequency}}{{if .Capitalization}} · капитализация{{end}}{{if .UpcomingBonus}} · бонус {{money .UpcomingBonus}}{{end}}
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+      <tfoot>
+        <tr><th colspan="2">Итого</th><td class="num">{{money .DepositSummary.Balance}}</td><td class="num">{{money .DepositSummary.AccruedInterest}}</td><td class="num">{{money .DepositSummary.Total}}</td><td class="num">{{money .DepositSummary.UpcomingTotal}}</td><td></td></tr>
+      </tfoot>
+    </table>
+  </div>
+  {{template "barchart" .DepositChart}}
+  {{else}}
+  <p class="empty">Вкладов с настройками нет. Настройте продукт на странице <a href="/products">Продукты</a>.</p>
+  {{end}}
+</section>
+
+<section class="card" id="forecast">
+  <h2>Прогноз погашения кредита</h2>
+  <p class="muted">Показывает, как платёж изменит тело долга и проценты, и что будет начислено после платежа. Книга не меняется.</p>
+  <form class="filters" method="get" action="/reports#forecast">
+    <label>Кредит
+      <select name="forecast_account">
+        <option value="">выберите счёт</option>
+        {{range .CreditAccounts}}
+          <option value="{{.ID}}"{{if eq .ID $.Data.ForecastAccountID}} selected{{end}}>{{.FullPath}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>Сумма, ₽
+      <input type="text" name="forecast_amount" value="{{.ForecastAmount}}" inputmode="decimal" placeholder="например 20 000,00">
+    </label>
+    <label>Дата
+      <input type="date" name="forecast_date" value="{{.ForecastDate}}">
+    </label>
+    <label>Горизонт, дней
+      <input type="number" name="forecast_horizon" min="1" max="366" value="{{.ForecastHorizon}}" placeholder="30">
+    </label>
+    <button type="submit">Рассчитать прогноз</button>
+  </form>
+  {{if .ForecastError}}<div class="flash flash-error" role="alert">{{.ForecastError}}</div>{{end}}
+  {{with .Forecast}}
+  <h3>{{.Path}} · {{date .Date}}</h3>
+  <div class="table-scroll">
+    <table class="report">
+      <thead><tr><th>Показатель</th><th>До платежа</th><th>После платежа</th><th>Изменение</th></tr></thead>
+      <tbody>
+        <tr><td>Тело долга</td><td class="num">{{money .DebtBefore}}</td><td class="num">{{money .DebtAfter}}</td><td class="num">{{money .DebtChange}}</td></tr>
+        <tr><td>Начисленные проценты</td><td class="num">{{money .AccruedInterestBefore}}</td><td class="num">{{money .AccruedInterestAfter}}</td><td class="num">{{money .InterestChange}}</td></tr>
+        <tr class="total"><td>Всего долг</td><td class="num">{{money .TotalDebtBefore}}</td><td class="num">{{money .TotalDebtAfter}}</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Платёж {{money .Requested}}: тело {{money .Principal}}, проценты {{money .Interest}}, итого {{money .Total}}.
+    {{if .InGrace}}<span class="badge">беспроцентный период</span>{{end}}</p>
+  <p class="muted">Предстоящие проценты на горизонте {{.HorizonDays}} дней: <strong>{{money .UpcomingInterest}}</strong>.</p>
+  {{end}}
+  {{template "barchart" .ForecastChart}}
+</section>
+{{end}}
+{{end}}
+
+{{define "barchart"}}
+{{if .Bars}}
+<figure class="chart">
+  <svg viewBox="0 0 {{.Width}} {{.Height}}" role="img" aria-label="{{.Caption}}" preserveAspectRatio="xMidYMid meet">
+    <line x1="12" y1="{{.Height}}" x2="{{.Width}}" y2="{{.Height}}" class="chart-axis"></line>
+    {{range .Bars}}
+    <rect x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="3" class="chart-bar"></rect>
+    <text x="{{.LabelX}}" y="{{.LabelY}}" text-anchor="middle" class="chart-label">{{.Label}}</text>
+    {{if $.ShowValues}}<text x="{{.ValueX}}" y="{{.ValueY}}" text-anchor="middle" class="chart-value">{{.ValueLabel}}</text>{{end}}
+    {{end}}
+  </svg>
+  <figcaption>{{.Caption}}</figcaption>
+</figure>
 {{end}}
 {{end}}

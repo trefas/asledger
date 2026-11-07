@@ -64,6 +64,11 @@ type depositPreviewView struct {
 	Interest  money.Kop
 	// Total — фактически распределённая сумма.
 	Total money.Kop
+	// PrincipalKop, InterestKop и TotalKop — те же суммы в копейках для
+	// скрытых полей формы: сервер сверит их перед проведением.
+	PrincipalKop int64
+	InterestKop  int64
+	TotalKop     int64
 	// Balance и Accrued — остатки до снятия.
 	Balance money.Kop
 	Accrued money.Kop
@@ -84,6 +89,11 @@ type depositForm struct {
 	IncomeAccountID      int64
 	ActorID              int64
 	Amount               string
+	// PreviewPrincipal, PreviewInterest и PreviewTotal — разбивка из
+	// предпросмотра; без них проведение отклоняется.
+	PreviewPrincipal int64
+	PreviewInterest  int64
+	PreviewTotal     int64
 }
 
 // handleDeposits показывает форму снятия с вклада.
@@ -159,24 +169,44 @@ func (s *Server) handleDepositPost(w http.ResponseWriter, r *http.Request) {
 	}
 	form = form.resolve(view)
 
-	input, err := s.depositInput(form)
-	if err != nil {
-		s.depositFailure(w, r, view, err.Error())
-		return
-	}
-
+	// Повторная отправка того же снятия не должна создавать дубль. Проверка
+	// идёт до сверки предпросмотра: после проведения остаток изменится.
 	existing, err := s.depositExists(ctx, form.UUID)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	posted, err := s.deposit.Post(ctx, input)
+	if existing {
+		s.redirectOK(w, r, "/deposits", "Это снятие уже проведено: повтор не создал дубль")
+		return
+	}
+
+	input, err := s.depositInput(form)
+	if err != nil {
+		s.depositFailure(w, r, view, err.Error())
+		return
+	}
+	if !form.hasPreview() {
+		s.depositFailure(w, r, view,
+			"Сначала рассчитайте разбивку снятия кнопкой «Рассчитать»: без предпросмотра проведение недоступно.")
+		return
+	}
+	preview, err := s.deposit.Preview(ctx, input)
 	if err != nil {
 		s.depositFailure(w, r, view, statusMessage(err))
 		return
 	}
-	if existing {
-		s.redirectOK(w, r, "/deposits", "Это снятие уже проведено: повтор не создал дубль")
+	if form.PreviewPrincipal != preview.Principal.Kopecks() ||
+		form.PreviewInterest != preview.Interest.Kopecks() ||
+		form.PreviewTotal != preview.Total.Kopecks() {
+		s.depositFailure(w, r, view,
+			"Сумма или счета изменились после расчёта. Нажмите «Рассчитать» ещё раз и проверьте разбивку.")
+		return
+	}
+
+	posted, err := s.deposit.Post(ctx, input)
+	if err != nil {
+		s.depositFailure(w, r, view, statusMessage(err))
 		return
 	}
 	s.redirectOK(w, r, "/deposits", fmt.Sprintf(
@@ -272,6 +302,9 @@ func depositFormFromRequest(r *http.Request) depositForm {
 		IncomeAccountID:      parseID(r.FormValue("income_account_id"), 0),
 		ActorID:              parseID(r.FormValue("actor_id"), 0),
 		Amount:               strings.TrimSpace(r.FormValue("amount")),
+		PreviewPrincipal:     parseKopField(r.FormValue("preview_principal")),
+		PreviewInterest:      parseKopField(r.FormValue("preview_interest")),
+		PreviewTotal:         parseKopField(r.FormValue("preview_total")),
 	}
 	if form.UUID == "" {
 		form.UUID = newUUID()
@@ -317,12 +350,20 @@ func depositPreviewFrom(preview *depositsvc.Preview) *depositPreviewView {
 		Principal:         preview.Principal,
 		Interest:          preview.Interest,
 		Total:             preview.Total,
+		PrincipalKop:      preview.Principal.Kopecks(),
+		InterestKop:       preview.Interest.Kopecks(),
+		TotalKop:          preview.Total.Kopecks(),
 		Balance:           preview.Balance,
 		Accrued:           preview.AccruedInterest,
 		RemainingBalance:  preview.RemainingBalance,
 		RemainingInterest: preview.RemainingInterest,
 		Overpayment:       overpayment,
 	}
+}
+
+// hasPreview сообщает, что форма пришла после предпросмотра.
+func (f depositForm) hasPreview() bool {
+	return f.PreviewTotal != 0 || f.PreviewPrincipal != 0 || f.PreviewInterest != 0
 }
 
 // depositFailure перерисовывает форму с сообщением об ошибке и кодом 422.

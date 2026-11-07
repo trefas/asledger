@@ -1,0 +1,170 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Настройки: {{.Path}}</h1>
+<p class="muted">Тип продукта определяется типом счёта: {{.ProductLabel}}. Ставки вводятся в процентах годовых, суммы — в рублях. Все поля проверяются и в браузере, и на сервере.</p>
+<p class="muted"><a href="/products">← Все продукты</a></p>
+
+{{if .Error}}<div class="flash flash-error" role="alert">{{.Error}}</div>{{end}}
+<div class="form-error flash flash-error" role="alert" hidden></div>
+
+<form method="post" action="/products/{{.AccountID}}" data-product-form>
+  {{if .IsCredit}}
+  <fieldset class="card">
+    <legend>Условия кредита</legend>
+    <div class="row">
+      <div>
+        <label for="rate">Ставка, % годовых</label>
+        <input type="text" id="rate" name="rate" value="{{.Form.Rate}}"
+               inputmode="decimal" placeholder="например 15,5" data-rate required>
+      </div>
+      <div>
+        <label for="interest-type">Способ расчёта процентов</label>
+        <select id="interest-type" name="interest_type">
+          {{range .InterestTypes}}
+            <option value="{{.}}"{{if eq (printf "%s" .) $.Data.Form.InterestType}} selected{{end}}>{{interesttype .}}</option>
+          {{end}}
+        </select>
+      </div>
+      <div>
+        <label for="repayment-order">Порядок погашения</label>
+        <select id="repayment-order" name="repayment_order">
+          {{range .RepaymentOrders}}
+            <option value="{{.}}"{{if eq (printf "%s" .) $.Data.Form.RepaymentOrder}} selected{{end}}>{{repayment .}}</option>
+          {{end}}
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label class="check">
+          <input type="checkbox" name="grace_enabled" value="1"{{if .Form.GraceEnabled}} checked{{end}}>
+          беспроцентный период
+        </label>
+      </div>
+      <div>
+        <label for="grace-end">Дата окончания беспроцентного периода</label>
+        <input type="date" id="grace-end" name="grace_end_date" value="{{.Form.GraceEndDate}}">
+      </div>
+    </div>
+    <p class="muted">Если беспроцентный период включён, дата окончания обязательна. Начисления по кредиту начинаются со дня после его окончания.</p>
+  </fieldset>
+  {{end}}
+
+  {{if .IsDeposit}}
+  <fieldset class="card">
+    <legend>Условия вклада</legend>
+    <div class="row">
+      <div>
+        <label for="base-rate">Базовая ставка, % годовых</label>
+        <input type="text" id="base-rate" name="base_rate" value="{{.Form.BaseRate}}"
+               inputmode="decimal" placeholder="например 10" data-rate required>
+      </div>
+      <div>
+        <label for="min-balance">Минимальный остаток, ₽</label>
+        <input type="text" id="min-balance" name="min_balance" value="{{.Form.MinBalance}}"
+               inputmode="decimal" placeholder="0" data-money>
+      </div>
+      <div>
+        <label for="accrual-frequency">Частота начисления</label>
+        <select id="accrual-frequency" name="accrual_frequency">
+          {{range .Frequencies}}
+            <option value="{{.}}"{{if eq (printf "%s" .) $.Data.Form.AccrualFrequency}} selected{{end}}>{{frequency .}}</option>
+          {{end}}
+        </select>
+      </div>
+    </div>
+    <label class="check">
+      <input type="checkbox" name="capitalization" value="1"{{if .Form.Capitalization}} checked{{end}}>
+      капитализация процентов (проценты добавляются к вкладу)
+    </label>
+    <div class="row">
+      <div>
+        <label for="opened-at">Дата открытия</label>
+        <input type="date" id="opened-at" name="opened_at" value="{{.Form.OpenedAt}}">
+      </div>
+      <div>
+        <label for="closed-at">Дата закрытия</label>
+        <input type="date" id="closed-at" name="closed_at" value="{{.Form.ClosedAt}}">
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>Бонус</legend>
+    <div class="row">
+      <div>
+        <label for="bonus-type">Вид бонуса</label>
+        <select id="bonus-type" name="bonus_type">
+          {{range .BonusTypes}}
+            <option value="{{.}}"{{if eq (printf "%s" .) $.Data.Form.BonusType}} selected{{end}}>{{bonus .}}</option>
+          {{end}}
+        </select>
+      </div>
+      <div>
+        <label for="bonus-rate">Бонусная ставка, % годовых</label>
+        <input type="text" id="bonus-rate" name="bonus_rate" value="{{.Form.BonusRate}}"
+               inputmode="decimal" placeholder="0" data-rate>
+      </div>
+      <div>
+        <label for="bonus-amount">Сумма бонуса, ₽</label>
+        <input type="text" id="bonus-amount" name="bonus_amount" value="{{.Form.BonusAmount}}"
+               inputmode="decimal" placeholder="0" data-money>
+      </div>
+    </div>
+    <p class="muted">Фиксированный бонус требует сумму, процентный — ставку. Бонус начисляется отдельной строкой.</p>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>Ступени ставки</legend>
+    <p class="muted">Ступени заменяют базовую ставку для диапазонов остатка. Верхнюю границу последней ступени можно не указывать — это «до бесконечности».</p>
+    <div class="step-list" data-steps>
+      {{range .Form.Steps}}
+      <div class="step-row">
+        <div>
+          <label>От, ₽</label>
+          <input type="text" name="step_from" value="{{.From}}" inputmode="decimal" data-money data-required data-step-from>
+        </div>
+        <div>
+          <label>До, ₽</label>
+          <input type="text" name="step_to" value="{{.To}}" inputmode="decimal" data-money data-step-to>
+        </div>
+        <div>
+          <label>Ставка, %</label>
+          <input type="text" name="step_rate" value="{{.Rate}}" inputmode="decimal" data-rate data-required data-step-rate>
+        </div>
+        <div class="step-action">
+          <button type="button" class="btn btn-secondary btn-small step-remove" data-step-remove>Удалить</button>
+        </div>
+      </div>
+      {{end}}
+    </div>
+    <template id="step-template">
+      <div class="step-row">
+        <div>
+          <label>От, ₽</label>
+          <input type="text" name="step_from" inputmode="decimal" data-money data-required data-step-from>
+        </div>
+        <div>
+          <label>До, ₽</label>
+          <input type="text" name="step_to" inputmode="decimal" data-money data-step-to>
+        </div>
+        <div>
+          <label>Ставка, %</label>
+          <input type="text" name="step_rate" inputmode="decimal" data-rate data-required data-step-rate>
+        </div>
+        <div class="step-action">
+          <button type="button" class="btn btn-secondary btn-small step-remove" data-step-remove>Удалить</button>
+        </div>
+      </div>
+    </template>
+    <button type="button" class="btn btn-secondary btn-small" data-add-step>Добавить ступень</button>
+  </fieldset>
+  {{end}}
+
+  <div class="form-actions">
+    <button type="submit" class="btn">Сохранить настройки</button>
+    <a class="btn btn-secondary" href="/products">Отмена</a>
+  </div>
+</form>
+{{end}}
+{{end}}

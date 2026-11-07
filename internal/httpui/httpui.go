@@ -107,6 +107,8 @@ var pageFiles = map[string]string{
 	"credits":            "credits.html",
 	"deposits":           "deposits.html",
 	"accruals":           "accruals.html",
+	"products":           "products.html",
+	"product":            "product.html",
 	"error":              "error.html",
 }
 
@@ -142,14 +144,18 @@ func New(cfg Config) (*Server, error) {
 // loadTemplates разбирает layout вместе с каждой страницей.
 func (s *Server) loadTemplates() error {
 	funcs := template.FuncMap{
-		"money":      func(k money.Kop) string { return k.String() },
-		"minbalance": minBalanceLabel,
-		"date":       func(t time.Time) string { return t.Format("02.01.2006") },
-		"side":       sideLabel,
-		"indent":     indent,
-		"rate":       rateLabel,
-		"kind":       kindLabel,
-		"status":     statusLabel,
+		"money":        func(k money.Kop) string { return k.String() },
+		"minbalance":   minBalanceLabel,
+		"date":         func(t time.Time) string { return t.Format("02.01.2006") },
+		"side":         sideLabel,
+		"indent":       indent,
+		"rate":         rateLabel,
+		"kind":         kindLabel,
+		"status":       statusLabel,
+		"interesttype": interestTypeLabel,
+		"repayment":    repaymentOrderLabel,
+		"bonus":        bonusTypeLabel,
+		"frequency":    accrualFrequencyLabel,
 	}
 	for name, file := range pageFiles {
 		t, err := template.New("layout").Funcs(funcs).
@@ -220,6 +226,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /accruals", s.handleAccruals)
 	mux.HandleFunc("POST /accruals/preview", s.handleAccrualPreview)
 	mux.HandleFunc("POST /accruals/apply", s.handleAccrualApply)
+
+	mux.HandleFunc("GET /products", s.handleProducts)
+	mux.HandleFunc("GET /products/{id}", s.handleProductForm)
+	mux.HandleFunc("POST /products/{id}", s.handleProductSave)
 
 	mux.HandleFunc("GET /shopping-lists", s.handleShoppingLists)
 	mux.HandleFunc("POST /shopping-lists", s.handleShoppingListCreate)

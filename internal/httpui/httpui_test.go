@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -537,6 +538,23 @@ func today() string { return time.Now().Format("2006-01-02") }
 // strconvID переводит идентификатор в строку.
 func strconvID(id int64) string {
 	return strconv.FormatInt(id, 10)
+}
+
+// previewValues вытаскивает скрытые поля предпросмотра из HTML формы.
+//
+// Сервер требует, чтобы проведение пришло после расчёта разбивки: тесты
+// сначала запрашивают предпросмотр и переносят его суммы в форму проведения.
+func previewValues(t *testing.T, body string) url.Values {
+	t.Helper()
+	pattern := regexp.MustCompile(`name="preview_(principal|interest|total)" value="(-?\d+)"`)
+	values := url.Values{}
+	for _, match := range pattern.FindAllStringSubmatch(body, -1) {
+		values.Set("preview_"+match[1], match[2])
+	}
+	if len(values) != 3 {
+		t.Fatalf("в ответе нет скрытых полей предпросмотра: %s", body)
+	}
+	return values
 }
 
 // TestASL_11_ChartEditor проверяет дерево, переименование, архивирование и

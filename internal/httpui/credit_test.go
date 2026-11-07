@@ -148,6 +148,13 @@ func TestASL_17_CreditPost(t *testing.T) {
 	w.seedCreditAccrual(t, "post-accrual", creditID, money.FromKopecks(5_000_00))
 
 	form := creditFormValues("post-1", creditID, walletID, interestID, "20 000,00")
+	previewRec := w.postForm(t, "/credits/preview", form)
+	if previewRec.Code != http.StatusOK {
+		t.Fatalf("POST /credits/preview: код %d, тело %s", previewRec.Code, previewRec.Body.String())
+	}
+	for key, value := range previewValues(t, previewRec.Body.String()) {
+		form.Set(key, value[0])
+	}
 	rec := w.postForm(t, "/credits/post", form)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("POST /credits/post: код %d, тело %s", rec.Code, rec.Body.String())

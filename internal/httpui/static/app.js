@@ -839,6 +839,187 @@
     });
   }
 
+  // === Продукты: ставки, суммы, ступени и обязательный предпросмотр ===
+
+  // parseRatePPM разбирает проценты в ppm; null при ошибке.
+  function parseRatePPM(raw) {
+    var s = String(raw)
+      .replace(/[\s\u00a0]/g, '')
+      .replace(/%/g, '')
+      .replace(',', '.');
+    if (s === '') {
+      return null;
+    }
+    var parts = s.split('.');
+    if (parts.length > 2) {
+      return null;
+    }
+    var whole = parts[0] === '' ? '0' : parts[0];
+    var frac = parts.length === 2 ? parts[1] : '';
+    if (!/^\d+$/.test(whole) || (frac !== '' && !/^\d+$/.test(frac)) || frac.length > 4) {
+      return null;
+    }
+    while (frac.length < 4) {
+      frac += '0';
+    }
+    var ppm = Number(whole) * 10000 + Number(frac);
+    if (ppm > 1000000) {
+      return null;
+    }
+    return ppm;
+  }
+
+  // initProductForm проверяет форму настроек до отправки на сервер.
+  function initProductForm() {
+    var form = document.querySelector('[data-product-form]');
+    if (!form) {
+      return;
+    }
+    var errorBox = document.querySelector('.form-error');
+    var steps = form.querySelector('[data-steps]');
+    var template = document.getElementById('step-template');
+
+    function mark(input, bad) {
+      input.classList.toggle('invalid', bad);
+      input.setAttribute('aria-invalid', bad ? 'true' : 'false');
+    }
+
+    function showError(message) {
+      if (!errorBox) {
+        return;
+      }
+      errorBox.textContent = message || '';
+      errorBox.hidden = !message;
+    }
+
+    function validateMoney(input, required) {
+      var raw = input.value.trim();
+      if (raw === '') {
+        mark(input, required);
+        return required ? 'Укажите сумму, например 1 000,00.' : '';
+      }
+      if (parseKop(raw) === null) {
+        mark(input, true);
+        return 'Сумма должна быть числом, например 1 000,00.';
+      }
+      mark(input, false);
+      return '';
+    }
+
+    function validateRate(input, required) {
+      var raw = input.value.trim();
+      if (raw === '') {
+        mark(input, required);
+        return required ? 'Укажите ставку в процентах, например 15,5.' : '';
+      }
+      if (parseRatePPM(raw) === null) {
+        mark(input, true);
+        return 'Ставка должна быть числом от 0 до 100, например 15,5.';
+      }
+      mark(input, false);
+      return '';
+    }
+
+    function validateSteps() {
+      if (!steps) {
+        return '';
+      }
+      var rows = steps.querySelectorAll('.step-row');
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var from = row.querySelector('[data-step-from]');
+        var to = row.querySelector('[data-step-to]');
+        var rate = row.querySelector('[data-step-rate]');
+        var message = validateMoney(from, true) || validateRate(rate, true);
+        if (message) {
+          return 'Ступень ' + (i + 1) + ': ' + message;
+        }
+        var fromKop = parseKop(from.value);
+        if (to && to.value.trim() !== '') {
+          var toKop = parseKop(to.value);
+          if (toKop === null) {
+            mark(to, true);
+            return 'Ступень ' + (i + 1) + ': верхняя граница должна быть числом.';
+          }
+          mark(to, false);
+          if (toKop <= fromKop) {
+            mark(to, true);
+            return 'Ступень ' + (i + 1) + ': верхняя граница должна быть больше нижней.';
+          }
+        } else if (to) {
+          mark(to, false);
+        }
+      }
+      return '';
+    }
+
+    function validate() {
+      var inputs = form.querySelectorAll('[data-rate]');
+      for (var i = 0; i < inputs.length; i++) {
+        var message = validateRate(inputs[i], inputs[i].hasAttribute('data-required'));
+        if (message) {
+          showError(message);
+          inputs[i].focus();
+          return false;
+        }
+      }
+      inputs = form.querySelectorAll('[data-money]');
+      for (var j = 0; j < inputs.length; j++) {
+        message = validateMoney(inputs[j], inputs[j].hasAttribute('data-required'));
+        if (message) {
+          showError(message);
+          inputs[j].focus();
+          return false;
+        }
+      }
+      message = validateSteps();
+      if (message) {
+        showError(message);
+        return false;
+      }
+      showError('');
+      return true;
+    }
+
+    form.addEventListener('submit', function (event) {
+      if (!validate()) {
+        event.preventDefault();
+      }
+    });
+
+    if (steps) {
+      steps.addEventListener('click', function (event) {
+        if (!event.target.classList.contains('step-remove')) {
+          return;
+        }
+        event.target.closest('.step-row').remove();
+      });
+    }
+
+    var addStep = form.querySelector('[data-add-step]');
+    if (addStep && steps && template) {
+      addStep.addEventListener('click', function () {
+        var fragment = template.content.cloneNode(true);
+        steps.appendChild(fragment);
+        var last = steps.querySelector('.step-row:last-child [data-step-from]');
+        if (last) {
+          last.focus();
+        }
+      });
+    }
+  }
+
+  // initPreviewGuards не даёт провести операцию без предпросмотра.
+  function initPreviewGuards() {
+    document.querySelectorAll('[data-requires-preview]').forEach(function (button) {
+      var target = document.getElementById(button.getAttribute('data-requires-preview'));
+      if (!target) {
+        button.disabled = true;
+        button.title = 'Сначала нажмите «Рассчитать» и проверьте разбивку.';
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     if (document.getElementById('entry-form')) {
       initEntryForm();
@@ -849,5 +1030,9 @@
     if (document.getElementById('shopping-add-form')) {
       initShoppingForm();
     }
+    if (document.querySelector('[data-product-form]')) {
+      initProductForm();
+    }
+    initPreviewGuards();
   });
 })();

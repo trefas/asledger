@@ -217,6 +217,27 @@ tr.negative td.account { font-weight: 600; }
 tr.total td { font-weight: 600; }
 .badge-warn { background: var(--danger-bg); color: var(--danger); }
 
+/* Продукты: настройки, ступени и графики */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll .report { min-width: 36rem; }
+label.check { display: flex; align-items: center; gap: .45rem; color: var(--ink); }
+label.check input { width: auto; }
+.step-list { display: grid; gap: .6rem; margin-bottom: .75rem; }
+.step-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: .5rem; align-items: end; }
+.step-row label { margin-top: 0; }
+.step-action { align-self: end; }
+input.invalid { border-color: var(--danger); outline-color: var(--danger); background: var(--danger-bg); }
+.chart { margin: 1rem 0 0; }
+.chart svg {
+  display: block; width: 100%; height: auto;
+  background: #fbfcfa; border: 1px solid var(--line); border-radius: 8px;
+}
+.chart-axis { stroke: var(--line); stroke-width: 1; }
+.chart-bar { fill: var(--green-500); }
+.chart-label { font-size: 11px; fill: var(--muted); }
+.chart-value { font-size: 11px; fill: var(--ink); }
+.chart figcaption { color: var(--muted); font-size: .85rem; margin-top: .35rem; }
+
 /* Списки покупок */
 .shop-summary {
   display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: baseline;
@@ -293,4 +314,7 @@ tr.total td { font-weight: 600; }
   .shop-item-main { align-items: flex-start; }
   .shop-edit summary { padding: .5rem 0; }
   .shop-shop-fields { grid-template-columns: 1fr; }
+  .step-row { grid-template-columns: 1fr 1fr; }
+  .step-action { grid-column: 1 / -1; }
+  .chart-label, .chart-value { font-size: 10px; }
 }
