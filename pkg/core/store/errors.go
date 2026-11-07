@@ -145,6 +145,8 @@ const (
 	CodeDepositDate = "ERR_DEPOSIT_DATE"
 	// CodeDepositSettingsMissing — у счёта нет настроек вклада.
 	CodeDepositSettingsMissing = "ERR_DEPOSIT_SETTINGS_MISSING"
+	// CodeProductAccountInvalid — счёт не является кредитом или вкладом.
+	CodeProductAccountInvalid = "ERR_PRODUCT_ACCOUNT_INVALID"
 )
 
 // ValidationError описывает нарушение инварианта сохранения проводки.

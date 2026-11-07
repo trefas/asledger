@@ -103,6 +103,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/shopping-list-templates/{id}", s.auth(http.HandlerFunc(s.handleShoppingTemplate)))
 
 	mux.Handle("GET /api/v1/accounts/suggest", s.auth(http.HandlerFunc(s.handleSuggest)))
+	mux.Handle("GET /api/v1/accounts/{id}/product-settings", s.auth(http.HandlerFunc(s.handleProductSettings)))
+	mux.Handle("PATCH /api/v1/accounts/{id}/credit-settings", s.auth(http.HandlerFunc(s.handleCreditSettings)))
+	mux.Handle("PATCH /api/v1/accounts/{id}/deposit-settings", s.auth(http.HandlerFunc(s.handleDepositSettings)))
 	mux.Handle("GET /api/v1/engine/roles", s.auth(http.HandlerFunc(s.handleEngineRoles)))
 	mux.Handle("GET /api/v1/charts/templates", s.auth(http.HandlerFunc(s.handleChartTemplates)))
 	mux.Handle("POST /api/v1/import", s.auth(http.HandlerFunc(s.handleImport)))
@@ -113,6 +116,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/reports/expenses", s.auth(http.HandlerFunc(s.handleReportsExpenses)))
 	mux.Handle("GET /api/v1/reports/journal", s.auth(http.HandlerFunc(s.handleReportsJournal)))
 	mux.Handle("GET /api/v1/reports/discrepancies", s.auth(http.HandlerFunc(s.handleReportsDiscrepancies)))
+	mux.Handle("GET /api/v1/reports/credit-summary", s.auth(http.HandlerFunc(s.handleReportsCreditSummary)))
+	mux.Handle("GET /api/v1/reports/deposit-summary", s.auth(http.HandlerFunc(s.handleReportsDepositSummary)))
+	mux.Handle("GET /api/v1/reports/credit-forecast", s.auth(http.HandlerFunc(s.handleReportsCreditForecast)))
 	mux.Handle("POST /api/v1/reconcile", s.auth(http.HandlerFunc(s.handleReconcile)))
 
 	var handler http.Handler = mux

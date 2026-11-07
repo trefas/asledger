@@ -389,6 +389,88 @@ Authorization: Bearer <токен>
 
 Ошибки валидации отдаются конвертом с кодом `ERR_INTEREST_*` и HTTP `422`.
 
+## Настройки кредита и вклада
+
+Настройки привязаны к счёту, но не меняют его тип: кредит остаётся пассивом,
+вклад — активом. Изменения частичные (`PATCH`): отсутствующие поля сохраняют
+текущие значения, а для счёта без настроек действуют значения по умолчанию.
+
+### PATCH /api/v1/accounts/{id}/credit-settings
+
+```json
+{
+  "rate_ppm": 150000,
+  "interest_type": "simple",
+  "repayment_order": "interest_first",
+  "grace_enabled": true,
+  "grace_end_date": "2026-12-31T00:00:00Z"
+}
+```
+
+- `rate_ppm` — ставка в ppm (0…1 000 000, то есть 0…100 %);
+- `interest_type` — `simple` или `on_balance`;
+- `repayment_order` — `interest_first` или `principal_first`;
+- `grace_enabled` и `grace_end_date` — беспроцентный период; при выключении
+  период и дата очищаются.
+
+Счёт должен быть листовым пассивом, иначе `422 ERR_CREDIT_ACCOUNT_INVALID`.
+Остальные ошибки — `ERR_CREDIT_RATE`, `ERR_CREDIT_INTEREST_TYPE`,
+`ERR_CREDIT_REPAYMENT_ORDER`, `ERR_CREDIT_GRACE_DATE`.
+
+Ответ `200` — тот же формат, что у `GET /product-settings`.
+
+### PATCH /api/v1/accounts/{id}/deposit-settings
+
+```json
+{
+  "base_rate_ppm": 100000,
+  "min_balance_kop": 0,
+  "bonus_type": "none",
+  "bonus_rate_ppm": 0,
+  "bonus_amount_kop": 0,
+  "accrual_frequency": "daily",
+  "capitalization": false,
+  "opened_at": "2026-01-01T00:00:00Z",
+  "closed_at": "2026-12-31T00:00:00Z",
+  "steps": [
+    { "from_kop": 0, "to_kop": 500000, "rate_ppm": 50000 },
+    { "from_kop": 500000, "rate_ppm": 100000 }
+  ]
+}
+```
+
+Поле `steps` заменяет все ступени: `[]` удаляет их, отсутствие поля сохраняет
+текущие. `to_kop` у последней ступени можно не указывать — это «до
+бесконечности». Счёт должен быть листовым активом, иначе
+`422 ERR_DEPOSIT_ACCOUNT_INVALID`. Остальные ошибки — `ERR_DEPOSIT_RATE`,
+`ERR_DEPOSIT_MIN_BALANCE`, `ERR_DEPOSIT_BONUS`, `ERR_DEPOSIT_FREQUENCY`,
+`ERR_DEPOSIT_DATES`, `ERR_DEPOSIT_STEPS`.
+
+### GET /api/v1/accounts/{id}/product-settings
+
+Возвращает тип продукта и его настройки:
+
+```json
+{
+  "account_id": 7,
+  "path": "Обязательства:Кредит",
+  "product": "credit",
+  "settings": {
+    "account_id": 7,
+    "rate_ppm": 150000,
+    "interest_type": "simple",
+    "repayment_order": "interest_first",
+    "grace_enabled": false,
+    "created_at": "2026-10-01T10:00:00Z",
+    "updated_at": "2026-10-01T10:00:00Z"
+  }
+}
+```
+
+Для вклада `product` равен `deposit`, а `settings` содержит поля вклада и
+ступени. Если настройки ещё не заданы, `settings` равен `null`. Для счёта не
+типа «пассив» или «актив» возвращается `422 ERR_PRODUCT_ACCOUNT_INVALID`.
+
 ## Списки покупок
 
 Списки покупок — вспомогательные сущности книги (эпик #165). Они хранятся в
@@ -538,6 +620,9 @@ Authorization: Bearer <токен>
 | `GET /api/v1/reports/expenses` | расходы по членам семьи за период |
 | `GET /api/v1/reports/journal` | журнал проводок с фильтрами и страницами |
 | `GET /api/v1/reports/discrepancies` | расхождения по счетам (последняя сверка) |
+| `GET /api/v1/reports/credit-summary` | долг, проценты и предстоящие начисления по кредитам |
+| `GET /api/v1/reports/deposit-summary` | остаток, проценты и предстоящие начисления по вкладам |
+| `GET /api/v1/reports/credit-forecast` | прогноз изменения долга и процентов после платежа |
 | `POST /api/v1/reconcile` | сверка счёта и генерация корректировки |
 
 **Остатки** (`balances`): параметры `include_archived`, `include_empty`. Ответ —
@@ -564,6 +649,32 @@ Authorization: Bearer <токен>
 **Расхождения** (`discrepancies`): последняя сверка по каждому счёту. Расхождение
 считается от текущего остатка, поэтому после корректировки равно нулю. В ответе —
 факт, текущий остаток, расхождение и признак `adjustable`.
+
+**Сводка по кредитам** (`credit-summary`): параметры `account_id` (необязательный),
+`as_of` (ГГГГ-ММ-ДД, по умолчанию сегодня) и `horizon_days` (1…366, по умолчанию
+30). Для каждого кредитного счёта возвращаются `debt_kop` — остаток тела долга,
+`accrued_interest_kop` — начисленные и ещё не погашенные проценты,
+`total_debt_kop`, `in_grace`, условия кредита и `upcoming` — прогноз предстоящих
+начислений на горизонте. Итоги продублированы на верхнем уровне ответа.
+
+**Сводка по вкладам** (`deposit-summary`): те же параметры. Для каждого вклада
+возвращаются `balance_kop`, `accrued_interest_kop` (проценты и бонусы),
+`total_kop`, условия вклада и `upcoming` — предстоящие начисления. При
+капитализации прогноз учитывает сложный процент.
+
+**Прогноз по кредиту** (`credit-forecast`): обязательны `account_id` и `amount`
+(сумма платежа в копейках), необязательны `date` (ГГГГ-ММ-ДД) и `horizon_days`.
+Ответ показывает разбивку платежа (`principal_kop`, `interest_kop`, `total_kop`),
+состояние до и после (`debt_before_kop`, `accrued_interest_before_kop`,
+`total_debt_before_kop` и аналогичные `*_after_kop`), изменение
+`debt_change_kop`/`interest_change_kop` (отрицательное — долг уменьшился) и
+прогноз предстоящих процентов после платежа.
+
+Если платёж больше долга и процентов, `total_kop` меньше `amount_kop`: лишнее не
+списывается. В беспроцентный период проценты не погашаются, а прогноз начинается
+со дня после его окончания. Ошибки параметров и счёта отдаются с кодами
+`ERR_REQUEST_INVALID`, `ERR_CREDIT_ACCOUNT_INVALID`, `ERR_CREDIT_SETTINGS_MISSING`
+и `ERR_CREDIT_AMOUNT`.
 
 ### POST /api/v1/reconcile
 

@@ -134,6 +134,7 @@
 | `ERR_ENROLL_USER_REQUIRED` | Несколько пользователей, нужен выбор |
 | `ERR_ENROLL_USER_UNKNOWN` | Передан несуществующий `user_id` |
 | `ERR_OP_TYPE_UNKNOWN` | Неизвестный тип операции в `GET /engine/roles` |
+| `ERR_PRODUCT_ACCOUNT_INVALID` | Настройки продукта запрошены для счёта не типа «пассив»/«актив» |
 
 ## Как читать код в клиенте
 
