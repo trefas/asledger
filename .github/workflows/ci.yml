@@ -91,6 +91,10 @@ jobs:
     name: Desktop (Linux, smoke и пакет)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # GitHub Releases периодически отдаёт 504 на служебные архивы
+      # electron-builder; для них используем зеркало npmmirror.
+      ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
     defaults:
       run:
         working-directory: desktop
@@ -153,6 +157,10 @@ jobs:
     name: Desktop (Windows, сборка и пакет)
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      # GitHub Releases периодически отдаёт 504 на служебные архивы
+      # electron-builder; для них используем зеркало npmmirror.
+      ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
     defaults:
       run:
         working-directory: desktop
