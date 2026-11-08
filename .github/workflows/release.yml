@@ -219,7 +219,12 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
 
       - name: Установить зависимости
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: npm ci
+
+      - name: Установить Electron
+        run: node scripts/install-electron.mjs
 
       - name: Синхронизировать версию с тегом
         env:
@@ -285,6 +290,9 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
+          # Используем предустановленный MSYS2 из образа раннера: загрузка
+          # установщика с GitHub Releases периодически отдаёт 504.
+          release: false
           install: mingw-w64-x86_64-gcc
 
       - name: Добавить MinGW в PATH
@@ -292,7 +300,12 @@ jobs:
         run: echo "${{ steps.msys2.outputs.msys2-location }}/mingw64/bin" >> "$GITHUB_PATH"
 
       - name: Установить зависимости
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: npm ci
+
+      - name: Установить Electron
+        run: node scripts/install-electron.mjs
 
       - name: Синхронизировать версию с тегом
         env:
