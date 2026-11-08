@@ -191,3 +191,34 @@ npm run verify:package
 `verify:package` успешно. Ограничение: Windows runtime по-прежнему
 проверяется только в CI; локального Windows/Wine окружения нет.
 Android-клиент не менялся, его JVM-тест остаётся за CI.
+
+### Кредиты и вклады (#166)
+
+Проверки эпика «Кредиты и вклады»:
+
+| Что проверяется | Тест | Результат |
+| --- | --- | --- |
+| Ставки в ppm, округление half-up, переполнение | `pkg/core/interest`, `TestASL_17_Accrue*` | проходит |
+| Grace, порядки погашения, переплата и ошибки кредита | `pkg/core/credit`, `TestASL_17_Credit*`, `TestASL_17_Post*` | проходит |
+| `daily`/`monthly`, ступени, бонусы, капитализация | `pkg/core/interest`, `TestASL_18_Deposit*` | проходит |
+| Снятие с вклада: разбивка, повтор, ошибки | `pkg/core/deposit`, `TestASL_18_DepositWithdrawal*` | проходит |
+| Ручные и периодические начисления, идемпотентность | `pkg/core/accrual`, `TestASL_18_Accrual*` | проходит |
+| Субледжер `interest_accruals` и выплата `paid` | `pkg/core/store/accruals_test.go`, `TestASL_18_*` | проходит |
+| Сводки, прогноз и графики | `pkg/core/report/product_test.go`, `internal/httpui/product_test.go`, `TestASL_18_*Summary`, `TestASL_18_CreditForecast`, `TestASL_19_BarChart` | проходит |
+| Web-формы продуктов и обязательный предпросмотр | `internal/httpui`, `TestASL_19_*`, `TestASL_17_CreditForm`, `TestASL_18_DepositForm` | проходит |
+| Сквозной сценарий: кредит → погашение → прогноз → вклад → начисление → снятие → сводка | `TestASL_16_ProductsE2E` | проходит |
+
+Команды на 2026-11-08 (Linux amd64):
+
+```bash
+make check
+make test-race
+make cover-check
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
+go test ./internal/httpui -run TestASL_16_ProductsE2E -v
+```
+
+Результаты: `make check` и `make test-race` успешно, покрытие 72,1 % при
+пороге 70 %, golangci-lint — 0 замечаний. Android-клиент не менялся, кроме
+версии `1.5.0`/`10500`; новых полей он не требует, `format_version` снапшота
+остаётся `1`. Desktop-код не менялся.

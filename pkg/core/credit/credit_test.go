@@ -361,6 +361,13 @@ func TestASL_17_Post(t *testing.T) {
 	if debt != money.FromKopecks(85_000_00) {
 		t.Fatalf("долг после платежа = %s", debt)
 	}
+	accrued, err := f.db.AccruedInterest(ctx, f.credit.ID, model.InterestAccrualCredit)
+	if err != nil {
+		t.Fatalf("AccruedInterest: %v", err)
+	}
+	if accrued != 0 {
+		t.Fatalf("после погашения остались начисленные проценты: %s", accrued)
+	}
 
 	// Повтор с тем же uuid идемпотентен и возвращает прежнюю проводку.
 	replay, err := f.service.Post(ctx, f.input(money.FromKopecks(20_000_00)))

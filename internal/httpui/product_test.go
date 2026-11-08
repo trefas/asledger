@@ -471,3 +471,165 @@ func TestASL_19_BarChart(t *testing.T) {
 		t.Errorf("подпись не сокращена: %q", long.Bars[0].Label)
 	}
 }
+
+// seedDepositBalance вносит начальный остаток вклада на дату.
+func (w *testWeb) seedDepositBalance(t *testing.T, uuid string, depositID int64,
+	amount money.Kop, date time.Time) {
+	t.Helper()
+	capital, err := w.db.AccountByPath(context.Background(), "Капитал:Начальные")
+	if err != nil {
+		t.Fatalf("AccountByPath(Капитал:Начальные): %v", err)
+	}
+	if _, err := w.db.InsertTransaction(context.Background(), &model.Transaction{
+		UUID:    uuid,
+		OpType:  model.OpInitial,
+		Date:    date,
+		ActorID: w.userID(t),
+		Lines: []model.TransactionLine{
+			{AccountID: depositID, Amount: amount, Side: model.SideDebit},
+			{AccountID: capital.ID, Amount: amount, Side: model.SideCredit},
+		},
+	}); err != nil {
+		t.Fatalf("InsertTransaction(остаток вклада): %v", err)
+	}
+}
+
+// TestASL_16_ProductsE2E проходит сценарий эпика целиком: настроить кредит,
+// погасить его с предпросмотром, настроить вклад, начислить проценты, снять
+// деньги и проверить сводки и прогноз в отчётах.
+func TestASL_16_ProductsE2E(t *testing.T) {
+	w := newTestWeb(t)
+	w.seedUserChart(t)
+	ctx := context.Background()
+
+	creditID := w.accountID(t, "Обязательства:Кредит")
+	walletID := w.accountID(t, "Активы:Наличные")
+	interestID := w.accountID(t, "Расходы:Продукты")
+
+	// 1. Настройка кредита через web-форму.
+	rec := w.postForm(t, "/products/"+strconvID(creditID),
+		creditSettingsForm("15", string(model.CreditInterestSimple),
+			string(model.RepaymentInterestFirst)))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("настройки кредита: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+
+	// 2. Долг и начисленные проценты.
+	w.seedCreditDebt(t, "e2e-debt", creditID, walletID, money.FromKopecks(100_000_00))
+	w.seedCreditAccrual(t, "e2e-accrual", creditID, money.FromKopecks(5_000_00))
+
+	rec = w.get(t, "/reports")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("отчёты до погашения: код %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "105 000,00 ₽") {
+		t.Error("сводка не показывает долг с процентами до погашения")
+	}
+
+	// 3. Предпросмотр и проведение погашения.
+	form := creditFormValues("e2e-repayment", creditID, walletID, interestID, "20 000,00")
+	rec = w.postForm(t, "/credits/preview", form)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("предпросмотр погашения: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"15 000,00 ₽", "5 000,00 ₽"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("предпросмотр погашения не содержит %q", want)
+		}
+	}
+	for key, value := range previewValues(t, body) {
+		form.Set(key, value[0])
+	}
+	rec = w.postForm(t, "/credits/post", form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("проведение погашения: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	if _, err := w.db.TransactionByUUID(ctx, "e2e-repayment"); err != nil {
+		t.Fatalf("проводка погашения не найдена: %v", err)
+	}
+
+	// 4. Прогноз после погашения.
+	query := "/reports?forecast_account=" + strconvID(creditID) +
+		"&forecast_amount=" + url.QueryEscape("10 000,00")
+	rec = w.get(t, query)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("прогноз: код %d", rec.Code)
+	}
+	body = rec.Body.String()
+	if !strings.Contains(body, "85 000,00 ₽") {
+		t.Error("сводка не обновилась после погашения")
+	}
+	if !strings.Contains(body, "75 000,00 ₽") {
+		t.Error("прогноз не показывает долг после платежа")
+	}
+
+	// 5. Настройка вклада и начальный остаток.
+	depositID := w.accountID(t, "Активы:Карта")
+	cardID := w.accountID(t, "Активы:Наличные")
+	incomeID := w.accountID(t, "Доходы:Зарплата")
+	depositForm := depositSettingsForm("15")
+	depositForm.Set("opened_at", depositTestDate().AddDate(0, 0, -2).Format(time.DateOnly))
+	rec = w.postForm(t, "/products/"+strconvID(depositID), depositForm)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("настройки вклада: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	w.seedDepositBalance(t, "e2e-deposit", depositID,
+		money.FromKopecks(100_000_00), depositTestDate().AddDate(0, 0, -2))
+
+	// 6. Начисление процентов за день через web-форму.
+	accrualForm := url.Values{
+		"uuid":               {"e2e-accrual-run"},
+		"mode":               {accrualModePeriod},
+		"account_id":         {strconvID(depositID)},
+		"income_account_id":  {strconvID(incomeID)},
+		"expense_account_id": {strconvID(interestID)},
+		"period_from":        {depositTestDate().AddDate(0, 0, -1).Format(time.DateOnly)},
+		"period_to":          {depositTestDate().Format(time.DateOnly)},
+		"date":               {depositTestDate().Format(time.DateOnly)},
+	}
+	rec = w.postForm(t, "/accruals/preview", accrualForm)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("предпросмотр начисления: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "41,10 ₽") {
+		t.Error("предпросмотр начисления не показывает проценты за день")
+	}
+	rec = w.postForm(t, "/accruals/apply", accrualForm)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("начисление процентов: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+
+	// 7. Предпросмотр и проведение снятия.
+	withdrawal := depositFormValues("e2e-withdrawal", depositID, cardID, incomeID, "20 000,00")
+	rec = w.postForm(t, "/deposits/preview", withdrawal)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("предпросмотр снятия: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+	body = rec.Body.String()
+	for _, want := range []string{"19 958,90 ₽", "41,10 ₽"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("предпросмотр снятия не содержит %q", want)
+		}
+	}
+	for key, value := range previewValues(t, body) {
+		withdrawal.Set(key, value[0])
+	}
+	rec = w.postForm(t, "/deposits/post", withdrawal)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("проведение снятия: код %d, тело %s", rec.Code, rec.Body.String())
+	}
+
+	// 8. Итоговая сводка: тело вклада уменьшилось, проценты погашены.
+	rec = w.get(t, "/reports")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("отчёты после снятия: код %d", rec.Code)
+	}
+	body = rec.Body.String()
+	if !strings.Contains(body, "80 041,10 ₽") {
+		t.Error("сводка по вкладам не показывает остаток после снятия")
+	}
+	if !strings.Contains(body, "Активы:Карта") {
+		t.Error("в сводке нет счёта вклада")
+	}
+}

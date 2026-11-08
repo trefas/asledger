@@ -175,6 +175,13 @@ func (s *Service) Post(ctx context.Context, in RepaymentInput) (*Posted, error) 
 	if err != nil {
 		return nil, err
 	}
+	if preview.Interest > 0 {
+		if _, err := s.db.PayInterestAccruals(ctx, in.AccountID,
+			[]model.InterestAccrualKind{model.InterestAccrualCredit},
+			preview.Interest, tr.ID, preview.Date); err != nil {
+			return nil, err
+		}
+	}
 	return postedFromTransaction(tr, in)
 }
 
