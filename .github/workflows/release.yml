@@ -197,9 +197,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # GitHub Releases периодически отдаёт 504 на служебные архивы
-      # electron-builder; для них используем зеркало npmmirror.
-      ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+      # GitHub Releases периодически отдаёт 502/504 на Electron и служебные
+      # архивы electron-builder; используем зеркало npmmirror.
+      ELECTRON_MIRROR: https://registry.npmmirror.com/-/binary/electron/
+      ELECTRON_BUILDER_BINARIES_MIRROR: https://registry.npmmirror.com/-/binary/electron-builder-binaries/
     defaults:
       run:
         working-directory: desktop
@@ -243,6 +244,9 @@ jobs:
       - name: Проверки
         run: npm run check
 
+      - name: Подготовить инструменты electron-builder
+        run: node scripts/prepare-electron-builder-tools.mjs
+
       - name: Собрать Linux-пакет
         run: npm run package:dist
 
@@ -273,9 +277,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      # GitHub Releases периодически отдаёт 504 на служебные архивы
-      # electron-builder; для них используем зеркало npmmirror.
-      ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+      # GitHub Releases периодически отдаёт 502/504 на Electron и служебные
+      # архивы electron-builder; используем зеркало npmmirror.
+      ELECTRON_MIRROR: https://registry.npmmirror.com/-/binary/electron/
+      ELECTRON_BUILDER_BINARIES_MIRROR: https://registry.npmmirror.com/-/binary/electron-builder-binaries/
     defaults:
       run:
         working-directory: desktop
@@ -327,6 +332,9 @@ jobs:
 
       - name: Проверки
         run: npm run check
+
+      - name: Подготовить инструменты electron-builder
+        run: node scripts/prepare-electron-builder-tools.mjs
 
       - name: Собрать Windows-пакет
         run: npm run package:win

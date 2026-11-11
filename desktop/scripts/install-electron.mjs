@@ -4,8 +4,8 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // Скрипт ставит бинарник Electron после `npm ci` с
-// ELECTRON_SKIP_BINARY_DOWNLOAD=1. Сначала пробуем официальный GitHub,
-// затем — зеркало npmmirror: GitHub отдаёт 504 на release-assets, и без
+// ELECTRON_SKIP_BINARY_DOWNLOAD=1. Сначала пробуем зеркало npmmirror,
+// затем — официальный GitHub: GitHub отдаёт 504 на release-assets, и без
 // запасного источника smoke-тест и упаковка падают.
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const electronDir = join(desktopDir, 'node_modules', 'electron')
@@ -22,13 +22,18 @@ if (!existsSync(installScript)) {
   process.exit(1)
 }
 
+// В CI ELECTRON_MIRROR задан на уровне джобы. Для запасной попытки с GitHub
+// его нужно убрать, иначе она снова пойдёт на зеркало.
+const githubEnv = { ...process.env }
+delete githubEnv.ELECTRON_MIRROR
+
 const attempts = [
-  { name: 'GitHub', env: {} },
-  { name: 'GitHub (повтор)', env: {} },
   {
     name: 'зеркало npmmirror',
-    env: { ELECTRON_MIRROR: 'https://npmmirror.com/mirrors/electron/' },
+    env: { ELECTRON_MIRROR: 'https://registry.npmmirror.com/-/binary/electron/' },
   },
+  { name: 'GitHub', env: githubEnv },
+  { name: 'GitHub (повтор)', env: githubEnv },
 ]
 
 for (const attempt of attempts) {

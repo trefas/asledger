@@ -38,12 +38,13 @@ jobs:
       - name: Сборка команд
         run: make build
 
+      # Ставим GoReleaser из Go-модулей: goreleaser-action скачивает бинарник
+      # с GitHub Releases, который периодически отвечает 502/504.
+      - name: Установить GoReleaser
+        run: go install github.com/goreleaser/goreleaser/v2@v2.20.0
+
       - name: Проверка конфигурации релиза
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: check
+        run: "$(go env GOPATH)/bin/goreleaser check"
 
   test-windows:
     name: Сборка и тесты (Windows)
@@ -92,9 +93,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # GitHub Releases периодически отдаёт 504 на служебные архивы
-      # electron-builder; для них используем зеркало npmmirror.
-      ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+      # GitHub Releases периодически отдаёт 502/504 на Electron и служебные
+      # архивы electron-builder; используем зеркало npmmirror.
+      ELECTRON_MIRROR: https://registry.npmmirror.com/-/binary/electron/
+      ELECTRON_BUILDER_BINARIES_MIRROR: https://registry.npmmirror.com/-/binary/electron-builder-binaries/
     defaults:
       run:
         working-directory: desktop
@@ -134,6 +136,9 @@ jobs:
       - name: Smoke-тест Electron
         run: xvfb-run -a npm run test:e2e
 
+      - name: Подготовить инструменты electron-builder
+        run: node scripts/prepare-electron-builder-tools.mjs
+
       - name: Собрать Linux-пакет
         run: npm run package:dist
 
@@ -158,9 +163,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      # GitHub Releases периодически отдаёт 504 на служебные архивы
-      # electron-builder; для них используем зеркало npmmirror.
-      ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+      # GitHub Releases периодически отдаёт 502/504 на Electron и служебные
+      # архивы electron-builder; используем зеркало npmmirror.
+      ELECTRON_MIRROR: https://registry.npmmirror.com/-/binary/electron/
+      ELECTRON_BUILDER_BINARIES_MIRROR: https://registry.npmmirror.com/-/binary/electron-builder-binaries/
     defaults:
       run:
         working-directory: desktop
@@ -202,6 +208,9 @@ jobs:
 
       - name: Проверки (typecheck, unit-тесты, сборка)
         run: npm run check
+
+      - name: Подготовить инструменты electron-builder
+        run: node scripts/prepare-electron-builder-tools.mjs
 
       - name: Собрать Windows-пакет
         run: npm run package:win
